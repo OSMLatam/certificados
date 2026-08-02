@@ -615,7 +615,7 @@ Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 **Criterios de aceptación:**
 
 1. `GET /badges/issuer.json` por instancia.
-2. BadgeClass se crea/actualiza al configurar evento y roles.
+2. BadgeClass `event_role` se **crea/actualiza al publicar** el evento (`draft` → `active`), una por cada rol en `allowed_roles`. En `draft` no se exponen clases OB públicas.
 3. Imagen del badge configurable por BadgeClass.
 
 Ver [06-open-badges.md](./06-open-badges.md).
@@ -744,10 +744,11 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 **Criterios de aceptación:**
 
-1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código** por correo (TTL corto); al confirmarlo queda el vínculo.
-2. Vista unificada: `/c/` del email + `/b/` de actividad OSM del `osm_id` (+ badges de evento ligados).
-3. Sin vínculo, no se mezclan identidades (evita spoofing).
-4. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
+1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código de un solo uso** por correo (TTL corto, p. ej. 15–30 min); al confirmarlo queda el vínculo.
+2. Ese código es **efímero** (tabla/caché de pendientes de vinculación). **No** es una columna del certificado: el permalink `/c/{slug}` basta para compartir/verificar diplomas.
+3. Vista unificada: `/c/` del email + `/b/` de actividad OSM del `osm_id` (+ badges de evento ligados).
+4. Sin vínculo, no se mezclan identidades (evita spoofing).
+5. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
 
 ---
 

@@ -22,7 +22,7 @@
 │  Controllers → Services → Prisma / Storage / Queue           │
 └───────┬─────────────┬──────────────┬────────────────────────┘
         │             │              │
-   PostgreSQL      MinIO          Redis (BullMQ)
+   PostgreSQL      MinIO          Redis (BullMQ, Fase 3+)
 ```
 
 **Principios:**
@@ -249,7 +249,7 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | Instancia | `INSTANCE`, `PUBLIC_BASE_URL` | 1 |
 | BD | `DATABASE_URL` | 1 |
 | Storage | `STORAGE_*` | 1 |
-| Auth | `SESSION_*`, `OSM_OAUTH_*`, `SEED_ADMIN_OSM_USERNAMES`, `SEED_ADMIN_OSM_IDS` | 1 |
+| Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), `OSM_OAUTH_*`, `SEED_ADMIN_OSM_*` | 1 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX` (opcional) | 1 |
@@ -271,7 +271,7 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | Ruta | Tipo | Comprueba | Uso |
 |------|------|-----------|-----|
 | `GET /health` | Liveness | Proceso vivo | Docker `healthcheck` |
-| `GET /ready` | Readiness | PostgreSQL + MinIO ping | Tráfico / deploy |
+| `GET /ready` | Readiness | PostgreSQL + MinIO ping (+ Redis si Fase 3) | Tráfico / deploy |
 
 Respuesta ejemplo:
 
@@ -293,6 +293,7 @@ Respuesta ejemplo:
 }
 ```
 
+- `redis` en `/ready` solo si el despliegue incluye Fase 3 (BullMQ); en F1/F2 omitir o no exigir.
 - `instance` = despliegue (`INSTANCE`); `software` = producto/código (mismas claves en todas las instancias). Política: [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
 - Si BD caída → `503` en `/ready`, `200` en `/health`.
 
@@ -312,7 +313,7 @@ Respuesta ejemplo:
 | Servicio | Imagen | Puerto |
 |----------|--------|--------|
 | `postgres` | postgres:16-alpine | 5432 |
-| `redis` | redis:7-alpine | 6379 |
+| `redis` | redis:7-alpine | 6379 — **perfil/compose Fase 3** |
 | `minio` | minio/minio | 9000, 9001 |
 | `api` | build `docker/api.Dockerfile` | 3000 |
 | `web` | build `docker/web.Dockerfile` | 5173 (dev) / 80 (prod nginx) |
@@ -391,7 +392,7 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 | Timeout PDF | `PDF_TIMEOUT_MS` (ej. 30s); fallo → 503 + reintento admin, no saturar |
 | Preview admin | Misma cola/semáforo; no lanzar N Chromium en paralelo desde el editor |
 | Jobs masivos | Solo vía BullMQ (admin o cron); chunks pequeños; backoff |
-| Redis | Obligatorio desde Fase 1 si se usa cola de PDF; si no hay cola, semáforo en proceso con el mismo límite |
+| Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; límites PDF en-proceso |
 | Caché HTTP | Permalinks `issued`: `Cache-Control` razonable en estáticos/PDF (CDN o nginx); HTML verify puede ser más corto |
 
 ### 10.5. Checklist para implementación (IA / humano)

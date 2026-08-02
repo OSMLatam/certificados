@@ -131,7 +131,7 @@ Stack **definido** para implementación — detalle en [09-plan-de-implementacio
 | Lenguaje / API | TypeScript, NestJS, Prisma, PostgreSQL 16 |
 | Frontend | React 19, Vite, shadcn/ui, react-konva |
 | PDF | Puppeteer (HTML → PDF) |
-| Jobs / cola | BullMQ + Redis |
+| Jobs / cola | BullMQ + Redis (**Fase 3**) |
 | Archivos | MinIO (S3-compatible, en cada servidor) |
 | Despliegue | Docker Compose en servidor comunitario osm.lat y servidor AC3 |
 

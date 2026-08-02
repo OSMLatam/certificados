@@ -21,7 +21,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | API | **NestJS 11** | Módulos claros, DI, guards, validación |
 | ORM / migraciones | **Prisma 6** + PostgreSQL 16 | Schema declarativo, migraciones reproducibles |
 | Validación | **Zod** (shared) + `class-validator` (API) | Contratos compartidos front/back |
-| Cola de jobs | **BullMQ** + **Redis 7** | Jobs OSM, emisión masiva |
+| Cola de jobs | **BullMQ** + **Redis 7** (**Fase 3**) | Jobs OSM |
 | Almacenamiento archivos | **S3-compatible** (MinIO en dev y **prod en cada servidor**) | PDFs, pregenerados, firmas |
 | PDF | **Puppeteer** (HTML → PDF) | Mismo HTML que preview web |
 | Frontend | **React 19** + **Vite 6** + **TanStack Query** | Admin + páginas públicas |
@@ -31,7 +31,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | Rate limiting | `@nestjs/throttler` | Búsqueda **y** permalinks públicos (Fase 1) |
 | Captcha búsqueda | **Cloudflare Turnstile** (Fase 3) | Anti-abuso adicional; no reemplaza throttle |
 | Email | **Nodemailer** + SMTP | Envío de enlace `/c/`; From dedicado |
-| Contenedores | **Docker Compose** (dev/prod) | API + web + Postgres + Redis + MinIO |
+| Contenedores | **Docker Compose** (dev/prod) | F1: API+web+Postgres+MinIO; Redis desde F3 |
 | CI | **GitHub Actions** | Lint, test, build imagen Docker |
 | Tests API | **Jest** + **Supertest** | Unitarios + integración HTTP |
 | Tests web | **Vitest** + Testing Library | Componentes React |
@@ -81,7 +81,7 @@ certificados/
 ### 1.4. API — prefijo y autenticación
 
 - Base: `/api/v1`
-- Admin: cookie `session` tras OAuth OSM (`GET /api/v1/admin/auth/osm/callback`)
+- Admin: cookie **`cert_session`** (`SESSION_COOKIE_NAME`) tras OAuth OSM (`GET /api/v1/admin/auth/osm/callback`)
 - Público: sin auth; **throttling obligatorio** en `/public/*`, `/c/*` y (Fase 2+) `/b/*` — ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga).
 
 Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).

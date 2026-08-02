@@ -235,7 +235,6 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | issued_at | TIMESTAMPTZ | Primera emisión / activación |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| verification_code | VARCHAR(32) | Código humano opcional |
 | legal_snapshot | JSONB | NULL; copia de `LEGAL_*` al generar PDF (solo AC3, modo `generated`) |
 | badge_assertion_id | UUID FK | NULL; enlace al badge `/b/` |
 | created_at | TIMESTAMPTZ | |
@@ -440,17 +439,18 @@ Trazabilidad de imports externos (actividad OSM).
 
 ## 7. Configuración de instancia
 
-No es tabla en la v1.0; **variables de entorno / archivo por despliegue** (pantalla admin BD: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10)):
+Identidad técnica y marca vía ENV; datos legales AC3 vía **pantalla admin** (bootstrap ENV opcional). Ver [05](./05-personalizacion-multi-instancia.md) y [08](./08-datos-legales-ac3-plantilla.md).
 
-| Clave | osm.lat | AC3 |
-|-------|---------|-----|
-| `PUBLIC_BASE_URL` | https://certificados.osm.lat | https://certificados.ac3.org.co |
-| `INSTANCE_NAME` | Certificados OSM Latam | Certificados AC3 |
-| `LEGAL_ENTITY_NAME` | — | Razón social |
-| `LEGAL_NIT` | — | NIT |
-| `LEGAL_REPRESENTATIVE` | — | Nombre |
-| `LEGAL_SIGNATURE_FILE` | — | storage key |
-| `DEFAULT_COUNTRY_CODE` | — | CO |
+| Clave | Rol | Ejemplo |
+|-------|-----|---------|
+| `INSTANCE` | Id técnico del despliegue | `osm_lat` \| `ac3` |
+| `SITE_NAME` | Nombre visible (marca) | Certificados OSM Latam |
+| `PUBLIC_BASE_URL` | Base única: web, permalinks, OG, links en email | https://certificados.osm.lat |
+| `SITE_LOGO_URL` / `SITE_PRIMARY_COLOR` / … | Branding | — |
+| `LEGAL_*` | Bootstrap opcional AC3; día a día = pantalla admin | — |
+| `DEFAULT_COUNTRY_CODE` | País por defecto formularios | `CO` |
+
+No usar `INSTANCE_NAME` ni `API_PUBLIC_URL` (fusionados en `SITE_NAME` / `PUBLIC_BASE_URL`).
 
 ---
 

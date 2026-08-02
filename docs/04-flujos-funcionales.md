@@ -256,9 +256,9 @@ Admin revoca certificate
 | T1 | Permalink válido certificado generado | PDF correcto, 200 |
 | T2 | Mismo slug segunda visita | Mismo contenido |
 | T3 | Participante 2 roles | 2 slugs distintos en búsqueda |
-| T4 | Evento 1 sede | Formulario sin selector sede |
-| T5 | Evento 3 sedes | Selector visible |
-| T6 | Doc CO CC + número válido | Encuentra certificados |
+| T4 | Evento 1 sede (**admin**/CSV) | Formulario admin sin selector sede; sede inferida |
+| T5 | Evento 3 sedes (**admin**/CSV) | Selector de sede visible en alta admin/CSV |
+| T6 | Doc CO CC + número válido | Encuentra certificados (búsqueda **pública**; sin sede) |
 | T7 | Certificado pregenerado | Sirve archivo original |
 | T8 | Revocado | Permalink sin documento descargable |
 | T9 | AC3 generado | Incluye NIT en PDF |

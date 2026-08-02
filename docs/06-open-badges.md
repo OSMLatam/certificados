@@ -15,7 +15,7 @@ Open Badges es un **pilar del sistema**, al mismo nivel que los certificados PDF
 | Certificado | `/c/{slug}` | PDF / imagen | Eventos, diploma, LinkedIn, AC3 legal |
 | Badge | `/b/{slug}` | Open Badge 3.0 (JSON-LD) | Backpack, logros OSM, complemento de evento |
 
-Un certificado de evento **genera automáticamente** un badge vinculado.  
+Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al publicar el evento; ver HU-9.3).  
 Un badge de actividad OSM **puede existir sin certificado**.
 
 ---

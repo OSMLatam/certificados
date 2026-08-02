@@ -48,8 +48,8 @@ Internet → reverse proxy (Caddy o nginx, TLS)
               → contenedor web (React estático + proxy API)
               → contenedor api (NestJS)
               → PostgreSQL 16
-              → Redis 7 (BullMQ)
               → MinIO (S3 local — PDFs, pregenerados, firmas)
+              → Redis 7 (BullMQ) — **desde Fase 3** (jobs OSM)
 ```
 
 - **No** hay BD compartida ni storage compartido entre osm.lat y AC3.
