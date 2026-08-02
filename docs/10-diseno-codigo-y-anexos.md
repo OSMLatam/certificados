@@ -250,14 +250,15 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | BD | `DATABASE_URL` | 1 |
 | Storage | `STORAGE_*` | 1 |
 | Auth | `SESSION_*`, `OSM_OAUTH_*`, `SEED_ADMIN_OSM_USERNAMES`, `SEED_ADMIN_OSM_IDS` | 1 |
-| Branding | `SITE_NAME`, `SITE_LOGO_URL` | 1 |
+| Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
+| Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX` (opcional) | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS` | 1 |
-| Legal AC3 | `LEGAL_*` | 2 |
+| Legal AC3 | Pantalla admin + bootstrap `LEGAL_*` opcional | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
 | OSM API | `OSM_API_*`, `OVERPASS_*` | 3 |
 | Turnstile | `TURNSTILE_*` | 3 |
-| SMTP | `SMTP_*` | 3 |
+| SMTP | `SMTP_*` (From dedicado) | 3 |
 
 **Validación al arranque:** `apps/api/src/config/env.schema.ts` (Zod) — falla fast si falta `DATABASE_URL`, `SESSION_SECRET` o `OSM_OAUTH_CLIENT_ID` / `OSM_OAUTH_CLIENT_SECRET`.
 
@@ -283,11 +284,17 @@ Respuesta ejemplo:
     "redis": "up"
   },
   "version": "1.0.0",
-  "instance": "osm_lat"
+  "instance": "osm_lat",
+  "software": {
+    "name": "certificados",
+    "version": "1.0.0",
+    "repository": "https://github.com/OSMLatam/certificados"
+  }
 }
 ```
 
-Si BD caída → `503` en `/ready`, `200` en `/health`.
+- `instance` = despliegue (`INSTANCE`); `software` = producto/código (mismas claves en todas las instancias). Política: [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
+- Si BD caída → `503` en `/ready`, `200` en `/health`.
 
 ### Logging
 
@@ -405,12 +412,13 @@ Ejemplos en [`anexos/csv/`](./anexos/csv/):
 
 | Archivo | Uso | Fase |
 |---------|-----|------|
-| [participantes-ejemplo.csv](./anexos/csv/participantes-ejemplo.csv) | Import participantes evento | 1 |
-| [awardees-osm-ejemplo.csv](./anexos/csv/awardees-osm-ejemplo.csv) | Import badges OSM | 3 |
+| [participantes-ejemplo.csv](./anexos/csv/participantes-ejemplo.csv) | Import participantes evento (+ plantilla panel) | 1 |
+| [pregenerados-ejemplo.csv](./anexos/csv/pregenerados-ejemplo.csv) | Import pregenerados sheet+ZIP (+ plantilla panel) | 1 |
+| [awardees-osm-ejemplo.csv](./anexos/csv/awardees-osm-ejemplo.csv) | Import badges OSM (+ plantilla panel) | 3 |
 
 **Delimiter:** `;` (configurable `CSV_DELIMITER`). Encoding: UTF-8 con BOM opcional.
 
-Reglas completas: [03-modelo-de-datos.md §8–9](./03-modelo-de-datos.md).
+Las pantallas de import ofrecen **Descargar plantilla**: sirven estos CSV (o equivalentes por instancia) para completar en Excel/LibreOffice y reimportar. Ver [03 §8–10](./03-modelo-de-datos.md).
 
 ---
 
@@ -430,6 +438,8 @@ Reglas completas: [03-modelo-de-datos.md §8–9](./03-modelo-de-datos.md).
 ## 13. OpenAPI — outline Fase 1
 
 Prefijo: `/api/v1`
+
+`info` debe identificar el **software** (no solo la instancia): `title` alineado con `SOFTWARE_NAME`, `license` MIT, URL del repo en `contact` o `externalDocs`.
 
 ```yaml
 tags:
@@ -453,15 +463,19 @@ paths:
   /admin/events/{id}/venues: GET, POST
   /admin/events/{id}/participants: GET, POST
   /admin/events/{id}/participants/import: POST  # multipart CSV
+  /admin/events/{id}/participants/import/template: GET  # CSV plantilla
   /admin/events/{id}/templates: GET, POST, PATCH
   /admin/events/{id}/certificates: GET, POST
-  /admin/certificates/{id}/pregenerated: POST   # multipart file
+  /admin/certificates/{id}/pregenerated: POST   # multipart file (1:1)
+  /admin/events/{id}/pregenerated/import: POST  # Pattypan: sheet + ZIP
+  /admin/events/{id}/pregenerated/import/template: GET  # CSV plantilla
+  /admin/instance/legal:        GET, PATCH      # AC3 admin only; F2
   /public/search:           POST
-  /public/certificates/{slug}: GET              # metadata + issue trigger
+  /public/certificates/{slug}: GET              # metadata + lazy issue
 ```
 
 Fase 2+: `/public/badges/...`, `/badges/issuer.json`, verify JSON.  
-Fase 3+: `/public/badges/osm`, `/admin/badges/import`.
+Fase 3+: `/public/badges/osm`, `/admin/badges/import`, `/admin/badges/import/template`.
 
 ---
 

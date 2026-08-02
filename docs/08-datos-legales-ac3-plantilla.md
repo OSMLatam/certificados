@@ -39,13 +39,14 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 
 | Dónde | Quién | Qué |
 |-------|-------|-----|
-| **Config de instancia AC3** | Admin de plataforma / deploy | Razón social, NIT, representante, ruta firma **vigentes** |
+| **Pantalla admin AC3** | Rol `admin` | Razón social, NIT, representante, upload firma |
+| **ENV (bootstrap)** | Deploy | Valores iniciales opcionales del primer arranque |
 | **No** en cada evento | — | Los eventos nuevos usan la config del momento de emisión |
 | **No** en cada participante | — | Son datos de la entidad, no de la persona |
 
-Equivalente a variables de entorno documentadas en [05-personalizacion-multi-instancia.md](./05-personalizacion-multi-instancia.md#32-datos-legales-ac3-config-de-instancia--no-plantilla).
+Equivalente documentado en [05-personalizacion-multi-instancia.md](./05-personalizacion-multi-instancia.md).
 
-**v1.0:** solo ENV / archivo de despliegue. Pantalla admin “Datos institucionales AC3” en BD: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) (sigue siendo **una fila por instancia**, no por evento).
+**v1.0:** edición día a día vía **pantalla admin**; ENV solo como semilla de despliegue.
 
 ### 2.2. Snapshot al emitir (decisión cerrada)
 

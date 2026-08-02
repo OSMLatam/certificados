@@ -39,9 +39,10 @@ Un badge de actividad OSM **puede existir sin certificado**.
 | Fuente | Criterio externo o regla OSM |
 | PDF | **No** |
 | Badge | Sí, solo `/b/{slug}` |
-| Ejemplos | 100 changesets, 100 notas resueltas, cuenta creada |
-| Instancia principal | **osm.lat** |
-| Identidad | `osm_id` (+ `osm_username` actualizable) |
+| Ejemplos | Ver catálogo §5.1 (antigüedad, changesets, trazas, …) |
+| Instancia | **Solo osm.lat** (AC3 no emite actividad OSM; HOT/TM = instancia futura) |
+| Identidad | `osm_id` (+ `osm_username` actualizable); sin cédula ni email en el badge |
+| Descubrimiento | Público por osm_id / username |
 
 **Criterios externos — modos de emisión:**
 
@@ -54,7 +55,17 @@ flowchart LR
     M2 --> A
 ```
 
-> **v1.0:** modos M1 (import CSV) y M2 (job Overpass). Webhook (servicio externo): [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+> **v1.0 / Fase 3:** import CSV (M1) y job (M2) solo en **osm.lat**. Webhook: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+
+---
+
+## 2.3. Recipient (identidad OB)
+
+- Assertion usa **hash de email + salt** (estilo Open Badges 2 / portable a backpacks).
+- Email siempre disponible: es obligatorio en participantes (osm.lat y AC3).
+- Badges `osm_activity` se asocian a `osm_id`; el recipient hasheado aplica cuando hay email vinculado o se usa identidad OSM según implementación F3 (detalle en assertion JSON).
+
+**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion. **Sin** API `/api/v1/verify/...` en v1.0.
 
 ---
 
@@ -117,17 +128,38 @@ flowchart LR
 }
 ```
 
-### Actividad OSM
+### Actividad OSM — catálogo inicial Fase 3 (§5.1)
+
+Escalas acumulativas (un assertion por BadgeClass al cruzar umbral). Alineación changesets con tramos tipo HDYC en el extremo alto.
+
+| Familia | metric | Umbrales (value) | Esfuerzo job |
+|---------|--------|------------------|--------------|
+| Antigüedad cuenta | `account_age_years` | 1, 5, 10, 20 | Bajo (API user) |
+| Changesets | `changesets_count` | 25, 100, 1000, 10000, 25000, 75000, 100000 | Bajo |
+| Trazas GPX | `traces_count` | 1, 10, 100, 1000, 5000 | Bajo |
+| Días mapeando | `mapping_days` | 7, 30, 100, 365, 1000, 2000 | Medio |
+| Diarios | `diary_entries` | 1, 5, 20, 100 | Alto / CSV hasta fuente estable |
+| Amigos | `friends_count` | 1, 10, 50 | Alto / CSV |
+| Notas abiertas | `notes_opened` | 1, 10, 100, 1000, 5000 | Alto / CSV |
+| Notas cerradas | `notes_closed` | 1, 10, 100, 1000, 5000 | Alto / CSV |
+
+Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
+
+**Must job F3 (API user):** antigüedad, changesets, trazas.  
+**Should:** mapping_days.  
+**CSV o evolución:** diarios, amigos, notas.
+
+### Actividad OSM (ejemplo JSON)
 
 ```json
 {
   "type": "osm_activity",
-  "code": "osm-100-changesets",
+  "code": "osm-changesets-100",
   "name": "100 changesets en OpenStreetMap",
   "description": "Ha realizado al menos 100 changesets.",
   "criteria_narrative": "Conteo verificado vía API OSM.",
   "criteria_rule": {
-    "metric": "changeset_count",
+    "metric": "changesets_count",
     "operator": ">=",
     "value": 100
   },
@@ -141,13 +173,14 @@ flowchart LR
 
 | Ruta | Descripción |
 |------|-------------|
-| `GET /b/{slug}` | Página pública badge + verify + botón backpack |
+| `GET /b/{slug}` | Página pública badge + JSON-LD + backpack |
 | `GET /badges/issuer.json` | Issuer OB |
 | `GET /badges/classes/{id}.json` | BadgeClass |
 | `GET /badges/assertions/{uuid}.json` | Assertion JSON-LD |
-| `GET /api/v1/badges/verify/{slug}` | Verificación JSON |
-| `POST /api/v1/admin/badges/import` | Import awardees CSV |
+| `POST /api/v1/admin/badges/import` | Import awardees CSV (osm.lat) |
 | `POST /api/v1/admin/badges/sync/{class_id}` | Ejecutar reglas OSM |
+
+> Verificación máquina tipo `/api/v1/verify/...`: fuera de v1.0 (páginas `/c/` y `/b/` bastan).
 
 ---
 

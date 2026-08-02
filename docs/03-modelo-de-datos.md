@@ -85,10 +85,13 @@ Otros países se añaden por **datos de configuración**, no cambios de código.
 | status | ENUM | `draft`, `active` |
 | pregenerated_only | BOOLEAN | Solo certificados pregenerados (sin plantilla dinámica) |
 | default_template_id | UUID FK | Plantilla por defecto |
+| created_by | UUID FK | `admin_users.id` del creador (soft-delete) |
+| deleted_at | TIMESTAMPTZ | NULL = visible; soft-delete |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
-**Regla UX:** si `venues` count = 1, la sede se infiere en consulta pública.
+**Regla UX:** si `venues` count = 1, la sede se infiere en consulta pública.  
+**Soft-delete:** excluir de listados/búsqueda si `deleted_at` no es NULL. Restore = limpiar `deleted_at` (admin/SQL).
 
 ---
 
@@ -116,18 +119,19 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 | id | UUID PK | |
 | event_id | UUID FK | |
 | venue_id | UUID FK | NULL si no aplica |
-| full_name | VARCHAR(255) | |
-| email | VARCHAR(255) | NULL si solo documento |
-| country_code | CHAR(2) | País del documento |
-| doc_type_code | VARCHAR(10) | NULL si solo correo |
-| doc_number | VARCHAR(100) | NULL si solo correo |
+| full_name | VARCHAR(255) | Obligatorio (sale en el certificado) |
+| email | VARCHAR(255) | Obligatorio (osm.lat y AC3) |
+| country_code | CHAR(2) | País del documento (obligatorio en AC3) |
+| doc_type_code | VARCHAR(10) | Obligatorio en AC3; opcional en osm.lat |
+| doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat |
 | activity_title | TEXT | Charla/taller (opcional) |
 | created_at | TIMESTAMPTZ | |
 
-**Constraints:**
+**Reglas por instancia:**
 
-- Al menos `email` OR (`doc_type_code` + `doc_number`).
-- UNIQUE `(event_id, email, doc_type_code, doc_number)` con lógica parcial según campos presentes.
+- **osm.lat:** `full_name` + `email` obligatorios; documento opcional.
+- **AC3:** `full_name` + `email` + `country_code` + `doc_type_code` + `doc_number` obligatorios.
+- UNIQUE parcial por evento + email (y doc si aplica).
 
 > **Nota:** los **roles** no van aquí; van en `certificates`.
 
@@ -452,6 +456,8 @@ No es tabla en la v1.0; **variables de entorno / archivo por despliegue** (panta
 
 ## 8. Formato CSV — participantes evento
 
+**Plantilla en panel:** `GET` de descarga (CSV UTF-8) con los mismos encabezados; el editor la abre en Excel/LibreOffice, completa y sube.
+
 Ejemplo: [anexos/csv/participantes-ejemplo.csv](./anexos/csv/participantes-ejemplo.csv).
 
 ```csv
@@ -474,6 +480,8 @@ Carlos López;;CO;CE;987654;ponente;Mapping con OpenStreetMap;VIR
 
 ## 9. Formato CSV — awardees badge OSM
 
+**Plantilla en panel:** descarga CSV de ejemplo (mismo formato).
+
 Ejemplo: [anexos/csv/awardees-osm-ejemplo.csv](./anexos/csv/awardees-osm-ejemplo.csv).
 
 ```csv
@@ -493,14 +501,24 @@ osm_id;osm_username;earned_at;evidence_url
 
 ## 10. Carga de certificados pregenerados
 
-### Individual
+Flujo **estilo Pattypan** (Must):
 
-- Subir archivo + metadatos (participante, rol, evento).
+1. El editor **descarga la plantilla** CSV desde el panel (encabezados + filas de ejemplo; abre en Excel/LibreOffice).
+2. Completa la hoja: columnas mínimas `filename`, `full_name`, `email`, `role` (+ doc en AC3). `filename` debe coincidir exactamente con un archivo del ZIP.
+3. Sube hoja CSV/ODS + ZIP (o carpeta empaquetada) con los archivos.
+4. Validar **todo el lote**; si hay error → no escribir nada; devolver informe.
+5. Imports **incrementales** al mismo evento; rechazar filas que dupliquen certificado ya existente.
+6. Upload 1:1 sigue disponible para correcciones.
 
-### Masiva (Should)
+**Fuera de v1.0:** herramienta de escritorio que lea una carpeta local y prellene `filename` (estilo Pattypan completo).
 
-- ZIP de imágenes + CSV de mapeo: `filename, full_name, doc_type, doc_number, role`
-- O convención: `{doc_number}_{role}.png`
+Ejemplo de hoja: [anexos/csv/pregenerados-ejemplo.csv](./anexos/csv/pregenerados-ejemplo.csv).
+
+```csv
+filename;full_name;email;country_code;doc_type;doc_number;role
+cert-ana-asistente.pdf;Ana García;ana@mail.com;CO;CC;1234567890;asistente
+cert-carlos-ponente.pdf;Carlos López;;CO;CE;987654321;ponente
+```
 
 ---
 

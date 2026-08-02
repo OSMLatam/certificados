@@ -27,7 +27,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | [02 — Historias de usuario](./02-historias-de-usuario.md) | Historias con criterios de aceptación |
 | [03 — Modelo de datos](./03-modelo-de-datos.md) | Esquema BD, CSV, identidad OSM |
 | [04 — Flujos funcionales](./04-flujos-funcionales.md) | Permalinks, búsqueda, emisión |
-| [05 — Multi-instancia](./05-personalizacion-multi-instancia.md) | Config osm.lat / AC3, despliegue |
+| [05 — Multi-instancia](./05-personalizacion-multi-instancia.md) | Config osm.lat / AC3, despliegue, **atribución del software (§10)** |
 | [06 — Open Badges](./06-open-badges.md) | Issuer, event_role, osm_activity |
 | [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md) | pending / issued / revoked |
 | [08 — Datos legales AC3](./08-datos-legales-ac3-plantilla.md) | Config instancia + capas `legal.*` |
@@ -49,6 +49,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Identidad OSM | `osm_id` inmutable + username actualizable |
 | Datos legales AC3 | Config instancia + capas en plantilla |
 | Anti-abuso / carga | Rate limit búsqueda+permalinks, PDF sin regenerar, `robots.txt` ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
+| Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 
 ---
 

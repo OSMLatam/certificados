@@ -56,7 +56,7 @@ Cada instancia tiene BD, administradores y branding propios, desplegada en **su 
 1. Emitir y consultar certificados con permalink verificable.
 2. Gestionar eventos, sedes, participantes, roles y plantillas visuales.
 3. Varios roles por persona → varios certificados.
-4. Importar certificados pregenerados y participantes vía CSV.
+4. Importar certificados pregenerados y participantes vía CSV (con **plantilla descargable** desde el panel).
 5. Búsqueda unificada por identificación del titular (sin filtrar año/evento).
 
 ### Open Badges
@@ -148,8 +148,8 @@ Incluye:
 - Permalinks `/c/` y `/b/`, verificación, revocación.
 - Issuer OB, badges de evento automáticos, badges OSM (**solo osm.lat**).
 - Import CSV de awardees OSM y jobs Overpass con reglas documentadas.
-- Identificación CC/CE/TI, búsqueda por titular, datos legales AC3 vía ENV + capas en plantilla.
-- Open Graph LinkedIn, envío opcional por email.
+- Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
+- Open Graph LinkedIn.
 - Imagen de badge: upload PNG/SVG por BadgeClass (sin biblioteca de plantillas).
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
 
@@ -164,14 +164,20 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Capacidad | Notas | Detalle en |
 |-----------|-------|------------|
 | Firma criptográfica Open Badges v3 | Claves por instancia; en v1.0 `public_key` queda NULL | [06](./06-open-badges.md), [03](./03-modelo-de-datos.md) |
+| API verify JSON `/api/v1/verify/...` | v1.0 = solo páginas `/c/` y `/b/` | [06](./06-open-badges.md) |
 | API pública para terceros emisores de listas | Integraciones externas de elegibles | — |
-| Webhook de criterios externos | Tercer modo además de CSV (M1) y Overpass (M2) | [06](./06-open-badges.md) |
+| Webhook de criterios externos | Tercer modo además de CSV (M1) y job (M2) | [06](./06-open-badges.md) |
 | Plantillas reutilizables de imagen badge | Biblioteca en admin; v1.0 = upload por BadgeClass | [06](./06-open-badges.md) |
-| Reglas OSM ampliadas | Métricas y umbrales adicionales a los de v1.0 | [06](./06-open-badges.md) |
-| Badges de actividad OSM en AC3 | Solo si se define explícitamente; v1.0 = solo osm.lat | [02](./02-historias-de-usuario.md) épica 10 |
-| Pantalla admin BD para datos legales AC3 | Alternativa a solo ENV; una fila por instancia | [08](./08-datos-legales-ac3-plantilla.md) |
-| Retención de PDFs en storage | Política de X años (configurable) para aligerar MinIO; permalink/metadatos pueden seguir verificables | — |
-| Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS; sin cambio de núcleo | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
+| Reglas OSM ampliadas | Métricas adicionales al catálogo F3 | [06](./06-open-badges.md) |
+| Instancia HOT / Tasking Manager | Badges por campañas TM (otro issuer) | — |
+| Privacidad configurable por usuario | Opt-in badges/diplomas públicos | [02](./02-historias-de-usuario.md) |
+| Confirmación 2 editores para borrar eventos antiguos | Anti-compromiso de cuenta | [02](./02-historias-de-usuario.md) RBAC |
+| Emisión forzada/masiva de certificados | v1.0 = solo lazy | [07](./07-estados-y-ciclo-de-vida.md) |
+| Helper local tipo Pattypan | Leer carpeta y prellenar `filename` en la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
+| Newsletter / Listmonk | Lista con alta explícita; no reutilizar emails de certificados a ciegas | Manual ops |
+| Retención de PDFs en storage | Política de X años (configurable) | — |
+| Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
+| Otros OAuth (no OSM) para panel | v1.0 = solo OAuth OSM | [02](./02-historias-de-usuario.md) HU-7.1 |
 
 ---
 

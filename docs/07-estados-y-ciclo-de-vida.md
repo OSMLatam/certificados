@@ -12,8 +12,8 @@ Este documento responde qué estados existen en el sistema y cómo transicionan.
 | Entidad | Campo | Valores | ¿Quién cambia? |
 |---------|-------|---------|----------------|
 | **Evento** | `status` | `draft`, `active` | Admin/editor |
-| **Certificado** | `status` | `pending`, `issued`, `revoked` | Sistema / admin |
-| **Badge (assertion)** | `status` | `pending`, `issued`, `revoked` | Sistema / admin |
+| **Certificado** | `status` | `pending`, `issued`, `revoked` | Sistema (lazy) / editor·admin (revoke) |
+| **Badge (assertion)** | `status` | `pending`, `issued`, `revoked` | Sistema / editor·admin |
 | **Participante** | — | Sin estado propio | — |
 
 No existe un estado global del “participante”; el ciclo vive en cada **certificado** y cada **badge**.
@@ -45,10 +45,10 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> pending: Admin registra participante + rol
-    pending --> issued: Primera consulta exitosa /c/slug\n o activación admin
-    issued --> revoked: Admin revoca
+    pending --> issued: Primera consulta exitosa /c/slug
+    issued --> revoked: Editor o admin revoca
     revoked --> [*]
-    pending --> revoked: Admin revoca antes de emisión
+    pending --> revoked: Editor o admin revoca antes de emisión
 ```
 
 | Estado | Permalink `/c/{slug}` | Descarga PDF | Visible en búsqueda por identidad |
@@ -59,12 +59,11 @@ stateDiagram-v2
 
 ### Política de emisión (definida)
 
-1. **Alta admin (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado).
-2. **Activación a `issued`:**
-   - **Automática:** primera visita exitosa del titular al permalink o resultado en búsqueda por identidad que abre/descarga el certificado.
-   - **Manual (admin):** acción “Activar emisión” masiva o individual (útil pregenerados).
+1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado).
+2. **Activación a `issued` (solo lazy):** primera visita exitosa del titular al permalink `/c/{slug}` o descarga desde búsqueda por identidad. **No** hay emisión forzada/masiva en v1.0.
 3. **`issued_at`:** timestamp del paso a `issued`.
-4. **Revocación:** solo admin; motivo opcional en `revoke_reason`.
+4. **Revocación:** editor o admin; motivo opcional en `revoke_reason` (Must desde Fase 2).
+5. **PDF:** inmutable tras `issued`. Restore operativo = backup pareado BD + MinIO (manual de operación).
 
 ### Badge vinculado (Fase 2+)
 

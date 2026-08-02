@@ -16,9 +16,9 @@
 
 | Rol | Descripción |
 |-----|-------------|
-| **Participante** | Persona con certificado(s); no requiere cuenta |
-| **Editor** | Administra eventos, participantes y plantillas |
-| **Admin** | Todo lo anterior + gestión de usuarios del panel (HU-7.4) |
+| **Participante** | Persona con certificado(s); no requiere cuenta en el panel |
+| **Editor** | Opera la instancia: eventos, participantes, plantillas, certificados, badges (según instancia), envío de enlaces |
+| **Admin** | **Hereda** todo lo de editor + gestión de usuarios del panel (HU-7.4) + audit log |
 | **Verificador externo** | Cualquiera con el permalink (LinkedIn, empleador) |
 
 **Roles de participación en eventos** (no confundir con roles del sistema):  
@@ -26,7 +26,44 @@
 
 Un participante puede tener **varios** de estos roles en el **mismo evento**; cada uno genera un certificado (`/c/`) y un **badge de evento** (`/b/`) vinculado.
 
-**Mapper OSM** (sin evento): badges de actividad identificados por **`osm_id`** (inmutable); `osm_username` es solo nombre de visualización actual.
+**Mapper OSM** (sin evento): badges de actividad identificados por **`osm_id`** (inmutable); `osm_username` es solo nombre de visualización actual. Solo instancia **osm.lat**.
+
+### Matriz RBAC (panel)
+
+| Acción | Editor | Admin |
+|--------|--------|-------|
+| Eventos, sedes, participantes, plantillas, CSV, pregenerados | Sí | Sí (hereda) |
+| Soft-delete evento | Solo si es **creador** del evento | Sí |
+| Revocar certificado / badge | Sí | Sí |
+| Badges actividad OSM (osm.lat) | Sí | Sí |
+| Enviar email con link de certificado | Sí | Sí |
+| Config legal AC3 (pantalla instancia) | No | Sí |
+| Dashboard (conteos) | Sí | Sí |
+| Audit log | No | Sí |
+| Gestión usuarios (`admin`/`editor`) | No | Sí |
+
+**Soft-delete:** el evento deja de listarse (`deleted_at`); restore vía admin/SQL. **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
+
+**Emisión de certificados:** solo **lazy** (primera visita exitosa a `/c/{slug}` o descarga desde búsqueda). No hay emisión forzada/masiva en v1.0.
+
+### Privacidad pública (reglas fijas v1.0)
+
+| Recurso | Descubrimiento | Acceso |
+|---------|----------------|--------|
+| Badge actividad OSM | Público por `osm_id` / username | `/b/{slug}`, búsqueda OSM |
+| Badge de evento | No por username | `/b/{slug}` si se conoce el slug |
+| Certificado | No listado público | Permalink `/c/{slug}` o búsqueda por email/documento |
+
+Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+
+### Datos mínimos del participante
+
+| Instancia | Obligatorio |
+|-----------|-------------|
+| **osm.lat** | `full_name` + `email` (documento opcional) |
+| **AC3** | `full_name` + `email` + país + tipo + número de documento |
+
+Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **manual de usuario**.
 
 ---
 
@@ -256,7 +293,10 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 1. Modo de certificado: `generado` | `pregenerado`.
 2. En modo pregenerado, se almacena el archivo subido y se expone permalink.
 3. El permalink sirve el archivo almacenado (sin re-renderizar desde plantilla).
-4. Carga individual y masiva (zip con convención de nombres o CSV + carpeta).
+4. **Carga individual** (un archivo por certificado) para correcciones puntuales.
+5. **Carga masiva estilo Pattypan:** hoja (CSV/ODS) + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes.
+6. **Plantilla descargable** desde el panel (CSV UTF-8, abre en Excel/LibreOffice): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin app de escritorio tipo Pattypan en v1.0.
+7. La edición masiva de metadatos se hace en LibreOffice/Excel; el panel solo ofrece la plantilla, valida e importa.
 
 ---
 
@@ -367,11 +407,12 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 **Criterios de aceptación:**
 
-1. Nombre obligatorio; correo y/o documento (tipo+número).
+1. Datos mínimos según instancia (ver tabla al inicio): osm.lat → nombre + email; AC3 → nombre + email + identificación.
 2. Selección múltiple de roles.
 3. Campo actividad/charla opcional (ponente, tallerista).
 4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado.
 5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)).
+6. Opcional: enviar email con **solo el enlace** `/c/{slug}` (From dedicado de la instancia; ver manual de operación).
 
 **Estados y flujo:** ver documento [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md).
 
@@ -390,9 +431,10 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 **Criterios de aceptación:**
 
 1. UTF-8; delimitador configurable (`,` o `;`).
-2. Columnas mínimas: nombre, rol, identificador (correo o tipo_doc + número).
-3. Múltiples filas con mismo identificador y distinto rol → múltiples certificados.
-4. Informe de filas OK / error al finalizar.
+2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
+3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados.
+4. Informe de filas OK / error al finalizar. Import incremental permitido.
+5. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta.
 
 ---
 
@@ -421,9 +463,9 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 ### HU-7.2 — Dashboard y auditoría
 
-**Como** admin,  
-**quiero** ver métricas y logs de acciones,  
-**para** supervisar uso y cambios.
+**Como** editor o admin,  
+**quiero** ver métricas de uso; y como admin el log de acciones,  
+**para** supervisar la instancia.
 
 | Campo | Valor |
 |-------|-------|
@@ -431,25 +473,27 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 **Criterios de aceptación:**
 
-1. Contadores: eventos activos, certificados emitidos, consultas a permalinks.
-2. Log: quién, cuándo, qué acción, sobre qué entidad.
+1. **Dashboard (editor y admin):** contadores — eventos activos, certificados emitidos, consultas a permalinks (ampliable en F2/F3).
+2. **Audit log (solo admin):** quién, cuándo, qué acción, sobre qué entidad (incl. asignación de roles).
 
 ---
 
 ### HU-7.3 — Revocar certificado
 
-**Como** admin,  
+**Como** editor o admin,  
 **quiero** revocar un certificado emitido por error,  
 **para** que su permalink deje de ser válido.
 
 | Campo | Valor |
 |-------|-------|
-| Prioridad | Should |
+| Prioridad | Must |
 
 **Criterios de aceptación:**
 
-1. Estado `revocado` en el registro del certificado.
-2. Permalink muestra revocación; API de verificación refleja el estado.
+1. Estado `revoked` en el certificado; motivo opcional.
+2. Permalink `/c/` muestra revocación (sin descarga del PDF válido).
+3. Si hay badge de evento vinculado, pasa a `revoked`.
+4. Disponible desde Fase 2 (con Open Badges); coherente con la matriz RBAC.
 
 ---
 
@@ -489,7 +533,10 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 **Criterios de aceptación:**
 
 1. Configuración por variables de entorno o archivo por despliegue.
-2. Sin valores de marca hardcodeados en el código.
+2. Sin valores de marca hardcodeados en el código (`SITE_NAME`, logo, colores, `SITE_FOOTER_TEXT`).
+3. Crédito de **software** separado del branding de instancia (`SOFTWARE_*`): footer / búsqueda / pie de permalinks y página `/about` según [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
+4. El crédito enlaza al **repositorio** GitHub, no a la URL de otra instancia.
+5. PDF e Issuer/Assertion Open Badges **no** incluyen atribución de software.
 
 ---
 
@@ -506,10 +553,11 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 **Criterios de aceptación:**
 
-1. Parámetros: `LEGAL_ENTITY_NAME`, `LEGAL_NIT`, `LEGAL_REPRESENTATIVE`, `LEGAL_SIGNATURE_FILE` vía ENV / archivo de despliegue (pantalla admin BD: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10)).
-2. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
-3. osm.lat: parámetros ausentes; capas `legal.*` no disponibles.
-4. Verify `/c/` e Issuer Open Badges pueden **leer** los mismos valores (uso secundario).
+1. Pantalla **admin** de instancia para editar: razón social, NIT, representante, imagen de firma (upload a storage). Sin depender de paths en archivo de propiedades para el día a día.
+2. Valores también legibles al arranque desde ENV como bootstrap opcional del primer deploy.
+3. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
+4. osm.lat: pantalla/legal ausentes; capas `legal.*` no disponibles.
+5. Página `/c/` e Issuer Open Badges pueden **leer** los mismos valores (uso secundario).
 
 Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
@@ -580,7 +628,7 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 ### HU-10.1 — Definir badge de actividad OSM
 
-**Como** admin osm.lat,  
+**Como** editor osm.lat,  
 **quiero** crear un badge para un logro OSM (ej. 100 changesets),  
 **para** reconocer actividad en la plataforma sin diploma PDF.
 
@@ -592,15 +640,16 @@ Ver [06-open-badges.md](./06-open-badges.md).
 **Criterios de aceptación:**
 
 1. BadgeClass tipo `osm_activity` con nombre, descripción, imagen, criterios narrativos.
-2. Opcional: regla estructurada (`metric`, `operator`, `value`) para automatización.
-3. Sin certificado PDF asociado.
+2. Opcional: regla estructurada (`metric`, `operator`, `value`) para automatización (catálogo en [06-open-badges.md](./06-open-badges.md)).
+3. Sin certificado PDF asociado; sin datos personales (solo identidad OSM).
+4. AC3 **no** ofrece esta familia (solo eventos propios). HOT / Tasking Manager = otra instancia futura.
 
 ---
 
 ### HU-10.2 — Importar awardees desde lista externa
 
-**Como** admin,  
-**quiero** subir un CSV de usuarios OSM que ya cumplieron un criterio calculado fuera del sistema,  
+**Como** editor osm.lat,  
+**quiero** subir un CSV de usuarios OSM que ya cumplieron un criterio,  
 **para** emitir badges masivamente.
 
 | Campo | Valor |
@@ -614,12 +663,13 @@ Ver [06-open-badges.md](./06-open-badges.md).
 2. Si fila trae solo username, resolver `osm_id` vía API OSM antes de emitir.
 3. Idempotente: no duplicar assertion para mismo **osm_id** + BadgeClass.
 4. Informe de filas emitidas / ya existentes / error.
+5. Botón **Descargar plantilla** (CSV de ejemplo) en la pantalla de import.
 
 ---
 
 ### HU-10.3 — Sincronizar badges vía reglas OSM (job)
 
-**Como** admin,  
+**Como** editor osm.lat,  
 **quiero** ejecutar (o programar) una evaluación de reglas contra datos OSM,  
 **para** otorgar badges automáticamente a mappers elegibles.
 
@@ -627,20 +677,22 @@ Ver [06-open-badges.md](./06-open-badges.md).
 |-------|-------|
 | Prioridad | Should |
 | Instancia | osm.lat |
+| Fase | 3 |
 
 **Criterios de aceptación:**
 
-1. Job consulta métricas (changeset count, notas cerradas, etc.) según `criteria_rule`.
-2. Emite assertion solo si no existía.
+1. Job en Fase 3; catálogo inicial de métricas/umbrales en [06-open-badges.md](./06-open-badges.md) (antigüedad, changesets, trazas, días mapeando, diarios, amigos, notas).
+2. Emite assertion solo si no existía para ese `osm_id` + BadgeClass.
 3. Guarda evidence (enlace perfil OSM + timestamp de verificación).
+4. Candidatos: perfiles ya en BD y/o listas asociadas al BadgeClass (detalle en 06).
 
 ---
 
-### HU-10.4 — Consultar mis badges OSM por OSM id
+### HU-10.4 — Consultar badges OSM por usuario (público)
 
-**Como** mapper,  
-**quiero** buscar mis badges con mi **OSM id** (número estable de openstreetmap.org),  
-**para** ver permalinks aunque haya cambiado mi nombre de usuario.
+**Como** mapper o visitante,  
+**quiero** buscar badges de actividad OSM por **osm_id** o username,  
+**para** ver logros públicos derivados de datos ya públicos en OSM.
 
 | Campo | Valor |
 |-------|-------|
@@ -649,10 +701,10 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 **Criterios de aceptación:**
 
-1. Formulario público acepta **`osm_id`** (entero) como identificador principal.
-2. Opcional: campo `osm_username` que el sistema **resuelve a osm_id** vía API OSM antes de buscar (evita confundir con un usuario nuevo que tomó el nombre viejo).
-3. Resultado: lista de badges `/b/{slug}` asociados a ese **osm_id**, no al username histórico.
-4. Mensaje genérico si no hay badges (sin filtrar por existencia de cuenta).
+1. Formulario público acepta **`osm_id`** (principal) u opcionalmente `osm_username` (resuelve a id vía API).
+2. Lista badges `/b/{slug}` de actividad OSM de ese id (escaparte público).
+3. **No** lista certificados ni badges de evento (privacidad distinta).
+4. Mensaje genérico si no hay badges.
 
 ---
 
@@ -678,21 +730,24 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 ---
 
-### HU-10.5 — Vincular usuario OSM con identidad de evento (opcional)
+### HU-10.5 — Vincular usuario OSM con email de evento
 
-**Como** participante,  
-**quiero** asociar mi osm_username a mi email/documento,  
-**para** ver certificados de eventos y badges OSM en un solo perfil.
+**Como** participante/mapper,  
+**quiero** asociar mi `osm_id` a mi email (código de un solo uso),  
+**para** ver en un solo lugar certificados de eventos y badges OSM.
 
 | Campo | Valor |
 |-------|-------|
 | Prioridad | Should |
 | Instancia | osm.lat |
+| Fase | 3 |
 
 **Criterios de aceptación:**
 
-1. Vinculación verificada (código por email o validación manual admin).
-2. Vista unificada de credenciales `/c/` y `/b/`.
+1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código** por correo (TTL corto); al confirmarlo queda el vínculo.
+2. Vista unificada: `/c/` del email + `/b/` de actividad OSM del `osm_id` (+ badges de evento ligados).
+3. Sin vínculo, no se mezclan identidades (evita spoofing).
+4. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
 
 ---
 
@@ -720,7 +775,7 @@ Ver [06-open-badges.md](./06-open-badges.md).
 | HU-6.2 | CSV | Must |
 | HU-7.1 | Login OAuth OSM | Must |
 | HU-7.2 | Dashboard/logs | Should |
-| HU-7.3 | Revocación | Should |
+| HU-7.3 | Revocación | Must |
 | HU-7.4 | Gestión usuarios panel | Must |
 | HU-8.1 | Branding | Must |
 | HU-8.2 | Legal AC3 | Must |

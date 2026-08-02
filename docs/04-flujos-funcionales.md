@@ -191,14 +191,18 @@ Valores `legal.*` → config instancia. Resto → BD del participante/evento. Ve
 
 ```mermaid
 flowchart TD
-    A[Crear evento pregenerated_only=true] --> B[Registrar participante + rol]
-    B --> C[Subir PNG/JPG/PDF]
-    C --> D[Crear certificate mode=pregenerated]
-    D --> E[Generar slug permalink]
-    E --> F[Participante recibe /c/slug]
+    A[Crear evento pregenerated_only=true] --> B{Carga}
+    B -->|1:1| C[Subir PNG/JPG/PDF + metadatos]
+    B -->|Masiva| D[Descargar plantilla CSV]
+    D --> E[Completar en Excel/LibreOffice]
+    E --> F[Subir CSV + ZIP de archivos]
+    C --> G[Crear certificate mode=pregenerated]
+    F --> G
+    G --> H[Generar slug permalink]
+    H --> I[Participante recibe /c/slug]
 ```
 
-No se usa plantilla ni renderizador; el archivo subido **es** el certificado.
+No se usa plantilla visual ni renderizador; el archivo subido **es** el certificado. La **plantilla CSV** del panel solo estructura metadatos (`filename`, nombre, email, rol, …).
 
 ---
 
@@ -335,8 +339,8 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |
 | GET | `/badges/assertions/{uuid}.json` | 2 | Assertion OB |
-| GET | `/api/v1/verify/c/{slug}` | 2 | Verificar certificado JSON |
-| GET | `/api/v1/verify/b/{slug}` | 2 | Verificar badge JSON |
+| GET | `/api/v1/verify/c/{slug}` | — | Evolución futura (v1.0: solo página `/c/`) |
+| GET | `/api/v1/verify/b/{slug}` | — | Evolución futura (v1.0: solo página `/b/`) |
 | POST | `/api/v1/public/search` | 2 | Ampliado: incluye badges `event_role` |
 | POST | `/api/v1/public/badges/osm` | 3 | Búsqueda por osm_id |
 | POST | `/api/v1/admin/badges/import` | 3 | Import awardees CSV |
