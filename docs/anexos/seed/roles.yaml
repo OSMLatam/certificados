@@ -1,0 +1,17 @@
+# Default event participation roles (seed on first deploy)
+roles:
+  - code: asistente
+    label: Asistente
+    display_order: 1
+  - code: ponente
+    label: Ponente
+    display_order: 2
+  - code: tallerista
+    label: Tallerista
+    display_order: 3
+  - code: voluntario
+    label: Voluntario
+    display_order: 4
+  - code: organizador
+    label: Organizador
+    display_order: 5

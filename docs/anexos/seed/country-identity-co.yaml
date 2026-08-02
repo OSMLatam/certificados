@@ -1,0 +1,15 @@
+# Seed: country_identity_config (Colombia initial)
+country_code: CO
+document_types:
+  - code: CC
+    label: Cédula de ciudadanía
+    validation_regex: "^[0-9]{6,10}$"
+    display_order: 1
+  - code: CE
+    label: Cédula de extranjería
+    validation_regex: "^[0-9]{6,10}$"
+    display_order: 2
+  - code: TI
+    label: Tarjeta de identidad
+    validation_regex: "^[0-9]{10,11}$"
+    display_order: 3
