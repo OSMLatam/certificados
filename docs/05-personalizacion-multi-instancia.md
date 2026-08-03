@@ -130,7 +130,7 @@ Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md
 | Parámetro | osm.lat | AC3 |
 |-----------|---------|-----|
 | Issuer name | Comunidad OSM Latam | AC3 (razón social) |
-| Badges `event_role` | Sí | Sí (eventos avalados) |
+| Badges `event_role` | Sí | Sí (todos los eventos de la instancia) |
 | Badges `osm_activity` | **Sí** (catálogo F3) | **No** (404 / no desplegado) |
 | Import awardees CSV | Sí | No |
 | Jobs API OSM | Sí | No |
@@ -156,25 +156,30 @@ Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md
 
 ## 5. Identificación por país (configuración compartida)
 
-El **catálogo** `country_identity_config` se carga desde **YAML versionado** en el repo (`docs/anexos/seed/`), aplicado en `prisma/seed.ts` en cada instancia (mismo seed en osm.lat y AC3).
+El **catálogo** `country_identity_config` y el de **roles** se cargan desde **YAML versionado** en el repo (`docs/anexos/seed/`), aplicado en `prisma/seed.ts` en cada instancia.
 
-Colombia inicial:
+**v1.0:** no hay pantalla ni API admin para editar estos catálogos. Añadir un país o rol = editar YAML + redeploy/seed. (No confundir con “hot-reload sin despliegue”.)
+
+Colombia inicial (estructura real del anexo):
 
 ```yaml
-CO:
+country_code: CO
+document_types:
   - code: CC
     label: Cédula de ciudadanía
+    validation_regex: "^[0-9]{6,10}$"
+    display_order: 1
   - code: CE
     label: Cédula de extranjería
+    validation_regex: "^[0-9]{6,10}$"
+    display_order: 2
   - code: TI
     label: Tarjeta de identidad
+    validation_regex: "^[0-9]{10,11}$"
+    display_order: 3
 ```
 
-Añadir México, Argentina, etc. editando datos, no código.
-
----
-
-## 6. Plantillas y archivos
+Archivo canónico: [`docs/anexos/seed/country-identity-co.yaml`](./anexos/seed/country-identity-co.yaml). Añadir México, Argentina, etc. = nuevo YAML + seed + redeploy.
 
 | Recurso | Aislamiento |
 |---------|-------------|
@@ -186,13 +191,12 @@ No compartir storage entre instancias.
 
 ---
 
-## 7. Administradores
+## 7. Administradores y autenticación OSM
 
-- Usuarios **distintos** en cada instancia (tabla `admin_users` propia).
+- **Panel (admin/editor):** usuarios **distintos** en cada instancia (`admin_users`). Login OAuth OSM → cookie `cert_session` + `admin_sessions`. Sin cuenta OSM no se puede ser editor ni admin. Bootstrap: `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`.
+- **Mapper público (HU-10.5, solo osm.lat F3):** mismo client OAuth OSM, **otro redirect** (`OSM_OAUTH_PUBLIC_REDIRECT_URI`). Cookie `cert_mapper_session` + `mapper_sessions`. **No** crea fila en `admin_users` ni da acceso al panel.
 - Un admin de osm.lat **no** accede a AC3.
-- Login vía **OAuth OSM**; roles `admin` / `editor` (o sin rol hasta asignación).
-- Sin cuenta OpenStreetMap no se puede ser editor ni admin.
-- Cada instancia registra su propia OAuth app OSM y `SEED_ADMIN_OSM_USERNAMES` (y/o `SEED_ADMIN_OSM_IDS`).
+- Cada instancia registra su propia OAuth app OSM (en osm.lat: registrar **ambos** redirect URI).
 
 ---
 
@@ -205,7 +209,7 @@ No compartir storage entre instancias.
 | TLS (Let's Encrypt) | ✓ | ✓ |
 | Provisionar BD | ✓ | ✓ |
 | Configurar ENV | ✓ | ✓ + legal |
-| Registrar OAuth app OSM + `OSM_OAUTH_*` | ✓ | ✓ |
+| Registrar OAuth app OSM + `OSM_OAUTH_*` | ✓ (admin + **public** redirect) | ✓ (solo admin) |
 | `SEED_ADMIN_OSM_USERNAMES` (y/o ids) | ✓ | ✓ |
 | Subir assets marca | ✓ | ✓ |
 | Seed country_identity CO | ✓ | ✓ |

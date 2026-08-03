@@ -25,8 +25,8 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 ### 2.1. Contenidos mínimos
 
 1. **Arquitectura del despliegue** — Compose, reverse proxy, DNS, TLS.
-2. **Variables de entorno** — referencia a `docs/anexos/.env.example`; secretos (dónde viven, rotación).
-3. **OAuth OSM** — registrar app, `OSM_OAUTH_*`, redirect URI, scopes (solo identidad / `read_prefs`).
+2. **Variables de entorno** — referencia a [`.env.example`](../.env.example) en la raíz del repo; secretos (dónde viven, rotación).
+3. **OAuth OSM** — registrar app, `OSM_OAUTH_*`; en osm.lat F3 registrar **dos** redirect URI (admin + público HU-10.5); scopes solo identidad / `read_prefs`.
 4. **Bootstrap admin** — `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`; primer login.
 5. **Migraciones y seed** — Prisma migrate, `country_identity` + roles.
 6. **Storage MinIO** — bucket, acceso, que los PDF `issued` no se regeneran.
@@ -34,11 +34,11 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 8. **Restore** — procedimiento; verificación de que BD y objetos coinciden; no regenerar PDF a ciegas.
 9. **Health** — `/health`, `/ready`; qué mirar tras deploy.
 10. **Rate limits / PDF** — `THROTTLE_*`, `PDF_CONCURRENCY`; síntomas de saturación.
-11. **SMTP (F3)** — From dedicado, reputación, cola prudente.
+11. **SMTP (F3)** — obligatorio en osm.lat para códigos de vínculo HU-10.5; también envío de enlace `/c/`. From dedicado, reputación, cola prudente.
 12. **Redis / BullMQ (F3)** — solo osm.lat jobs.
 13. **Upgrade** — `docker compose pull && up -d`; orden migrate.
 14. **Instancia AC3** — diferencias (`INSTANCE=ac3`, legal, sin `osm_activity`).
-
+15. **HU-10.5 /me (osm.lat)** — OAuth mapper, vínculo email, que no es acceso al panel admin.
 ### 2.2. Fuera de este runbook
 
 - Diseño de plantillas y carga CSV → manual del editor.
@@ -60,17 +60,24 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
 7. **Pregenerados** — 1:1 y sheet+ZIP; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
-9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (primera visita).
+9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (metadata; crawlers no emiten; `/file` pending → 409).
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).
-11. **Revocación (F2)** — certificado ↔ badge.
+11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending` sí se puede corregir antes de la 1ª visita.
 12. **Legal AC3 (F2)** — pantalla admin; capas `legal.*`.
 13. **Badges OSM (F3, osm.lat)** — BadgeClass, import awardees, job (visión de editor).
-14. **Soft-delete** — ocultar evento vs revocar credencial.
+14. **Soft-delete** — ocultar evento vs revocar credencial. **Restore** (solo ops):
+
+```sql
+UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<event-uuid>';
+```
+
+Sin pantalla ni API de restore en v1.0.
+15. **Datos del titular** — consentimiento en plataforma de registro externa; solicitudes de supresión/corrección en v1.0 = procedimiento ops manual / post-v1.0 ([01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)).
 
 ### 3.2. No incluir
 
 - Texto de consentimiento de emails (otra plataforma).
-- Detalle de queries Overpass (ops / desarrollo).
+- Detalle de clientes/queries por métrica OSM (ops / desarrollo; ver [06 §5.1](./06-open-badges.md)).
 
 ---
 

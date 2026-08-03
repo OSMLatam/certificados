@@ -29,6 +29,8 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 
 **osm.lat:** no se usa `instance_legal`; las capas `legal.*` no se ofrecen en el editor (o se ignoran al renderizar).
 
+**AC3:** todos los eventos de la instancia pueden usar capas `legal.*`; no hay flag “avalado” por evento. Si una plantilla no incluye esas capas, el PDF no muestra bloque legal (el `legal_snapshot` al emitir `generated` sigue capturando la config vigente para la página `/c/`).
+
 ---
 
 ## 2. Fuente única de verdad
@@ -83,10 +85,13 @@ Los valores legales son **texto e imagen sobre la gráfica del certificado**, ig
 | `document` | tipo + número |
 | `role_label` | rol del certificado |
 | `event_name` | `events.name` |
-| `venue_name` | `venues.name` (si aplica) |
+| `venue_name` | `certificates.venue_id` → fallback `participants.venue_id` |
 | `event_date` | fecha evento/sede |
 | `activity_title` | charla/taller |
-| `certificate_slug` | texto o QR → `/c/{slug}` |
+| `certificate_slug` | texto del slug del certificado |
+| `permalink_qr` | imagen QR con URL `/c/{slug}` |
+
+Catálogo canónico compartido con [04 §5](./04-flujos-funcionales.md). **No** fusionar slug y QR en un solo token.
 
 ### 3.2. Campos de instancia (solo AC3, solo si la capa está en la plantilla)
 

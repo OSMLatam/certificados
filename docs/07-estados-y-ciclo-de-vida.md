@@ -38,6 +38,8 @@ stateDiagram-v2
 
 **Regla:** la fecha del evento no cambia el estado. Un Mapathon de 2019 con certificados sigue `active` y consultable.
 
+**Permalinks en `draft` (decisión cerrada):** `/c/{slug}` y `/b/{slug}` **sí resuelven** (y pueden emitir) aunque el evento **nunca** haya sido `active`. Solo la **búsqueda pública** excluye `draft`.
+
 **`active` → `draft` (desactivar):** regla simple — el evento y **todos** sus certificados salen de la búsqueda pública. Los permalinks `/c/` y `/b/` **siguen resolviendo** (misma política que soft-delete). Sirve para ocultar temporalmente un evento con error sin invalidar enlaces ya repartidos. Volver a `active` restaura la búsqueda.
 
 ---
@@ -47,7 +49,7 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> pending: Admin registra participante + rol
-    pending --> issued: Primera consulta exitosa /c/slug
+    pending --> issued: Metadata no-crawler\n(GET …/certificates/{slug})
     issued --> revoked: Editor o admin revoca
     revoked --> [*]
     pending --> revoked: Editor o admin revoca antes de emisión
@@ -55,20 +57,22 @@ stateDiagram-v2
 
 | Estado | Permalink `/c/{slug}` | Descarga PDF | Visible en búsqueda por identidad |
 |--------|----------------------|--------------|-----------------------------------|
-| `pending` | Existe; primera visita puede emitir | Sí, al pasar a `issued` | Sí, visible en búsqueda (como issued) |
+| `pending` | Existe; metadata no-crawler puede emitir | **409** en `/file` hasta `issued` | Sí, visible en búsqueda (como issued) |
 | `issued` | Activo | Sí | Sí |
 | `revoked` | Muestra revocación | No (o solo metadatos) | Sí, marcado revocado |
 
 ### Política de emisión (definida)
 
 1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado). Aplica a modos `generated` y `pregenerated`.
-2. **Activación a `issued` (solo lazy):** primera visita exitosa del titular al permalink `/c/{slug}` o descarga desde búsqueda por identidad. **No** hay emisión forzada/masiva en v1.0.
-3. **`issued_at`:** timestamp del paso a `issued`.
+2. **Activación a `issued` (solo lazy):** únicamente `GET /api/v1/public/certificates/{slug}` (metadata) cuando el cliente **no** es crawler/preview conocido. La SPA `/c/{slug}` y la búsqueda por identidad **siempre** llaman a metadata antes de pedir el binario. **`GET …/file` no emite** — si el certificado sigue `pending`, responde **409 Conflict**. **No** hay emisión forzada/masiva en v1.0.
+3. **`issued_at`:** timestamp del paso a `issued` (primera metadata no-crawler exitosa).
 4. **Modo `generated`:** al pasar a `issued` se renderiza el PDF (Puppeteer), se guarda en storage y, en AC3, se escribe `legal_snapshot` desde `instance_legal`. Transición con **lock por certificado** (ver [10 §4.2.1](./10-diseno-codigo-y-anexos.md)); fallo PDF → queda `pending` + 503.
 5. **Modo `pregenerated`:** el archivo ya está en storage desde el upload; al pasar a `issued` solo se fija `issued_at` y se sirve ese archivo (sin re-render).
-6. **Revocación:** editor o admin; motivo opcional en `revoke_reason` (Must desde Fase 2).
-7. **PDF:** inmutable tras `issued`. Restore operativo = backup pareado BD + MinIO (manual de operación).
+6. **Revocación (Must F2):** `POST /api/v1/admin/certificates/{id}/revoke` y `POST /api/v1/admin/badges/{id}/revoke`; motivo opcional. Editor o admin.
+7. **PDF:** inmutable tras `issued`. **Corrección:** revocar + alta nueva (nuevo slug); no regenerar ni editar el emitido. Restore operativo de desastre = backup pareado BD + MinIO (manual de operación).
 8. **Soft-delete del evento:** no cambia el estado del certificado; `/c/{slug}` sigue resolviendo.
+9. **Edición en `pending`:** permitida (metadatos / reemplazo de alta) en F1+; no aplica a `issued`/`revoked`.
+10. **Crawlers / OG:** la metadata puede devolver estado `pending` y datos mínimos para preview **sin** llamar a `transitionToIssued`.
 
 ### Badge vinculado (Fase 2+)
 
@@ -103,7 +107,7 @@ stateDiagram-v2
 | `issued` | Verificación + backpack | Sí |
 | `revoked` | Estado revocado | `revoked: true` |
 
-**Regla cerrada:** la emisión del certificado (y del badge vinculado) ocurre **solo** en primera visita exitosa a `/c/{slug}` o descarga desde búsqueda. Visitar `/b/{slug}` en `pending` **nunca** llama a `transitionToIssued`.
+**Regla cerrada:** la emisión del certificado (y del badge vinculado) ocurre **solo** en `GET /api/v1/public/certificates/{slug}` (metadata, no crawler). Visitar `/b/{slug}` o `GET …/file` en `pending` **nunca** llama a `transitionToIssued`.
 
 ### 4.2. Badge actividad OSM (`osm_activity`)
 
@@ -129,8 +133,9 @@ No hay `pending` habitual: la emisión ocurre cuando el criterio externo confirm
 
 4. Participante: búsqueda solo con CC 1234567890
 5. Sistema lista todos sus certificados (todos los eventos/años)
-6. Participante abre /c/abc → certificate pending→issued, issued_at=now
+6. Participante abre /c/abc → SPA llama metadata → certificate pending→issued, issued_at=now
 7. Sistema: badge pending→issued, evidence=/c/abc
+8. SPA pide /file solo cuando ya está issued (si pending → 409)
 ```
 
 ---
@@ -152,6 +157,7 @@ Evitar ambigüedad en implementación:
 ## 7. Referencias
 
 - [HU-6.1](./02-historias-de-usuario.md) — alta individual
-- [HU-7.3](./02-historias-de-usuario.md) — revocación
+- [HU-7.3](./02-historias-de-usuario.md) — revocación y corrección (revoke + alta nueva)
 - [Modelo de datos](./03-modelo-de-datos.md) — columnas `status`
 - [Flujos funcionales](./04-flujos-funcionales.md) — búsqueda y permalink
+- [Diseño de código §4.2](./10-diseno-codigo-y-anexos.md) — contrato metadata / `/file` / crawlers

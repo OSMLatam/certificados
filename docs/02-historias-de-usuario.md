@@ -42,9 +42,9 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 | Audit log | No | Sí |
 | Gestión usuarios (`admin`/`editor`) | No | Sí |
 
-**Soft-delete:** el evento deja de listarse (`deleted_at`); restore vía admin/SQL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen sirviendo** (no se invalidan por soft-delete del evento; la invalidación individual es `revoked`). **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
+**Soft-delete:** el evento deja de listarse (`deleted_at`); **restore solo vía SQL** (`UPDATE … SET deleted_at = NULL`) — sin endpoint ni pantalla (poca frecuencia). Los permalinks `/c/{slug}` y `/b/{slug}` **siguen sirviendo**. **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
 
-**Emisión de certificados:** solo **lazy** (primera visita exitosa a `/c/{slug}` o descarga desde búsqueda). No hay emisión forzada/masiva en v1.0.
+**Emisión de certificados:** solo **lazy** vía metadata `GET /api/v1/public/certificates/{slug}` (no crawlers); `/file` en `pending` → 409. No hay emisión forzada/masiva en v1.0.
 
 ### Privacidad pública (reglas fijas v1.0)
 
@@ -103,7 +103,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Formulario público **mínimo**: identificador obligatorio (correo **o** tipo de documento + número + país si aplica).
+1. Formulario público **mínimo**: identificador obligatorio — **correo** **o** (**país** + tipo de documento + número). País obligatorio cuando se busca por documento.
 2. **No** se pide año, evento ni sede para buscar.
 3. Resultado: lista unificada de credenciales del titular:
    - Certificados `/c/{slug}` (evento, rol, fecha, estado).
@@ -112,6 +112,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 5. Varios eventos/años → todos en la misma respuesta.
 6. Si no hay coincidencias: **mensaje genérico** (“No encontramos credenciales con esos datos”); no confirmar si el documento existe en el sistema.
 7. **Rate limiting** en búsqueda (Must, Fase 1). Captcha/Turnstile ante abuso persistente (Should, Fase 3). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga).
+8. Número de documento: normalizar igual que en el alta (quitar puntuación/espacios; CO → solo dígitos) antes de comparar.
 
 **Ejemplo de uso:**
 
@@ -154,7 +155,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. La página del permalink muestra: nombre, evento, rol, fecha, emisor (instancia).
 2. Indicador claro: **válido** / **revocado** / **no encontrado**.
-3. Instancia AC3 muestra datos institucionales (NIT, razón social) en certificados avalados.
+3. Instancia AC3 muestra datos institucionales (NIT, razón social) en la página `/c/` vía `legal_snapshot` (todos los eventos de esa instancia).
 4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`).
 
 ---
@@ -179,7 +180,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 ### HU-1.5 — Certificado con respaldo institucional AC3
 
-**Como** participante de evento avalado por AC3,  
+**Como** participante de un evento en la instancia AC3,  
 **quiero** un certificado que muestre los datos legales de AC3 (razón social, NIT, representante),  
 **para** contar con un documento de mayor peso formal.
 
@@ -231,9 +232,10 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Plantilla por defecto a nivel evento.
-2. Override opcional por rol.
-3. Editor visual compartido para todas las plantillas.
+1. Plantilla **default** del evento: fila con `role_code` NULL; `events.default_template_id` apunta a ella.
+2. Override opcional: como máximo **una** plantilla por `role_code` (`UNIQUE (event_id, role_code)`).
+3. Al crear certificado `pending` (`generated`), se resuelve y **fija** `certificates.template_id` (override del rol si existe; si no, default). Cambiar plantillas después no mueve los `pending` ya creados.
+4. Editor visual compartido para todas las plantillas.
 
 ---
 
@@ -251,12 +253,12 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Interfaz WYSIWYG: fondo + capas de texto alineables.
-2. Campos disponibles en paleta:
-   - Participante/evento: nombre, documento, rol, evento, sede, fecha, actividad, permalink/QR.
-   - **Instancia AC3 only:** `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.signature` (valores desde config — ver [08](./08-datos-legales-ac3-plantilla.md)).
+1. Interfaz WYSIWYG: fondo + capas de texto/QR alineables.
+2. Campos disponibles en paleta — tokens canónicos ([04 §5](./04-flujos-funcionales.md)):
+   - `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink_qr`.
+   - **Instancia AC3 only:** `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.signature` (ver [08](./08-datos-legales-ac3-plantilla.md)).
 3. Vista previa con datos de ejemplo; en AC3 la preview de capas `legal.*` usa config real de instancia.
-4. El sistema persiste posiciones de forma estructurada (detalle de implementación libre).
+4. El sistema persiste posiciones en `layout` JSONB; validación contra el catálogo de tokens en `packages/shared`.
 5. No se requiere que el usuario edite JSON crudo.
 
 ---
@@ -292,12 +294,12 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Modo de certificado: `generado` | `pregenerado`.
-2. En modo pregenerado, se almacena el archivo subido y se expone permalink.
+1. Modo de certificado: `generated` | `pregenerated` (valores en inglés en BD/API; UI en español: «generado» / «pregenerado»).
+2. En modo `pregenerated`, se almacena el archivo subido y se expone permalink.
 3. El permalink sirve el archivo almacenado (sin re-renderizar desde plantilla).
 4. **Carga individual** (un archivo por certificado) para correcciones puntuales.
-5. **Carga masiva:** hoja **CSV** + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo** — editar en Excel/LibreOffice y guardar como CSV.
-6. **Plantilla descargable** desde el panel (CSV UTF-8, abre en Excel/LibreOffice): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
+5. **Carga masiva:** hoja **CSV** (delimitador fijo `;`, UTF-8) + ZIP de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Límite del lote **100 MB**. Imports **incrementales** al mismo evento; rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo**.
+6. **Plantilla descargable** desde el panel (CSV UTF-8 `;`): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
 7. La edición masiva de metadatos se hace en LibreOffice/Excel (export CSV); el panel solo ofrece la plantilla, valida e importa.
 
 ---
@@ -335,8 +337,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. Campos: nombre, año, fecha(s), país (para reglas de identificación), roles habilitados, estado (`draft` | `active`).
 2. Eventos `draft` no aparecen en búsqueda pública. Eventos `active` sí, **incluso si la fecha del evento ya pasó**.
-3. Un evento puede tener cero, una o muchas sedes.
-4. No existe estado `closed`; un evento terminado permanece `active` mientras tenga certificados consultables.
+3. Permalinks `/c/{slug}` y `/b/{slug}` **sí resuelven** (y pueden emitir) aunque el evento esté o haya estado siempre en `draft` — útil para probar antes de publicar. Soft-delete / desactivar: misma política de permalinks vivos.
+4. Un evento puede tener cero, una o muchas sedes.
+5. No existe estado `closed`; un evento terminado permanece `active` mientras tenga certificados consultables.
 
 ---
 
@@ -371,9 +374,10 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 **Criterios de aceptación:**
 
 1. Colombia: tipos `CC`, `CE`, `TI` + número.
-2. Configuración por país define tipos válidos y etiquetas (extensible sin cambio de código).
-3. Búsqueda pública solicita tipo + número cuando el participante no usa correo.
+2. Configuración por país define tipos válidos, etiquetas y `validation_regex` (**seed YAML** en el repo + redeploy; sin pantalla admin en v1.0 — ver [05](./05-personalizacion-multi-instancia.md)).
+3. Búsqueda pública por documento solicita **país + tipo + número**; el número se normaliza antes de buscar ([03](./03-modelo-de-datos.md)).
 4. Correo electrónico sigue siendo identificador alternativo válido.
+5. Al alta/CSV: normalizar `doc_number` y validar regex **después** de normalizar.
 
 ---
 
@@ -433,7 +437,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. UTF-8; delimitador configurable (`,` o `;`).
+1. UTF-8; delimitador fijo **`;`** (sin configurar por archivo ni ENV).
 2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
 3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados (misma persona).
 4. **Email duplicado** (mismo evento + mismo email + mismo rol, o email ya en BD con datos conflictivos) → **rechazar**. Cada persona tiene su propio email.
@@ -483,22 +487,26 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 ---
 
-### HU-7.3 — Revocar certificado
+### HU-7.3 — Revocar certificado (y corrección de emitidos)
 
 **Como** editor o admin,  
-**quiero** revocar un certificado emitido por error,  
-**para** que su permalink deje de ser válido.
+**quiero** revocar un certificado emitido por error y, si hace falta, emitir uno corregido,  
+**para** que el permalink inválido deje de acreditarse y el titular reciba uno nuevo correcto.
 
 | Campo | Valor |
 |-------|-------|
 | Prioridad | Must |
+| Fase | 2 |
 
 **Criterios de aceptación:**
 
-1. Estado `revoked` en el certificado; motivo opcional.
-2. Permalink `/c/` muestra revocación (sin descarga del PDF válido).
-3. Si hay badge de evento vinculado, pasa a `revoked`.
-4. Disponible desde Fase 2 (con Open Badges); coherente con la matriz RBAC.
+1. **Endpoint:** `POST /api/v1/admin/certificates/{id}/revoke` con motivo opcional (`revoke_reason`). Estado `revoked` + `revoked_at`.
+2. Permalink `/c/` muestra revocación (sin descarga del PDF válido). API verify: `{ valid: false, reason: "revoked" }`.
+3. Si hay badge de evento vinculado, pasa a `revoked` en cascada.
+4. **Revocación directa de badge:** `POST /api/v1/admin/badges/{id}/revoke` (motivo opcional). Para `event_role`, preferir revocar el certificado (cascada). Para `osm_activity`, este endpoint es el camino normal.
+5. **Corrección de datos (decisión cerrada):** no hay PATCH de certificado `issued` ni regeneración del PDF. Procedimiento = **revocar + alta nueva** (nuevo slug). El UNIQUE `(participant_id, role_code)` es **parcial**: solo entre filas con `status <> 'revoked'`, para permitir la nueva emisión tras revocar.
+6. **Mientras `pending` (también en Fase 1):** sí se puede corregir metadatos del participante/certificado o borrar el pending y volver a dar de alta; aún no hay revocación en F1.
+7. RBAC: editor y admin (matriz).
 
 ---
 
@@ -620,9 +628,10 @@ Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [
 **Criterios de aceptación:**
 
 1. `GET /badges/issuer.json` por instancia.
-2. BadgeClass `event_role` se **crea/actualiza al guardar** `allowed_roles` del evento (también en `draft`), una por cada rol habilitado. Así el alta de participantes en draft puede reservar `badge_assertion` pending con FK válida.
-3. Endpoints OB públicos de clases (`/badges/classes/...`) solo se exponen cuando el evento está `active`. En `draft` las clases existen en BD pero no son públicas.
-4. Imagen del badge configurable por BadgeClass.
+2. BadgeClass `event_role` se **crea/actualiza al guardar** `allowed_roles` del evento (también en `draft`), **una por cada rol** (`UNIQUE (event_id, role_code)`). Upsert idempotente.
+3. **`code`:** se asigna al crear (p. ej. `{event_slug}-{role_code}` o derivado estable del `event_id` + rol). **Inmutable** si se renombra el evento; solo se actualiza `name` / descripción visibles.
+4. Endpoints OB de clase (`GET /badges/classes/{id}.json`) **responden si la clase existe**, aunque el evento esté `draft` (misma idea que permalinks: quien tiene la URL verifica). No hay catálogo público que enumere clases de eventos `draft`.
+5. Imagen del badge configurable por BadgeClass.
 
 Ver [06-open-badges.md](./06-open-badges.md).
 
@@ -665,8 +674,8 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 **Criterios de aceptación:**
 
-1. CSV: **`osm_id`** obligatorio; `osm_username` opcional (+ opcional `earned_at`, `evidence_url`).
-2. Si fila trae solo username, resolver `osm_id` vía API OSM antes de emitir.
+1. CSV: **`osm_username` obligatorio**; `osm_id` opcional (+ opcional `earned_at`, `evidence_url`).
+2. En el import: resolver `osm_username` → `osm_id` vía API OSM; persistir ambos en `osm_profiles`. Si la fila trae `osm_id` y no coincide con el resuelto → rechazar la fila (informe de error). Username inexistente → error de fila.
 3. Idempotente: no duplicar assertion para mismo **osm_id** + BadgeClass.
 4. Informe de filas emitidas / ya existentes / error.
 5. Botón **Descargar plantilla** (CSV de ejemplo) en la pantalla de import.
@@ -687,10 +696,10 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 **Criterios de aceptación:**
 
-1. Job en Fase 3; catálogo inicial de métricas/umbrales en [06-open-badges.md](./06-open-badges.md) (antigüedad, changesets, trazas, días mapeando, diarios, amigos, notas).
+1. Job en Fase 3; catálogo inicial de métricas/umbrales y fuente por métrica en [06-open-badges.md](./06-open-badges.md) (antigüedad, changesets, trazas, días mapeando, diarios, amigos, notas).
 2. Emite assertion solo si no existía para ese `osm_id` + BadgeClass.
 3. Guarda evidence (enlace perfil OSM + timestamp de verificación).
-4. Candidatos: perfiles ya en BD y/o listas asociadas al BadgeClass (detalle en 06).
+4. **Candidatos del job (decisión cerrada):** solo `osm_profiles` con **email vinculado** (`email` NOT NULL y `linked_at` NOT NULL) — mappers que se autenticaron / completaron HU-10.5. No descubre usuarios OSM desconocidos ni evalúa perfiles creados solo por import CSV sin vínculo. Sin perfiles vinculados, el job no emite nada (el import CSV HU-10.2 sigue siendo el camino masivo).
 
 ---
 
@@ -714,6 +723,30 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 ---
 
+### HU-10.5 — Vincular usuario OSM con email de evento
+
+**Como** participante/mapper,  
+**quiero** asociar mi `osm_id` a mi email (código de un solo uso),  
+**para** ver en un solo lugar certificados de eventos y badges OSM, y poder recibir badges automáticos del job (HU-10.3).
+
+| Campo | Valor |
+|-------|-------|
+| Prioridad | **Must** |
+| Instancia | osm.lat |
+| Fase | 3 |
+
+**Criterios de aceptación:**
+
+1. **OAuth OSM público** (distinto del panel admin): mismo `OSM_OAUTH_CLIENT_ID`/`SECRET`, callback propio (`OSM_OAUTH_PUBLIC_REDIRECT_URI` → `/api/v1/public/auth/osm/callback`). Tras login se crea/actualiza `osm_profiles` y se abre sesión de mapper (cookie `cert_mapper_session` + tabla `mapper_sessions`). **No** otorga rol admin/editor.
+2. El mapper indica un **email** (normalizado `trim`+`lower`) y recibe **código de un solo uso** por SMTP (TTL **20 min**, un solo uso). Al confirmarlo: `osm_profiles.email` + `linked_at`. Relación **1:1** (`email` UNIQUE cuando NOT NULL; un `osm_id` un email).
+3. Códigos en tabla **`osm_email_link_codes`** (hash del código, no plaintext; `expires_at`; `consumed_at`). Rechazar si el email ya está vinculado a otro `osm_id`, o si el perfil ya tiene otro email vinculado (v1.0: sin “cambiar email”; soporte = ops/SQL).
+4. **Vista unificada** (`/me`, autenticada): certificados `/c/` y badges de evento del **email vinculado** + badges `/b/` de actividad OSM del **`osm_id`**. Sin sesión mapper → login OAuth; sin vínculo → solo flujo de código (no listar por email tecleado).
+5. Sin vínculo no se mezclan identidades (evita spoofing). La búsqueda pública por email/documento (**HU-1.2**) sigue existiendo aparte y **no** sustituye a `/me`.
+6. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
+7. **SMTP obligatorio** en osm.lat F3 para este flujo (no solo “opcional para enlace de certificado”).
+
+---
+
 ### HU-10.6 — Identidad OSM: osm_id + username
 
 **Como** sistema,  
@@ -729,34 +762,13 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 1. `osm_id` es clave de identidad; UNIQUE NOT NULL en `osm_profiles`.
 2. `osm_username` no es UNIQUE; se actualiza al sincronizar con API OSM.
-3. Import CSV acepta **`osm_id`** obligatorio; `osm_username` opcional (referencia legible).
-4. Si solo llega username en import, resolver a `osm_id` via API **en el momento del import** y persistir ambos.
+3. Import CSV: **`osm_username` obligatorio**; `osm_id` opcional. Resolver username → `osm_id` en el momento del import y persistir ambos.
+4. Si el CSV trae `osm_id` y no coincide con el resuelto desde username → error de fila.
 5. Badges (`badge_assertions`) referencian **`osm_profile_id`**, nunca username suelto.
 6. Tras renombrado OSM, el mismo `osm_id` conserva todos los badges; la UI muestra username actual.
 
 ---
 
-### HU-10.5 — Vincular usuario OSM con email de evento
-
-**Como** participante/mapper,  
-**quiero** asociar mi `osm_id` a mi email (código de un solo uso),  
-**para** ver en un solo lugar certificados de eventos y badges OSM.
-
-| Campo | Valor |
-|-------|-------|
-| Prioridad | Should |
-| Instancia | osm.lat |
-| Fase | 3 |
-
-**Criterios de aceptación:**
-
-1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código de un solo uso** por correo (TTL corto, p. ej. 15–30 min); al confirmarlo se persiste `osm_profiles.email` + `linked_at` (vínculo 1:1 `osm_id` ↔ email).
-2. Ese código es **efímero** (tabla/caché de pendientes de vinculación). **No** es una columna del certificado: el permalink `/c/{slug}` basta para compartir/verificar diplomas.
-3. Vista unificada: certificados `/c/` (y badges de evento) del email vinculado + `/b/` de actividad OSM del `osm_id`.
-4. Sin vínculo, no se mezclan identidades (evita spoofing).
-5. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
-
----
 
 ## Matriz resumen
 
@@ -793,5 +805,5 @@ Ver [06-open-badges.md](./06-open-badges.md).
 | HU-10.2 | Import awardees CSV | Must |
 | HU-10.3 | Job reglas OSM | Should |
 | HU-10.4 | Buscar badges por osm_id | Must |
+| HU-10.5 | Vincular OSM + evento | Must |
 | HU-10.6 | osm_id + username | Must |
-| HU-10.5 | Vincular OSM + evento | Should |

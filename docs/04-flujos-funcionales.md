@@ -89,13 +89,14 @@ sequenceDiagram
 
 ### Reglas
 
-1. **Primera visita** a un certificado `pending` dispara transición a `issued`, fija `issued_at`. En modo `generated` **genera y almacena** el PDF; en modo `pregenerated` solo activa el estado y **sirve el archivo ya subido**.
-2. Visitas posteriores a certificado `issued` **sirven el archivo almacenado**, no re-renderizan.
-3. El **slug no cambia** nunca.
-4. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
-5. Soft-delete del evento **no** invalida permalinks ya emitidos.
-6. Metadatos Open Graph (Fase 2) y API verify JSON `GET /api/v1/verify/c/{slug}` (Fase 2) complementan la página pública.
-7. **Contrato rutas:** HTML verify = SPA `/c/{slug}`; metadata + lazy issue = `GET /api/v1/public/certificates/{slug}`; binario = `…/file` (ver [10 §4.2](./10-diseno-codigo-y-anexos.md)).
+1. **Único disparador de emisión:** `GET /api/v1/public/certificates/{slug}` (metadata) si el cliente **no** es crawler/preview. Pasa `pending` → `issued`, fija `issued_at`. En modo `generated` **genera y almacena** el PDF; en `pregenerated` solo activa el estado.
+2. La SPA `/c/` y la búsqueda llaman **siempre** a metadata antes de `/file`.
+3. **`/file` en `pending` → HTTP 409** (no emite). En `issued`, sirve el archivo almacenado (no re-renderiza).
+4. El **slug no cambia** nunca.
+5. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
+6. Soft-delete del evento **no** invalida permalinks ya emitidos.
+7. Metadatos Open Graph (Fase 2): crawlers reciben preview **sin** emitir. API verify JSON en Fase 2.
+8. **Contrato rutas:** ver [10 §4.2](./10-diseno-codigo-y-anexos.md).
 
 ---
 
@@ -179,16 +180,18 @@ flowchart TD
     F --> G[Asociar a evento y/o rol]
 ```
 
-**Campos arrastrables (paleta del editor):**
+**Campos arrastrables — catálogo canónico de tokens (`packages/shared` / editor):**
 
 | Grupo | Tokens |
 |-------|--------|
 | Participante | `full_name`, `document`, `role_label`, `activity_title` |
 | Evento | `event_name`, `venue_name`, `event_date` |
-| Sistema | `certificate_slug`, `permalink_qr` |
+| Sistema | `certificate_slug` (texto del slug), `permalink_qr` (QR → URL `/c/{slug}`) |
 | Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.signature` |
 
-Valores `legal.*` → config instancia. Resto → BD del participante/evento. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+`certificate_slug` y `permalink_qr` son **dos** tokens distintos. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field`.
+
+Valores `legal.*` → config instancia. Resto → BD del participante/evento/certificado.
 
 ---
 
@@ -243,14 +246,21 @@ Idénticos en lógica. Diferencias en render:
 
 ---
 
-## 9. Flujo — Revocación
+## 9. Flujo — Revocación y corrección
 
 ```
-Admin revoca certificate
-  → status = revoked, revoked_at = now()
-  → GET /c/{slug} muestra estado revocado
-  → API verify retorna { valid: false, reason: "revoked" }
-  → Open Badge vinculado marcado revoked
+Editor/Admin POST /api/v1/admin/certificates/{id}/revoke
+  → status = revoked, revoked_at = now(), revoke_reason?
+  → badge event_role vinculado → revoked
+  → GET /c/{slug} muestra estado revocado (sin PDF)
+  → API verify → { valid: false, reason: "revoked" }
+
+Corrección de emitido:
+  → revocar (arriba) + alta nueva del participante/rol (nuevo slug)
+  → NO hay PATCH ni regeneración del PDF issued
+
+Badge OSM (u otro) sin certificado:
+  → POST /api/v1/admin/badges/{id}/revoke
 ```
 
 ---
@@ -302,7 +312,7 @@ sequenceDiagram
     S-->>B: Permalink badge activo
 ```
 
-**Nota:** las BadgeClass `event_role` se crean/actualizan al guardar `allowed_roles` (incluso en `draft`). Los endpoints OB públicos de clases solo aplican con evento `active`.
+**Nota:** las BadgeClass `event_role` se crean/actualizan al guardar `allowed_roles` (incluso en `draft`) con `UNIQUE (event_id, role_code)`; `code` inmutable al renombrar. `GET /badges/classes/{id}.json` **responde si la clase existe** (también con evento `draft`); no hay listado público que enumere clases de drafts.
 
 ---
 
@@ -310,10 +320,10 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Admin crea BadgeClass osm_activity] --> B[CSV osm_id o servicio externo]
+    A[Admin crea BadgeClass osm_activity] --> B[CSV osm_username → resolver osm_id]
     B --> C{¿Usuario ya tiene assertion?}
     C -->|Sí| D[Skip idempotente]
-    C -->|No| E[Crear osm_profile si no existe]
+    C -->|No| E[Crear/actualizar osm_profile]
     E --> F[Emitir badge_assertion + /b/slug]
     F --> G[Mapper consulta por username o abre permalink]
 ```
@@ -323,11 +333,23 @@ flowchart TD
 ## 14. Flujo — Job reglas OSM
 
 ```
-1. BadgeClass con criteria_rule (ej. notes_closed >= 100)
-2. Para cada osm_profile vinculado o lista candidatos:
-3. Consultar API / servicio de stats
+1. BadgeClass con criteria_rule (ej. changesets_count >= 100)
+2. Para cada osm_profile con email + linked_at (vinculados HU-10.5):
+3. Consultar fuente de la métrica ([06 §5.1](./06-open-badges.md))
 4. Si cumple → emitir assertion + evidence_metadata snapshot
-5. Registrar en badge_import_batches o job log
+5. Registrar en job log / audit
+```
+
+---
+
+## 14bis. Flujo — Vincular OSM ↔ email (HU-10.5)
+
+```
+1. Mapper abre /me → OAuth OSM público (callback distinto del admin)
+2. Sesión mapper (cert_mapper_session); upsert osm_profiles
+3. Si sin linked_at: pide email → SMTP código 20 min (osm_email_link_codes)
+4. Confirma código → email + linked_at (1:1)
+5. /me lista certificados del email + badges OSM del osm_id
 ```
 
 ---
@@ -339,20 +361,28 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | Método | Ruta | Fase | Uso |
 |--------|------|------|-----|
 | GET | `/c/{slug}` | 1 | Página HTML verify (SPA) |
-| GET | `/api/v1/public/certificates/{slug}` | 1 | Metadata + lazy issue |
-| GET | `/api/v1/public/certificates/{slug}/file` | 1 | Stream PDF/imagen |
+| GET | `/api/v1/public/certificates/{slug}` | 1 | Metadata + lazy issue (no crawler) |
+| GET | `/api/v1/public/certificates/{slug}/file` | 1 | Stream PDF; **409 si pending** |
 | POST | `/api/v1/public/search` | 1 | Búsqueda por correo/doc (solo certificados) |
 | GET | `/api/v1/admin/auth/osm/start` | 1 | Inicio OAuth OSM |
 | GET | `/api/v1/admin/auth/osm/callback` | 1 | Callback OAuth → sesión |
-| GET / PATCH | `/api/v1/admin/users` | 1 | Listar / asignar roles (solo admin) |
+| GET | `/api/v1/admin/users` | 1 | Listar usuarios (solo admin) |
+| PATCH | `/api/v1/admin/users/{id}` | 1 | Asignar rol / `is_active` (solo admin) |
 | CRUD | `/api/v1/admin/...` | 1 | Panel administración |
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |
 | GET | `/badges/assertions/{uuid}.json` | 2 | Assertion OB |
 | GET | `/api/v1/verify/c/{slug}` | 2 | Verificación máquina certificado `{ valid, status, … }` |
 | GET | `/api/v1/verify/b/{slug}` | 2 | Verificación máquina badge |
+| POST | `/api/v1/admin/certificates/{id}/revoke` | 2 | Revocar certificado (+ badge evento) |
+| POST | `/api/v1/admin/badges/{id}/revoke` | 2 | Revocar assertion (OSM o directa) |
 | POST | `/api/v1/public/search` | 2 | Ampliado: incluye badges `event_role` |
-| POST | `/api/v1/public/badges/osm` | 3 | Búsqueda por osm_id |
+| POST | `/api/v1/public/badges/osm` | 3 | Búsqueda por osm_id / username |
+| GET | `/api/v1/public/auth/osm/start` | 3 | OAuth mapper (HU-10.5) |
+| GET | `/api/v1/public/auth/osm/callback` | 3 | Callback → `mapper_sessions` |
+| POST | `/api/v1/public/me/link-email` | 3 | Solicitar código (SMTP) |
+| POST | `/api/v1/public/me/link-email/confirm` | 3 | Confirmar código → `linked_at` |
+| GET | `/api/v1/public/me` | 3 | Vista unificada (requiere sesión + vínculo) |
 | POST | `/api/v1/admin/badges/import` | 3 | Import awardees CSV |
 | POST | `/api/v1/admin/badges/sync/{class_id}` | 3 | Job reglas OSM |
 

@@ -42,37 +42,53 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 
 | Tema | Decisión |
 |------|----------|
-| **Estado del evento** | Solo `draft` y `active`. **No existe `closed`.** Un evento pasado sigue `active`; si tiene certificados, se muestran en búsqueda y permalink. `draft` = preparación, invisible en búsqueda pública. |
-| **Emisión certificado** | `pending` → `issued` solo en **primera visita** a `/c/{slug}` o descarga desde búsqueda (**lazy**). Sin emisión forzada/masiva en v1.0. |
+| **Estado del evento** | Solo `draft` y `active`. **No existe `closed`.** Un evento pasado sigue `active`; si tiene certificados, se muestran en búsqueda y permalink. `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). |
+| **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
+| **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
+| **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
+| **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Sin emisión forzada/masiva en v1.0. |
 | **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al emitir PDF (`issued`, `generated`): copia a `certificates.legal_snapshot` e incrusta en PDF. Cambios posteriores solo afectan emisiones nuevas. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | Legal ya va en la imagen subida; no se aplica snapshot. |
 | **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). |
-| **PDF** | A4 landscape @ **150 DPI** (canvas 1754×1240 px); tipografías abiertas embebidas; Puppeteer HTML→PDF. |
+| **PDF** | A4 **landscape** @ **150 DPI** (canvas 1754×1240 px) en v1.0; tipografías abiertas embebidas; Puppeteer HTML→PDF. El campo `layout.canvas.orientation` existe por forward-compat; el editor **no** ofrece retrato en v1.0. |
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
 | **Sesión admin** | Cookie `cert_session` + tabla **`admin_sessions`** en PostgreSQL (F1/F2 sin Redis). |
 | **Email participante** | Obligatorio; **UNIQUE `(event_id, email)`** normalizado (`trim`+`lower`); duplicado → rechazar. Misma persona + otro rol = OK. |
+| **Documento** | Al guardar y buscar: quitar espacios/puntos/comas/guiones; CO → solo dígitos; validar regex **después**. País obligatorio en búsqueda por documento. Detalle: [03](./03-modelo-de-datos.md). |
 | **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
-| **Contrato `/c/`** | SPA HTML verify; API metadata `GET /api/v1/public/certificates/{slug}` (lazy issue); binario `…/file`. |
+| **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending` → 409** (no emite). |
 | **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF → `pending` + 503. |
-| **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
-| **Búsqueda pública** | Solo email **o** documento (tipo+número+país). Rate limit: **10 req/min/IP**. |
+| **Crawlers / Open Graph** | Detectar UA de preview (LinkedIn, WhatsApp, Slack, …): metadata/OG **sin** emitir (`PREVIEW_BOT_UA_REGEX`). |
+| **Búsqueda pública** | Solo email **o** (país + tipo + número de documento). Rate limit: **10 req/min/IP**. Documento normalizado al comparar. |
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; PDF `issued` siempre desde MinIO (sin regenerar). |
-| **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3. Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
+| **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
 | **Evento `closed` en búsqueda** | N/A — no hay estado closed. |
 | **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
-| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role` al guardar `allowed_roles` (también en `draft`); imagen default = logo instancia si no hay upload. |
+| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
 | **Vínculo cert↔badge** | Solo FK `badge_assertions.certificate_id` (sin FK inversa en `certificates`). |
+| **Open Badges (formato)** | **v2.0 hosted** (JSON-LD; verificación por URL de assertion). No OBv3 ni `proof` en v1.0 — [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). Detalle: [06](./06-open-badges.md). |
+| **Revocación** | F2 Must: `POST …/certificates/{id}/revoke` y `POST …/badges/{id}/revoke`. Motivo opcional. Cascada cert → badge evento. |
+| **Corrección de emitidos** | **Revocar + alta nueva** (nuevo slug). Sin PATCH/regenerar PDF `issued`. UNIQUE parcial excluye `revoked`. En `pending` sí se puede editar/reemplazar (F1+). |
 | **Plantilla fondo** | `certificate_templates.background_file_id` → `stored_files`. |
 | **Soft-delete evento** | Sale de listados y búsqueda; permalinks `/c/` y `/b/` **siguen vivos**. |
-| **OSM — vínculo email** | `osm_profiles.email` + `linked_at` (1:1); sin `participant_id`. |
+| **OSM — vínculo email (HU-10.5)** | **Must F3 osm.lat.** OAuth público (mismo client, redirect distinto) + cookie `cert_mapper_session` + `mapper_sessions` + `osm_email_link_codes` (TTL 20 min) + SMTP. Vista `/me` solo con sesión. `osm_profiles.email` + `linked_at` (1:1); sin `participant_id`. |
 | **OSM — resolución usuario** | `GET https://api.openstreetmap.org/api/0.6/user/{osm_id}.json` |
-| **OSM — conteo changesets** | **Overpass API** (`out:json`) sobre historial del usuario |
+| **OSM — fuentes de métricas** | **Por métrica**, no un proveedor global. Canónico: [06 §5.1](./06-open-badges.md). Must F3 (`account_age_years`, `changesets_count`, `traces_count`) → **OSM API user**. Sin Overpass obligatorio. |
+| **OSM — candidatos del job** | Solo `osm_profiles` con **email vinculado** (`linked_at`). Sin descubrimiento masivo ni listas por BadgeClass. Import CSV (HU-10.2) es el camino masivo sin login. |
+| **OSM — CSV awardees** | **`osm_username` obligatorio**; `osm_id` opcional (si viene, debe coincidir). Resolver username→id en el import. |
 | **OSM — job schedule** | Cron diario 03:00 UTC (BullMQ repeatable job) |
 | **Catálogo BadgeClass OSM inicial** | Canónico: [06 §5.1](./06-open-badges.md) — p. ej. `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`; métricas `changesets_count`, `notes_closed`, … (osm.lat) |
-| **i18n** | Español único en v1.0 |
+| **i18n** | **Español** en v1.0; cadenas UI/API externalizadas (archivos de locale) para traducir después sin reescribir lógica. |
+| **CSV** | Delimitador fijo **`;`**. UTF-8. Sin detección ni parámetro por import. |
+| **Catálogos roles / tipos doc** | Solo **seed YAML** en el repo + `prisma/seed` (redeploy). Sin pantalla admin en v1.0. |
+| **Sede (venue)** | Import/alta escriben `certificates.venue_id` (y opcionalmente espejo en participante). Token `venue_name`: lee certificado → fallback `participants.venue_id`. |
+| **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` / `legal_snapshot` en `generated`). **Sin** flag `endorsed` por evento. |
+| **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. |
+| **Soft-delete restore** | Solo SQL: `UPDATE events SET deleted_at = NULL WHERE id = …`. Sin API/UI. Documentado en [11](./11-manuales-ops-y-usuario.md). |
+| **Supresión datos titular** | Fuera de v1.0 → [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
 | **Hosting código** | GitHub (repo `certificados`) |
 | **Hosting producción** | **Servidor comunitario osm.lat** + **servidor institucional AC3** (`ac3.org.co`); Docker Compose en cada uno, datos aislados |
 
@@ -114,17 +130,17 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.2 | Auth admin OAuth OSM + roles `admin` / `editor` + gestión usuarios (HU-7.4) |
 | F1.3 | CRUD eventos (`draft`/`active`), sedes, participantes |
 | F1.4 | Import CSV participantes + **descarga de plantilla** CSV |
-| F1.5 | Plantillas: upload fondo + editor Konva (capas `full_name`, `role_label`, `event_name`, `document`, `event_date`, `venue_name`, `activity_title`, QR permalink) |
+| F1.5 | Plantillas: upload fondo + editor Konva; tokens canónicos `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink_qr` |
 | F1.6 | Generación PDF (Puppeteer) + almacenamiento MinIO; **PDF inmutable** al pasar a `issued` |
-| F1.7 | Certificados `generated` y `pregenerated` (`pregenerated_only`); import masivo sheet+ZIP + **descarga de plantilla** CSV |
-| F1.8 | Estados `pending` → `issued` en primera visita |
+| F1.7 | Certificados `generated`/`pregenerated`; import sheet+ZIP (lote ≤ **100 MB**, `;`) + plantilla CSV |
+| F1.8 | Estados `pending` → `issued` vía metadata (no crawler); `/file` pending → 409 |
 | F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock) |
 | F1.10 | Búsqueda pública por email o documento |
 | F1.11 | Multi-rol: un certificado por rol |
 | F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI) + roles desde YAML anexos |
 | F1.13 | Tests unitarios + integración (ver §11) |
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
-| F1.15 | `.env.example`, seeds y CSV en `docs/anexos/` |
+| F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
 | F1.16 | Anti-abuso y carga: rate limit búsqueda + permalinks, `robots.txt`, semáforo PDF (`PDF_CONCURRENCY`) — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
 
 ### 2.2. Historias de usuario incluidas
@@ -159,7 +175,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 2. Participante busca por cédula → ve todos sus certificados (eventos pasados incluidos).
 3. Abre /c/{slug} → pending→issued, descarga PDF correcto.
 4. Sube certificado pregenerado → permalink sirve archivo fijo.
-5. Evento draft no aparece en búsqueda.
+5. Evento draft no aparece en búsqueda; permalinks `/c/` en draft **sí** resuelven.
 6. Exceso de búsquedas o de hits a /c/ desde la misma IP → 429; segunda visita a /c/ issued no lanza Puppeteer.
 ```
 
@@ -185,7 +201,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
-| F2.5 | Revocación certificado ↔ badge (HU-7.3) **Must** |
+| F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
 | F2.7 | `legal_snapshot` en certificado al generar PDF |
 | F2.8 | Segundo perfil de despliegue (docker compose / ENV `INSTANCE=ac3`) |
@@ -221,7 +237,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 ### 3.4. Prompt sugerido para IA (Fase 2)
 
-> Sobre el código de Fase 1, implementa Fase 2 según `docs/09-plan-de-implementacion.md` sección 3, `docs/06-open-badges.md` y `docs/08-datos-legales-ac3-plantilla.md`. Añade legal_snapshot. No implementes osm_activity ni jobs OSM. Incluye tests unitarios e integración (§11).
+> Sobre el código de Fase 1, implementa Fase 2 según `docs/09-plan-de-implementacion.md` sección 3, `docs/06-open-badges.md` y `docs/08-datos-legales-ac3-plantilla.md`. Emisión Open Badges = **2.0 hosted**. Añade legal_snapshot. No implementes osm_activity ni jobs OSM. Incluye tests unitarios e integración (§11).
 
 ---
 
@@ -237,14 +253,14 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 | # | Entregable |
 |---|------------|
-| F3.1 | Tabla `osm_profiles` |
+| F3.1 | Tablas `osm_profiles`, `mapper_sessions`, `osm_email_link_codes` |
 | F3.2 | BadgeClass `osm_activity` + CRUD admin |
-| F3.3 | Import CSV awardees (`osm_id` obligatorio) + descarga de plantilla |
-| F3.4 | Job BullMQ: métricas API user (antigüedad, changesets, trazas); mapping_days Should |
+| F3.3 | Import CSV awardees (`osm_username` obligatorio → resolver `osm_id`) + descarga de plantilla |
+| F3.4 | Job BullMQ sobre perfiles **con email vinculado**: métricas API user (antigüedad, changesets, trazas); mapping_days Should |
 | F3.5 | Búsqueda **pública** badges OSM por `osm_id` / username |
-| F3.6 | HU-10.5 vinculación OSM ↔ email (código) + vista unificada |
+| F3.6 | HU-10.5 vinculación OSM ↔ email (**Must**): OAuth público + códigos + `/me` + SMTP |
 | F3.7 | Turnstile en formularios públicos |
-| F3.8 | SMTP: envío de **enlace** `/c/` (From dedicado; cola prudente) |
+| F3.8 | SMTP: envío de **enlace** `/c/` (From dedicado; cola prudente) — mismo SMTP que F3.6 |
 | F3.9 | Audit log completo (solo rol admin) |
 | F3.10 | Seed BadgeClass OSM según catálogo [06 §5.1](./06-open-badges.md) |
 | F3.11 | Tests integración OSM (mocks + opcional live) |
@@ -258,21 +274,22 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-10.5 | Vinculación identidad |
 | HU-7.2 | Dashboard ampliado (jobs, errores sync) |
 
-Todas las HU **Should** restantes quedan cubiertas en Fases 2–3. Lo listado en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) (p. ej. firma OBv3) **no** entra en ninguna fase.
+Todas las HU **Should** restantes quedan cubiertas en Fases 2–3. Lo listado en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) (p. ej. migración OBv3 + firma) **no** entra en ninguna fase.
 
 ### 4.3. Criterio de aceptación de fase
 
 ```text
-1. Import CSV 10 osm_id → assertions issued con /b/{slug}.
-2. Job nocturno emite badge 100-changesets a usuario elegible.
-3. Búsqueda por osm_id lista badges + certificados vinculados (si HU-10.5).
-4. Turnstile activo en búsqueda (rate limit ya desde Fase 1).
-5. Matriz HU v1.0 completa (sin ítems de evolución futura).
+1. Import CSV por osm_username → resuelve osm_id → assertions issued con /b/{slug}.
+2. Flujo /me: OAuth público → código email → linked_at; vista unificada certificados + badges OSM.
+3. Job nocturno emite badge 100-changesets a usuario **con email vinculado** elegible.
+4. Búsqueda pública por osm_id/username lista badges de actividad (sin certificados de terceros).
+5. Turnstile activo en búsqueda (rate limit ya desde Fase 1).
+6. Matriz HU v1.0 completa (sin ítems de evolución futura).
 ```
 
 ### 4.4. Prompt sugerido para IA (Fase 3)
 
-> Sobre Fase 2, implementa Fase 3 según `docs/09-plan-de-implementacion.md` sección 4 y épica 10 en `docs/02-historias-de-usuario.md`. Usa BullMQ + Overpass. No implementar evolución futura (`docs/01-vision-y-alcance.md` §11; firma OBv3 queda NULL). Incluye tests unitarios e integración con mocks OSM (§11).
+> Sobre Fase 2, implementa Fase 3 según `docs/09-plan-de-implementacion.md` sección 4 y épica 10 en `docs/02-historias-de-usuario.md`. Incluye HU-10.5 (**Must**): OAuth público, `mapper_sessions`, `osm_email_link_codes`, `/me`, SMTP. Jobs BullMQ solo sobre perfiles vinculados; fuentes por métrica ([06 §5.1](./06-open-badges.md)). CSV awardees por `osm_username`. Emisión OB = **2.0 hosted**. No implementar evolución futura (`docs/01-vision-y-alcance.md` §11). Incluye tests unitarios e integración con mocks OSM (§11).
 
 ---
 
@@ -292,7 +309,7 @@ flowchart TB
     end
     subgraph F3 ["Fase 3 - OSM + ops"]
         C1["osm_activity badges"]
-        C2["Jobs Overpass"]
+        C2["Jobs OSM (por métrica)"]
         C3["Turnstile + SMTP"]
     end
     F1 --> F2 --> F3
@@ -302,7 +319,7 @@ flowchart TB
 
 ## 6. Evolución futura (post v1.0)
 
-Las Fases 1–3 implementan **solo** la especificación v1.0. El catálogo post-v1.0 (firma OBv3, webhook, plantillas badge, API terceros, retención MinIO, reglas OSM ampliadas, badges OSM en AC3, otras instancias, etc.) está **solo** en:
+Las Fases 1–3 implementan **solo** la especificación v1.0. El catálogo post-v1.0 (migración OBv3 + firma, webhook, plantillas badge, API terceros, retención MinIO, reglas OSM ampliadas, badges OSM en AC3, otras instancias, etc.) está **solo** en:
 
 → [01 — Visión y alcance §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)
 
@@ -342,14 +359,14 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia; **envío email enlace = F3** (SMTP) |
 | HU-7.1 | Login OAuth OSM | **1** | |
 | HU-7.2 | Dashboard | **2** + **3** | F2: conteos; F3: jobs; audit solo admin |
-| HU-7.3 | Revocación | **2** | **Must** |
+| HU-7.3 | Revocación | **2** | **Must**; endpoints + corrección revoke+nueva |
 | HU-7.4 | Gestión usuarios panel | **1** | |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | HU-8.2 | Legal AC3 config | **2** | |
-| HU-9.1 – 9.3 | Badges evento + issuer | **2** | BadgeClass al guardar `allowed_roles` (también draft) |
+| HU-9.1 – 9.3 | Badges evento + issuer | **2** | BadgeClass: UNIQUE evento+rol; code inmutable; clase por URL aunque draft |
 | HU-10.1 – 10.4, 10.6 | Badges OSM | **3** | Catálogo [06 §5.1](./06-open-badges.md) |
 | HU-10.3 | Job reglas OSM | **3** | Should |
-| HU-10.5 | Vincular OSM + evento | **3** | Should; `osm_profiles.email` + `linked_at` (sin `participant_id`) |
+| HU-10.5 | Vincular OSM + evento | **3** | **Must** osm.lat; OAuth público + `mapper_sessions` + códigos + `/me` |
 
 ---
 
@@ -405,7 +422,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | API unit + integración | **Jest** (incluido en NestJS) + **Supertest** |
 | Web componentes | **Vitest** + **React Testing Library** |
 | BD test | PostgreSQL en Docker (`docker-compose.test.yml` o servicio CI) |
-| OSM / Overpass | **Mocks** en CI; test live manual opcional |
+| OSM APIs (por métrica) | **Mocks** en CI; test live manual opcional |
 | Puppeteer PDF | Test de integración con HTML fixture (no comparar pixels) |
 | CI | `pnpm test` en GitHub Actions antes de build |
 
@@ -427,7 +444,9 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 |------|----------|
 | OAuth OSM callback → sesión | Admin/editor con rol; sin rol ⇒ 403 en APIs |
 | CRUD evento + participante + certificado | Alta multi-rol |
-| `GET /c/{slug}` primera visita | Emisión + PDF almacenado |
+| `GET /c/{slug}` / metadata primera visita (humano) | Emisión + PDF almacenado |
+| `GET …/file` mientras `pending` | **409**; no emite |
+| Metadata con UA preview | 200 sin emitir |
 | `GET /c/{slug}` segunda visita | Mismo archivo (inmutable) |
 | `POST /public/search` | Búsqueda por documento; evento draft excluido |
 | Rate limit búsqueda / permalink | **429** tras umbral (`THROTTLE_*`) |
@@ -450,6 +469,8 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | `GET /b/{slug}` | JSON-LD válido, evidence apunta a `/c/` |
 | `GET /badges/issuer.json` | Issuer por instancia |
 | Revocar certificado | `/c/` y `/b/` en estado revocado |
+| Revocar badge OSM | `/b/` revoked; certificados intactos |
+| Alta tras revoke mismo rol | Nuevo slug; UNIQUE parcial OK |
 | Instancia AC3 | PDF contiene NIT del snapshot; config nueva no altera PDF viejo |
 | `GET /api/v1/verify/c/{slug}` | JSON `{ valid: true/false }` |
 | Open Graph | Meta tags presentes en HTML de `/c/` y `/b/` |
@@ -459,7 +480,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 **Unitarios:**
 
 - Idempotencia import CSV (`osm_id` + BadgeClass).
-- Evaluación `criteria_rule` (mock respuesta Overpass).
+- Evaluación `criteria_rule` (mock respuesta según fuente de la métrica, p. ej. API user).
 - Resolución username → `osm_id`.
 
 **Integración (T14, T16):**

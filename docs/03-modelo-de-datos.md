@@ -21,6 +21,7 @@ Esquema conceptual agnóstico de motor (PostgreSQL recomendado).
 
 ```
 country_identity_config
+roles
 
 events 1──N venues
 events 1──N participants
@@ -29,9 +30,14 @@ events 1──N badge_classes (event_role)
 
 participants 1──N certificates
 certificates 1──0..1 badge_assertions (event_role; FK en assertion)
+certificates N──1 stored_files (PDF/imagen servido)
+certificate_templates N──1 stored_files (fondo)
 
 badge_classes 1──N badge_assertions
+badge_classes 1──N badge_import_batches
 osm_profiles 1──N badge_assertions (osm_activity)
+osm_profiles 1──N mapper_sessions
+osm_profiles 1──N osm_email_link_codes
 
 badge_issuers (1 por instancia, singleton lógico)
 instance_legal (0..1 — AC3)
@@ -94,7 +100,7 @@ Otros países se añaden por **datos de configuración**, no cambios de código.
 **Orden de creación:** el evento nace **sin** `default_template_id` (nullable). Tras crear la primera `certificate_template` del evento, el sistema la asigna como default si aún es NULL. Evita FK circular evento↔plantilla en el insert inicial.
 
 **Regla UX:** si `venues` count = 1, la sede se infiere en consulta pública.  
-**Soft-delete:** excluir de listados admin y de **búsqueda pública** si `deleted_at` no es NULL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen resolviendo** (enlaces ya compartidos no se rompen). Restore = limpiar `deleted_at` (admin/SQL).
+**Soft-delete:** excluir de listados admin y de **búsqueda pública** si `deleted_at` no es NULL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen resolviendo**. **Restore (v1.0):** solo SQL — `UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<uuid>';` (sin API/UI). Ver [11](./11-manuales-ops-y-usuario.md).
 
 ---
 
@@ -123,12 +129,13 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 |---------|------|-------------|
 | id | UUID PK | |
 | event_id | UUID FK | |
-| venue_id | UUID FK | NULL si no aplica; **metadato** (dónde/modalidad), no parte de la identidad del certificado |
+| venue_id | UUID FK | NULL si no aplica; **metadato**; en alta/CSV el valor canónico del certificado va en `certificates.venue_id` |
+
 | full_name | VARCHAR(255) | Obligatorio (sale en el certificado) |
 | email | VARCHAR(255) | Obligatorio (osm.lat y AC3); almacenar **normalizado** (`trim` + `lower`) |
 | country_code | CHAR(2) | País del documento (obligatorio en AC3) |
 | doc_type_code | VARCHAR(10) | Obligatorio en AC3; opcional en osm.lat |
-| doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat |
+| doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat; almacenar **normalizado** (ver abajo) |
 | activity_title | TEXT | Charla/taller (opcional); si el certificado define override, gana el de `certificates` |
 | created_at | TIMESTAMPTZ | |
 
@@ -142,8 +149,14 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 - Cada persona en un evento tiene **su propio email**. Un email identifica a **un** participante del evento.
 - **UNIQUE** `(event_id, email)` — alta individual, CSV o pregenerados: si el email ya existe en el evento → **rechazar** (error de validación; en CSV atómico → falla todo el lote).
 - Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo email (no otro participante).
-- Documento (cuando existe): validar formato vía `country_identity_config`; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
+- Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
 - Búsqueda pública por email: comparar contra el valor normalizado.
+- **Normalización de `doc_number` (decisión cerrada):** al guardar (alta, CSV, pregenerados) y al buscar:
+  1. Quitar espacios, puntos, comas y guiones.
+  2. Para tipos numéricos de Colombia (`CC`, `CE`, `TI`, … según seed): dejar **solo dígitos**.
+  3. Aplicar `validation_regex` del país **sobre el valor ya normalizado**.
+  4. Persistir solo la forma normalizada (la UI puede mostrar lo que el usuario escribió en el PDF vía token `document` formateado si se desea; el valor en BD es el normalizado).
+- **País en búsqueda por documento:** siempre obligatorio en el formulario cuando se busca por documento (forma parte del índice `(event_id, country_code, doc_type_code, doc_number)`). En AC3 el país también es obligatorio en el alta. En osm.lat, si solo se busca por email, el país no aplica.
 
 > **Nota:** los **roles** no van aquí; van en `certificates`. La **sede** no forma parte de la clave del certificado: una persona es asistente/ponente/… del **evento**; si hubo varias sedes, se elige una sede “de contexto” (o ninguna) para el texto del PDF.
 
@@ -183,16 +196,24 @@ Diseño visual para certificados generados.
 |---------|------|-------------|
 | id | UUID PK | |
 | event_id | UUID FK | |
-| role_code | VARCHAR(50) | NULL = plantilla default del evento |
+| role_code | VARCHAR(50) | **NULL** = plantilla **default** del evento; no NULL = override de ese rol |
 | name | VARCHAR(255) | Nombre interno |
 | background_file_id | UUID FK | → `stored_files` (imagen de fondo en MinIO) |
-| layout | JSONB | Capas: posición, fuente, campo (`full_name`, `legal.nit`, …) |
+| layout | JSONB | Capas: posición, fuente, campo (tokens canónicos § abajo / [04 §5](./04-flujos-funcionales.md)) |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
+**Decisión cerrada — default y unicidad:**
+
+- **Un** mecanismo de default: `role_code IS NULL` = plantilla default.
+- `events.default_template_id` **apunta** a esa fila (se setea al crear la primera plantilla del evento si aún es NULL, o al marcar otra como default).
+- `UNIQUE (event_id, role_code)` — como máximo una default (`NULL`) y una plantilla por rol. (En PostgreSQL usar índice único parcial / `NULL`s distintos según convención Prisma: preferir coacción `role_code` vacío vs NULL documentada en schema, o unique `(event_id, coalesce(role_code,''))`.)
+- Resolución al **crear** certificado `pending` modo `generated`: si existe plantilla con `role_code` = rol del certificado → esa; si no → la default (`role_code` NULL). Se persiste en `certificates.template_id` en ese momento.
+- Cambios posteriores al layout/default **no** alteran `template_id` de certificados `pending`/`issued` ya creados; nuevas altas sí usan la resolución actual.
+
 **`layout` (generado por editor visual, no editado a mano):**
 
-- **Página:** A4 (210×297 mm). Orientación por defecto del producto: **apaisada** (landscape).
+- **Página:** A4 (210×297 mm). Orientación del producto en v1.0: **apaisada** (landscape) fija en el editor; `layout.canvas.orientation` queda en el JSON por compatibilidad futura.
 - **Resolución de render:** **150 DPI** → canvas de referencia **1754×1240 px** (A4 landscape).
 - **Tipografías:** solo fuentes **abiertas** (SIL OFL / Apache / equivalentes), p. ej. familias tipo Google Fonts (**Noto Sans**, Source Sans 3, …). Embebidas o self-hosted en el HTML de Puppeteer y en el preview del editor; no depender de fuentes instaladas en el cliente.
 
@@ -241,10 +262,10 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | slug | VARCHAR(16) | Permalink; valor generado = **nanoid 12** chars `[A-Za-z0-9_-]` (columna con margen) |
 | participant_id | UUID FK | |
 | event_id | UUID FK | |
-| venue_id | UUID FK | NULL |
+| venue_id | UUID FK | NULL; sede de contexto del certificado (canónica para render) |
 | role_code | VARCHAR(50) | Rol de este certificado |
 | mode | ENUM | `generated`, `pregenerated` |
-| template_id | UUID FK | NULL si pregenerado |
+| template_id | UUID FK | NULL si pregenerado; en `generated` se fija al crear `pending` (ver §4.5) |
 | stored_file_id | UUID FK | Archivo servido: pregenerado subido o PDF generado (inmutable tras `issued`) |
 | activity_title | TEXT | Override por rol (ej. charla); si NULL, usar `participants.activity_title` |
 | status | ENUM | `pending`, `issued`, `revoked` |
@@ -257,8 +278,10 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 
 **Constraints:**
 
-- UNIQUE `(participant_id, role_code)` — un certificado por rol por persona por evento.
+- UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
 - UNIQUE `slug`.
+
+**Sede (decisión cerrada):** al alta individual o CSV, `venue_code` → se escribe en **`certificates.venue_id`** (y, si se desea consistencia, también en `participants.venue_id`). Token `venue_name`: leer `certificates.venue_id` → si NULL, fallback `participants.venue_id` → si NULL, vacío.
 
 **Enlace al badge (Fase 2):** la relación canónica es `badge_assertions.certificate_id` → este certificado. **No** hay `badge_assertion_id` en `certificates` (evita FK circular). Consulta: assertion donde `certificate_id = certificates.id`.
 
@@ -324,7 +347,7 @@ Acciones administrativas.
 
 ### 5.3. `permalink_access_log`
 
-Consultas al permalink (privacidad: no loguear IPs completas en producción si no es necesario — configurable).
+Consultas a permalinks de **certificado** `/c/` (privacidad: no columna IP; si en el futuro se añade, respetar `LOG_REDACT_IP`). **v1.0:** no registra accesos a `/b/` (el dashboard cuenta consultas a `/c/`; ampliar a badges = evolución menor).
 
 | Columna | Tipo |
 |---------|------|
@@ -367,7 +390,7 @@ Un registro por instancia (o derivado de config ENV).
 | url | VARCHAR(255) | URL instancia |
 | description | TEXT | |
 | image_storage_key | VARCHAR(500) | Logo issuer |
-| public_key | TEXT | NULL en v1.0; firma OBv3 en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) |
+| public_key | TEXT | NULL en v1.0 (OB 2.0 hosted no la usa); OBv3 + firma en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) |
 | created_at | TIMESTAMPTZ | |
 
 ### 6.2. `badge_classes`
@@ -375,9 +398,9 @@ Un registro por instancia (o derivado de config ENV).
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | id | UUID PK | |
-| code | VARCHAR(100) UNIQUE | Ej. `osm-100-changesets`, `mapathon-2026-asistente` |
+| code | VARCHAR(100) UNIQUE | Estable; p. ej. `osm-changesets-100` o `{event_slug}-{role_code}`. **Inmutable** tras crear (renombrar evento no lo cambia). |
 | type | ENUM | `event_role`, `osm_activity` |
-| name | VARCHAR(255) | Título del logro |
+| name | VARCHAR(255) | Título del logro (sí se actualiza al renombrar evento/rol label) |
 | description | TEXT | |
 | criteria_narrative | TEXT | Texto humano del criterio |
 | criteria_rule | JSONB | NULL; regla evaluable por jobs OSM |
@@ -387,6 +410,11 @@ Un registro por instancia (o derivado de config ENV).
 | role_code | VARCHAR(50) | NULL; obligatorio si `event_role` |
 | is_active | BOOLEAN | |
 | created_at | TIMESTAMPTZ | |
+
+**Constraints `event_role`:**
+
+- `UNIQUE (event_id, role_code)` — una clase por rol por evento (upsert al guardar `allowed_roles`).
+- `code` UNIQUE global; no recalcular al renombrar el evento.
 
 **Ejemplo `criteria_rule` (osm_activity):**
 
@@ -414,9 +442,39 @@ Identidad OSM **estable por `osm_id`**. El username puede cambiar; otro mapper p
 
 **Reglas:**
 
-- Toda emisión/consulta de badge OSM usa **`osm_id`**, no username solo.
+- Toda emisión/consulta de badge OSM usa **`osm_id`**, no username solo (el username solo sirve para capturar/resolver).
 - Username en UI se refresca periódicamente o al buscar por username (resolver → osm_id).
-- **Vínculo con eventos (HU-10.5):** canónico = `email` verificado en este perfil (1:1). **No** hay `participant_id`: `participants` es por evento; la vista unificada busca certificados por el email vinculado.
+- **Vínculo con eventos (HU-10.5):** canónico = `email` verificado en este perfil (1:1). **No** hay `participant_id`: `participants` es por evento; la vista unificada `/me` busca certificados por el email vinculado tras OAuth mapper + código.
+- **Job automático (HU-10.3):** solo perfiles con `email` + `linked_at` (vinculados). Perfiles creados solo por CSV sin vínculo **no** entran al job.
+
+### 6.3.1. `mapper_sessions` (Fase 3, osm.lat)
+
+Sesión del mapper en el área pública (`/me`). **Distinta** de `admin_sessions`.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| id | UUID PK | |
+| osm_profile_id | UUID FK | |
+| token_hash | VARCHAR(64) | Hash del token de cookie `cert_mapper_session` |
+| expires_at | TIMESTAMPTZ | |
+| created_at | TIMESTAMPTZ | |
+| last_seen_at | TIMESTAMPTZ | |
+
+### 6.3.2. `osm_email_link_codes` (Fase 3, osm.lat)
+
+Códigos de un solo uso para verificar posesión del email.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| id | UUID PK | |
+| osm_profile_id | UUID FK | Mapper autenticado que solicitó el vínculo |
+| email | VARCHAR(255) | Email normalizado (`trim`+`lower`) destino del código |
+| code_hash | VARCHAR(64) | Hash del código (nunca plaintext en BD) |
+| expires_at | TIMESTAMPTZ | Default: created_at + 20 min |
+| consumed_at | TIMESTAMPTZ | NULL hasta uso exitoso |
+| created_at | TIMESTAMPTZ | |
+
+**Reglas:** invalidar códigos previos no consumidos del mismo `osm_profile_id` al emitir uno nuevo; rate-limit por IP y por perfil al solicitar código.
 
 ### 6.4. `badge_assertions`
 
@@ -434,13 +492,14 @@ Identidad OSM **estable por `osm_id`**. El username puede cambiar; otro mapper p
 | status | ENUM | `pending`, `issued`, `revoked` |
 | issued_at | TIMESTAMPTZ | |
 | revoked_at | TIMESTAMPTZ | NULL |
+| revoke_reason | TEXT | NULL |
 | assertion_json | JSONB | Cache JSON-LD |
 | created_at | TIMESTAMPTZ | |
 
 **Constraints:**
 
 - UNIQUE `(badge_class_id, certificate_id)` cuando certificate_id NOT NULL.
-- UNIQUE `(badge_class_id, osm_profile_id)` cuando osm_profile_id NOT NULL.
+- UNIQUE parcial `(badge_class_id, osm_profile_id)` donde `osm_profile_id IS NOT NULL AND status <> 'revoked'` — tras revoke OSM se puede volver a emitir el mismo logro.
 
 Ver ciclo de estados en [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md).
 
@@ -518,7 +577,7 @@ Ejemplo: [anexos/csv/participantes-ejemplo.csv](./anexos/csv/participantes-ejemp
 full_name;email;country_code;doc_type;doc_number;role;activity_title;venue_code
 Ana García;ana@mail.com;CO;CC;1234567890;asistente;;
 Ana García;ana@mail.com;CO;CC;1234567890;voluntario;;
-Carlos López;carlos@mail.com;CO;CE;987654;ponente;Mapping con OpenStreetMap;VIR
+Carlos López;carlos@mail.com;CO;CE;987654321;ponente;Mapping con OpenStreetMap;BOG
 ```
 
 | Columna | Obligatorio | Notas |
@@ -539,18 +598,19 @@ Carlos López;carlos@mail.com;CO;CE;987654;ponente;Mapping con OpenStreetMap;VIR
 Ejemplo: [anexos/csv/awardees-osm-ejemplo.csv](./anexos/csv/awardees-osm-ejemplo.csv).
 
 ```csv
-osm_id;osm_username;earned_at;evidence_url
-123456;AngocA;2026-01-15T10:00:00Z;https://www.openstreetmap.org/user/AngocA
-789012;;;
+osm_username;osm_id;earned_at;evidence_url
+AngocA;;2026-01-15T10:00:00Z;https://www.openstreetmap.org/user/AngocA
+mapper_ejemplo;;;
 ```
 
 | Columna | Obligatorio | Notas |
 |---------|-------------|-------|
-| osm_id | Sí | Identidad estable |
-| osm_username | No | Etiqueta legible; se actualiza en profile |
+| osm_username | **Sí** | Nombre OSM actual; poca gente conoce su id numérico |
+| osm_id | No | Si viene, debe coincidir con el resuelto desde username; si no, se obtiene vía API en el import |
 | earned_at | No | Default = now |
-| evidence_url | No | Default = perfil OSM por osm_id |
+| evidence_url | No | Default = perfil OSM por **username** actual (`/user/{osm_username}`) |
 
+**Resolución:** en el import, `osm_username` → `osm_id` (cliente OSM; detalle de endpoint en implementación). Persistencia canónica siempre por `osm_id`. Username inexistente o colisión id/username → fila en informe de error (lote atómico = falla todo el archivo).
 ---
 
 ## 10. Carga de certificados pregenerados
@@ -559,7 +619,7 @@ Flujo de carga masiva (Must):
 
 1. El editor **descarga la plantilla** CSV desde el panel (encabezados + filas de ejemplo; abre en Excel/LibreOffice).
 2. Completa la hoja: columnas mínimas `filename`, `full_name`, `email`, `role` (+ doc en AC3). `filename` debe coincidir exactamente con un archivo del ZIP.
-3. Sube hoja **CSV** (UTF-8; delimiter `;`) + ZIP (o carpeta empaquetada) con los archivos. **v1.0 no importa ODS nativo** — si se edita en LibreOffice/Excel, guardar/exportar como CSV.
+3. Sube hoja **CSV** (UTF-8; delimitador fijo **`;`**) + ZIP con los archivos. Límite del lote **100 MB**. **v1.0 no importa ODS nativo**.
 4. Validar **todo el lote**; si hay error → no escribir nada; devolver informe.
 5. Imports **incrementales** al mismo evento; rechazar filas que dupliquen certificado ya existente (mismo email + rol) o email con datos conflictivos.
 6. Upload 1:1 sigue disponible para correcciones.
@@ -581,13 +641,24 @@ cert-carlos-ponente.pdf;Carlos López;carlos@mail.com;CO;CE;987654321;ponente
 ```sql
 CREATE UNIQUE INDEX idx_certificates_slug ON certificates(slug);
 CREATE INDEX idx_certificates_event ON certificates(event_id);
+CREATE UNIQUE INDEX idx_certificates_participant_role_active
+  ON certificates(participant_id, role_code) WHERE status <> 'revoked';
 CREATE UNIQUE INDEX idx_participants_event_email ON participants(event_id, email);
 CREATE INDEX idx_participants_event_doc ON participants(event_id, country_code, doc_type_code, doc_number);
 CREATE UNIQUE INDEX idx_badge_assertions_slug ON badge_assertions(slug);
 CREATE INDEX idx_badge_assertions_certificate ON badge_assertions(certificate_id);
 CREATE INDEX idx_badge_assertions_osm ON badge_assertions(osm_profile_id);
+CREATE UNIQUE INDEX idx_badge_assertions_class_osm_active
+  ON badge_assertions(badge_class_id, osm_profile_id)
+  WHERE osm_profile_id IS NOT NULL AND status <> 'revoked';
 CREATE INDEX idx_osm_profiles_osm_id ON osm_profiles(osm_id);
 CREATE INDEX idx_osm_profiles_username ON osm_profiles(osm_username);
+CREATE UNIQUE INDEX idx_osm_profiles_email ON osm_profiles(email) WHERE email IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_certificate_templates_event_role
+  ON certificate_templates(event_id, COALESCE(role_code, ''));
 CREATE INDEX idx_badge_classes_type ON badge_classes(type, is_active);
+CREATE UNIQUE INDEX idx_badge_classes_event_role
+  ON badge_classes(event_id, role_code) WHERE type = 'event_role';
 CREATE INDEX idx_events_year_status ON events(year, status);
 ```

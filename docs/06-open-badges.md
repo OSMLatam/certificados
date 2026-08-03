@@ -13,9 +13,11 @@ Open Badges es un **pilar del sistema**, al mismo nivel que los certificados PDF
 | Credencial | Ruta | Formato | Caso de uso |
 |------------|------|---------|-------------|
 | Certificado | `/c/{slug}` | PDF / imagen | Eventos, diploma, LinkedIn, AC3 legal |
-| Badge | `/b/{slug}` | Open Badge 3.0 (JSON-LD) | Backpack, logros OSM, complemento de evento |
+| Badge | `/b/{slug}` | **Open Badges 2.0** (JSON-LD, verificación *hosted*) | Backpack (Badgr, Open Badge Passport), logros OSM, complemento de evento |
 
-Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al definir `allowed_roles`, incluso en `draft`; ver HU-9.3).  
+**Decisión cerrada (v1.0):** el sistema emite **Open Badges 2.0** con verificación **hosted** (la URL pública de la assertion es la prueba de validez). No se emite OB 3.0 ni firma criptográfica en v1.0 — eso queda en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) (migración a OBv3 + `proof`).
+
+Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al definir `allowed_roles`, incluso en `draft`; `UNIQUE (event_id, role_code)`; ver HU-9.3).  
 Un badge de actividad OSM **puede existir sin certificado**.
 
 ---
@@ -59,36 +61,36 @@ flowchart LR
 
 ---
 
-## 2.3. Recipient (identidad OB)
+### 2.3. Recipient (identidad OB 2.0)
 
-- Assertion usa **hash de email + salt** (estilo Open Badges 2 / portable a backpacks) cuando hay email.
+- Con email (`event_role`, o `osm_activity` con email vinculado HU-10.5): recipient **`IdentityObject`** con email **hasheado** (`hashed: true`) + **salt** aleatorio por assertion. El salt viaja **dentro** del JSON de la assertion (estándar OB 2.0); se cachea en `assertion_json`. No hace falta columna/`ENV` de salt global.
 - Email siempre disponible en badges `event_role`: es obligatorio en participantes.
-- Badges `osm_activity` se asocian a `osm_id`. Con `osm_profiles.email` vinculado (HU-10.5): mismo hash de email. **Sin email vinculado**, el recipient usa identidad OSM en el JSON-LD, por ejemplo:
+- Badges `osm_activity` se asocian a `osm_id`. **Sin email vinculado**, el recipient usa identidad OSM como URL estable bajo el dominio de la instancia (el id numérico es la identidad; no el username):
 
 ```json
 {
   "type": "IdentityObject",
   "identityType": "url",
-  "identity": "https://www.openstreetmap.org/user/{osm_id}",
+  "identity": "https://certificados.osm.lat/osm/users/{osm_id}",
   "hashed": false
 }
 ```
 
-(Exacto campo según serialización OBv3 elegida en F3; contrato: identificador estable = `osm_id`, no username.)
+(Contrato: identificador estable = `osm_id`, no username. La ruta `/osm/users/{osm_id}` puede ser página mínima o redirect al perfil OSM actual.)
 
-**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion + API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado.
+**Verificación en v1.0:** (1) hosted — `GET /badges/assertions/{uuid}.json` debe seguir sirviendo la assertion mientras el badge esté `issued`; (2) páginas humanas `/c/{slug}` y `/b/{slug}`; (3) API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado.
 
 ---
 
-## 3. Mapeo Open Badges 3.0
+## 3. Mapeo Open Badges 2.0
 
-| OB 3.0 | Entidad en sistema |
+| OB 2.0 | Entidad en sistema |
 |--------|-------------------|
-| **Profile (Issuer)** | Config instancia + `badge_issuers` |
-| **Achievement (BadgeClass)** | `badge_classes` |
-| **VerifiableCredential** | `badge_assertions` |
+| **Issuer (Profile)** | Config instancia + `badge_issuers` |
+| **BadgeClass** | `badge_classes` |
+| **Assertion** | `badge_assertions` |
 | **Evidence** | URL `/c/` o perfil OSM / snapshot API |
-| **Verification** | `/b/{slug}`, `/badges/assertions/{uuid}.json` |
+| **Verification** | Hosted: `/badges/assertions/{uuid}.json`; UI: `/b/{slug}` |
 
 ---
 
@@ -98,8 +100,8 @@ flowchart LR
 
 ```json
 {
-  "@context": "https://w3id.org/openbadges/v3",
-  "type": "Profile",
+  "@context": "https://w3id.org/openbadges/v2",
+  "type": "Issuer",
   "id": "https://certificados.osm.lat/badges/issuer.json",
   "name": "OSM Latam — Certificados y Badges",
   "url": "https://certificados.osm.lat",
@@ -111,8 +113,8 @@ flowchart LR
 
 ```json
 {
-  "@context": "https://w3id.org/openbadges/v3",
-  "type": "Profile",
+  "@context": "https://w3id.org/openbadges/v2",
+  "type": "Issuer",
   "id": "https://certificados.ac3.org.co/badges/issuer.json",
   "name": "AC3 — Certificados institucionales",
   "url": "https://certificados.ac3.org.co",
@@ -128,7 +130,7 @@ flowchart LR
 
 ```json
 {
-  "type": "osm_activity | event_role",
+  "type": "event_role",
   "code": "mapathon-monteria-2026-asistente",
   "name": "Asistente — Mapathon Montería 2026",
   "description": "Participó como asistente en el mapathon.",
@@ -143,26 +145,24 @@ flowchart LR
 
 Escalas acumulativas (un assertion por BadgeClass al cruzar umbral). Alineación changesets con tramos tipo HDYC en el extremo alto.
 
-| Familia | metric | Umbrales (value) | Esfuerzo job |
-|---------|--------|------------------|--------------|
-| Antigüedad cuenta | `account_age_years` | 1, 5, 10, 20 | Bajo (API user) |
-| Changesets | `changesets_count` | 25, 100, 1000, 10000, 25000, 75000, 100000 | Bajo |
-| Trazas GPX | `traces_count` | 1, 10, 100, 1000, 5000 | Bajo |
-| Días mapeando | `mapping_days` | 7, 30, 100, 365, 1000, 2000 | Medio |
-| Diarios | `diary_entries` | 1, 5, 20, 100 | Alto / CSV hasta fuente estable |
-| Amigos | `friends_count` | 1, 10, 50 | Alto / CSV |
-| Notas abiertas | `notes_opened` | 1, 10, 100, 1000, 5000 | Alto / CSV |
-| Notas cerradas | `notes_closed` | 1, 10, 100, 1000, 5000 | Alto / CSV |
+| Familia | metric | Umbrales (value) | Fuente v1.0 | Esfuerzo |
+|---------|--------|------------------|-------------|---------|
+| Antigüedad cuenta | `account_age_years` | 1, 5, 10, 20 | **OSM API user** | Bajo (Must job F3) |
+| Changesets | `changesets_count` | 25, 100, 1000, 10000, 25000, 75000, 100000 | **OSM API user** | Bajo (Must job F3) |
+| Trazas GPX | `traces_count` | 1, 10, 100, 1000, 5000 | **OSM API user** | Bajo (Must job F3) |
+| Días mapeando | `mapping_days` | 7, 30, 100, 365, 1000, 2000 | Fuente a elegir en implementación (API/agregador disponible) | Medio (Should) |
+| Diarios | `diary_entries` | 1, 5, 20, 100 | **CSV** hasta fuente estable | Alto |
+| Amigos | `friends_count` | 1, 10, 50 | **CSV** | Alto |
+| Notas abiertas | `notes_opened` | 1, 10, 100, 1000, 5000 | **CSV** (Notes API = evolución) | Alto |
+| Notas cerradas | `notes_closed` | 1, 10, 100, 1000, 5000 | **CSV** (Notes API = evolución) | Alto |
 
 Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
 
-**Must job F3 (API user):** antigüedad, changesets, trazas.  
-**Should:** mapping_days.  
-**CSV o evolución:** diarios, amigos, notas.
+**Decisión cerrada — fuente por métrica:** no hay un proveedor global (p. ej. Overpass obligatorio). Cada `metric` declara su fuente en esta tabla. El job Must de F3 usa **`GET /api/0.6/user/{id}`** (bloque `user`) para antigüedad, changesets y trazas. Otras fuentes (Overpass, Notes API, planet, ohsome, …) solo si la fila de la métrica las admite o en evolución futura.
 
-**Qué ya está cerrado (producto):** las **métricas**, umbrales y códigos de BadgeClass de esta tabla. No hace falta redefinir números al implementar.
+**Qué ya está cerrado (producto):** métricas, umbrales, códigos de BadgeClass y **fuente por métrica**.
 
-**Qué queda a implementación (no es decisión de producto):** mapear cada `metric` a la fuente técnica (`OSM API user` vs Overpass u otra) y escribir la query concreta; en CI, mocks. Contrato: el job debe evaluar `criteria_rule` (`metric` + `operator` + `value`) y emitir de forma idempotente.
+**Qué queda a implementación:** la query/cliente concreto de cada fuente y mocks en CI. Contrato: el job evalúa `criteria_rule` (`metric` + `operator` + `value`) y emite de forma idempotente.
 
 ### Actividad OSM (ejemplo JSON)
 
@@ -178,9 +178,11 @@ Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
     "operator": ">=",
     "value": 100
   },
-  "external_source": "osm_api | manual_import | custom_service"
+  "external_source": "osm_api"
 }
 ```
+
+(`external_source` ENUM: `manual_import` | `osm_api` | `certificate_sync` | `custom` — ver [03](./03-modelo-de-datos.md).)
 
 ---
 
@@ -220,9 +222,9 @@ sequenceDiagram
 
 ```
 1. Admin crea BadgeClass "100 notas resueltas"
-2. Servicio externo o CSV entrega: `osm_id`, opcional username, …
-3. Sistema crea/actualiza `osm_profile` por **osm_id** y emite assertion (idempotente)
-4. Usuario visita /b/{slug} o busca por osm_username
+2. CSV entrega: `osm_username` obligatorio (+ opcional osm_id, earned_at, evidence_url)
+3. Sistema resuelve username → osm_id, crea/actualiza `osm_profile` y emite assertion (idempotente)
+4. Usuario visita /b/{slug} o busca por osm_username / osm_id
 5. Opción export OB / Badgr
 ```
 
@@ -230,10 +232,13 @@ sequenceDiagram
 
 ```
 1. BadgeClass con criteria_rule (changesets_count >= 100)
-2. Job nocturno: usuarios vinculados + consulta API
-3. Si cumple y no tiene assertion → emitir
-4. Registrar evidence (snapshot fecha + enlace perfil OSM)
+2. Candidatos: osm_profiles con email vinculado (email + linked_at) — no descubrimiento masivo
+3. Para cada candidato: consultar fuente de la métrica ([§5.1](#51-actividad-osm--catálogo-inicial-fase-3))
+4. Si cumple y no tiene assertion → emitir
+5. Registrar evidence (snapshot fecha + enlace perfil OSM)
 ```
+
+**Dependencia:** el job productivo requiere perfiles vinculados (HU-10.5). El otorgamiento masivo sin login sigue siendo el **import CSV** (HU-10.2).
 
 ---
 
@@ -244,7 +249,7 @@ sequenceDiagram
 | event_role | email / doc (como certificado) | Formulario eventos |
 | osm_activity | **`osm_id`** (username opcional, resuelto vía API) | Formulario "Mis badges OSM" |
 
-**Vinculación (HU-10.5):** `osm_profiles.email` + `linked_at` tras código de un solo uso. Relación canónica `osm_id` ↔ email (1:1). La vista unificada resuelve certificados por ese email y badges OSM por `osm_id`. No se usa FK a `participants` (esa fila es por evento).
+**Vinculación (HU-10.5, Must F3 osm.lat):** OAuth público → sesión mapper → código por email → `osm_profiles.email` + `linked_at` (1:1). Vista `/me` autenticada: certificados por ese email + badges OSM por `osm_id`. Tablas: `mapper_sessions`, `osm_email_link_codes`. No se usa FK a `participants`.
 
 ---
 
@@ -252,9 +257,10 @@ sequenceDiagram
 
 | Acción | Efecto |
 |--------|--------|
-| Revocar certificate | Revoca badge event_role vinculado |
-| Revocar assertion OSM | Solo `/b/`; no afecta certificados |
+| Revocar certificate | Revoca badge event_role vinculado (`POST …/certificates/{id}/revoke`) |
+| Revocar assertion (directo) | `POST …/badges/{id}/revoke`; solo `/b/`; no afecta certificados |
 | BadgeClass desactivado | No nuevas emisiones; existentes válidas |
+| Corrección de emitido | Revocar + alta nueva; PDF inmutable |
 
 ---
 
@@ -269,13 +275,13 @@ Editor simple: upload de PNG/SVG por BadgeClass. Plantillas reutilizables: [evol
 
 ## 11. Evolución futura
 
-Capacidades OB post-v1.0 (firma OBv3, webhook, plantillas de imagen, reglas OSM ampliadas, etc.): ver la lista canónica en [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+Capacidades OB post-v1.0 (migración a **Open Badges 3.0** + firma/`proof`, webhook, plantillas de imagen, reglas OSM ampliadas, etc.): ver la lista canónica en [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 ---
 
 ## 12. LinkedIn y redes
 
-- **Certificados:** Open Graph en `/c/{slug}` (preview PDF).
+- **Certificados:** Open Graph en `/c/{slug}` (preview). Crawlers/preview **no** disparan emisión del PDF ([07](./07-estados-y-ciclo-de-vida.md), [10 §4.2](./10-diseno-codigo-y-anexos.md)).
 - **Badges:** Open Graph en `/b/{slug}` (imagen del badge + título del logro).
 - LinkedIn no importa OB nativamente; el permalink con buena preview sigue siendo clave.
 
@@ -284,7 +290,8 @@ Capacidades OB post-v1.0 (firma OBv3, webhook, plantillas de imagen, reglas OSM 
 ## 13. Referencias
 
 - [Open Badges](https://openbadges.org/)
-- [OB v3.0](https://www.imsglobal.org/spec/ob/v3p0/)
+- [OB v2 IMS](https://www.imsglobal.org/sites/default/files/Badges/OBv2p0Final/index.html) (formato de emisión v1.0)
+- [OB v3.0](https://www.imsglobal.org/spec/ob/v3p0/) (evolución futura)
 - [Visión y alcance — evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10)
 - [Modelo de datos](./03-modelo-de-datos.md)
 - [Historias de usuario — Épica 9 y 10](./02-historias-de-usuario.md)

@@ -9,13 +9,16 @@
 ## Setup
 
 ```bash
-cp docs/anexos/.env.example .env
-docker compose up -d postgres minio redis
+cp .env.example .env
+# Fase 1/2: no hace falta Redis (solo F3 / BullMQ)
+docker compose up -d postgres minio
 pnpm install
 pnpm --filter api prisma migrate dev
 pnpm --filter api prisma db seed
 pnpm dev
 ```
+
+Para Fase 3 (jobs OSM): `docker compose --profile fase3 up -d redis` (o el perfil documentado en Compose).
 
 ## Commands
 

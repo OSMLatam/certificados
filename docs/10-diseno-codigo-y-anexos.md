@@ -67,7 +67,7 @@ certificados/
 │   │   │   ├── pdf/               # Puppeteer render
 │   │   │   ├── badges/            # Fase 2+
 │   │   │   ├── legal/             # Fase 2 — AC3 config reader
-│   │   │   ├── osm/               # Fase 3 — profiles, overpass
+│   │   │   ├── osm/               # Fase 3 — profiles, métricas por fuente
 │   │   │   └── jobs/              # Fase 3 — BullMQ processors
 │   │   ├── test/
 │   │   │   ├── app.e2e-spec.ts
@@ -95,7 +95,7 @@ certificados/
 │       │   └── csv/               # parser participantes
 │       └── package.json
 ├── docs/
-│   └── anexos/                    # CSV, seed YAML, .env.example
+│   └── anexos/                    # CSV ejemplos, seed YAML (`.env.example` canónico = raíz del repo)
 ├── docker/
 │   ├── api.Dockerfile
 │   ├── web.Dockerfile
@@ -104,7 +104,7 @@ certificados/
 ├── docker-compose.test.yml
 ├── pnpm-workspace.yaml
 ├── package.json
-├── .env.example                   # symlink or copy from docs/anexos/.env.example
+├── .env.example                   # canónico en la **raíz** del repo
 ├── CONTRIBUTING.md
 └── README.md
 ```
@@ -142,7 +142,7 @@ certificados/
 
 | Módulo | Responsabilidad |
 |--------|-----------------|
-| `osm` | Profiles, API user lookup, Overpass client |
+| `osm` | Profiles, API user lookup, clientes por métrica ([06 §5.1](./06-open-badges.md)) |
 | `jobs` | BullMQ: sync rules, scheduled cron |
 
 ---
@@ -153,40 +153,45 @@ certificados/
 
 | Elemento | Convención | Ejemplo |
 |----------|------------|---------|
-| Tablas BD | `snake_case` plural | `certificate_templates` |
+| Tablas BD | `snake_case`; plural en colecciones; singular OK en config/log singleton | `certificates`, `instance_legal` |
 | Prisma models | PascalCase | `CertificateTemplate` |
 | API routes | kebab o recurso plural | `/api/v1/admin/events` |
 | DTOs | Suffix `Dto` | `CreateEventDto` |
 | Servicios | Suffix `Service` | `CertificatesService` |
-| Estados | inglés en código | `pending`, `issued`, `revoked` |
+| Estados / enums BD | inglés | `pending`, `issued`, `generated`, `pregenerated` |
 | Commits | Conventional Commits | `feat(certificates): emit on first visit` |
 
 ### 4.2. Flujo típico — emisión certificado
 
 ```text
-GET /api/v1/public/certificates/:slug          # metadata + lazy issue
-  → CertificatesService.resolvePublic(slug)
-       → si pending: transitionToIssued()  # con lock por certificate_id
+GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no crawler)
+  → CertificatesService.resolvePublic(slug, { isCrawler })
+       → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
             → PdfService.render(...)
             → StorageService.put(pdf)
             → update { stored_file_id, legal_snapshot?, issued_at, status=issued }
             → si PDF falla: queda pending; HTTP 503; reintento en siguiente visita
+       → si pending && isCrawler: devolver metadata/OG sin emitir
        → si issued: leer stored_file metadata
 GET /api/v1/public/certificates/:slug/file     # binario PDF/imagen
-  → stream desde MinIO (Content-Disposition: inline | attachment según ?download=1)
+  → si pending: HTTP 409 (no emite; el cliente debe llamar metadata primero)
+  → si issued: stream desde MinIO (Content-Disposition: inline | attachment según ?download=1)
+  → si revoked: 404 o 410 según OpenAPI
 
 SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
-  → llama API metadata; enlace/iframe a /file para el documento
+  → llama API metadata; si issued, enlace/iframe a /file
+  → búsqueda: mismo orden (metadata → luego /file si aplica)
 ```
 
 **Contrato de superficies (cerrado):**
 
 | Superficie | Ruta | Responsabilidad |
 |------------|------|-----------------|
-| HTML verify | `/c/{slug}` (web) | Página humana; no regenera PDF |
-| Metadata JSON | `GET /api/v1/public/certificates/{slug}` | Estado, datos verify, dispara lazy issue |
-| Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream del archivo en storage |
+| HTML verify | `/c/{slug}` (web) | Página humana; llama metadata; no regenera PDF |
+| Metadata JSON | `GET /api/v1/public/certificates/{slug}` | **Único** disparador de lazy issue (excepto crawlers) |
+| Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream desde storage; **409 si pending** |
 | Descarga forzada | mismo `/file?download=1` | `Content-Disposition: attachment` |
+| Crawler / OG | misma metadata | Respuesta sin `transitionToIssued` |
 
 ### 4.2.1. Emisión concurrente (cerrado)
 
@@ -223,18 +228,21 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 
 | Ruta | Fase | Componente |
 |------|------|------------|
-| `/` | 1 | `PublicSearchPage` |
+| `/` | 1 | `PublicSearchPage` (+ texto corto de ayuda) |
+| `/help` | 1 | `PublicHelpPage` (opcional; puede ser ancla en `/`) |
+| `/about` | 1 | `AboutPage` (atribución software — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | `/c/:slug` | 1 | `CertificatePublicPage` |
 | `/admin/login` | 1 | `AdminLoginPage` (botón OAuth OSM; sin form password) |
-| `/admin` | 1 | `AdminDashboardPage` (básico F1, ampliado F2) |
+| `/admin` | 1 | `AdminDashboardPage` (**F1:** conteos básicos eventos/participantes/certificados pending\|issued; **F2+:** + badges, legal, revocaciones — HU-7.2) |
 | `/admin/users` | 1 | `AdminUsersPage` (solo rol `admin`; HU-7.4) |
 | `/admin/events` | 1 | `EventsListPage` |
 | `/admin/events/:id` | 1 | `EventDetailPage` (participantes, plantillas) |
 | `/admin/events/:id/template` | 1 | `TemplateEditorPage` (Konva) |
 | `/b/:slug` | 2 | `BadgePublicPage` |
+| `/me` | 3 | `MapperMePage` (OAuth público + vínculo email + vista unificada; osm.lat) |
 | `/admin/badges` | 3 | `BadgesAdminPage` |
 
-**API client:** `fetch` con `credentials: 'include'` para cookie de sesión admin.
+**API client:** `fetch` con `credentials: 'include'` (cookie admin o mapper según ruta).
 
 ---
 
@@ -253,8 +261,10 @@ shared/src/
 │   ├── participant-csv.ts  # fila CSV
 │   └── layout.ts           # validación layout JSONB
 ├── constants/
-│   ├── field-tokens.ts     # full_name, legal.nit, …
+│   ├── field-tokens.ts     # catálogo canónico: full_name, certificate_slug, permalink_qr, legal.nit, …
 │   └── instance.ts         # InstanceId enum
+├── lib/
+│   └── normalize.ts        # email trim+lower; doc_number (strip + dígitos CO)
 └── csv/
     └── parse-participants.ts
 ```
@@ -263,7 +273,7 @@ shared/src/
 
 ## 7. Variables de entorno
 
-Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
+Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del repositorio.
 
 | Grupo | Variables clave | Fase |
 |-------|-----------------|------|
@@ -271,16 +281,17 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | BD | `DATABASE_URL` | 1 |
 | Storage | `STORAGE_*` | 1 |
 | Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), store en Postgres (`admin_sessions`), `OSM_OAUTH_*`, `SEED_ADMIN_OSM_*` | 1 |
+| Auth mapper (osm.lat) | `MAPPER_SESSION_COOKIE_NAME=cert_mapper_session`, `OSM_OAUTH_PUBLIC_REDIRECT_URI`, tablas `mapper_sessions` / `osm_email_link_codes` | 3 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
-| Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX` (opcional) | 1 |
+| Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX` | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS` | 1 |
 | Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
 | Legal AC3 | Tabla `instance_legal` + bootstrap `LEGAL_*` opcional | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
-| OSM API | `OSM_API_*`, `OVERPASS_*` | 3 |
+| OSM API | `OSM_API_*` (fuentes por métrica en [06 §5.1](./06-open-badges.md)) | 3 |
 | Turnstile | `TURNSTILE_*` | 3 |
-| SMTP | `SMTP_*` (From dedicado) | 3 |
+| SMTP | `SMTP_*` (From dedicado; obligatorio osm.lat F3) | 3 |
 
 **Validación al arranque:** `apps/api/src/config/env.schema.ts` (Zod) — falla fast si falta `DATABASE_URL`, `SESSION_SECRET` o `OSM_OAUTH_CLIENT_ID` / `OSM_OAUTH_CLIENT_SECRET`.
 
@@ -302,10 +313,8 @@ Respuesta ejemplo:
   "status": "ok",
   "checks": {
     "database": "up",
-    "storage": "up",
-    "redis": "up"
+    "storage": "up"
   },
-  "version": "1.0.0",
   "instance": "osm_lat",
   "software": {
     "name": "certificados",
@@ -315,8 +324,9 @@ Respuesta ejemplo:
 }
 ```
 
-- `redis` en `/ready` solo si el despliegue incluye Fase 3 (BullMQ); en F1/F2 omitir o no exigir.
-- `instance` = despliegue (`INSTANCE`); `software` = producto/código (mismas claves en todas las instancias). Política: [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
+- `version` del producto vive en `software.version` (no duplicar en la raíz).
+- `redis` en `/ready` solo si el despliegue incluye Fase 3 (BullMQ); en F1/F2 omitir.
+- `instance` = despliegue (`INSTANCE`); `software` = producto/código. Política: [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
 - Si BD caída → `503` en `/ready`, `200` en `/health`.
 
 ### Logging
@@ -350,7 +360,7 @@ docker compose --profile osm_lat up
 docker compose --profile ac3 up
 ```
 
-Archivo env por perfil: `.env.osm_lat`, `.env.ac3` (copiar desde `anexos/.env.example`).
+Archivo env por perfil: `.env.osm_lat`, `.env.ac3` (copiar desde [`.env.example`](../.env.example) en la raíz).
 
 ### Test CI
 
@@ -370,7 +380,8 @@ Las instancias viven en **servidores comunitarios/institucionales compartidos**.
 | CSRF | `SameSite=Lax` en cookie + validar header `Origin` en mutaciones admin POST/PATCH/DELETE |
 | CORS | Prod: mismo origen (nginx proxy); dev: `localhost:5173` |
 | Headers | `helmet` en NestJS: CSP básico, HSTS en prod |
-| Uploads | Max 10 MB; MIME: `image/png`, `image/jpeg`, `application/pdf` |
+| Uploads sueltos (fondo, firma, 1:1) | Max **10 MB**; MIME: `image/png`, `image/jpeg`, `application/pdf` |
+| Lote pregenerados (CSV + ZIP) | Max **100 MB** total; ZIP MIME `application/zip` (o `application/x-zip-compressed`); entradas internas: png/jpeg/pdf |
 | Slug | nanoid 12 chars — no secuencial, no enumerable |
 | Secrets | Nunca en repo; `.env` gitignored |
 
@@ -398,7 +409,8 @@ Objetivo: reducir crawling automático y uso como fuente de entrenamiento, **sin
 |--------|------|-------|
 | `robots.txt` en el origen web | **1** | `Disallow` de `/api/`, `/admin/`; permalinks `/c/` y `/b/` **Allow** (verificación legítima). Opcional: `Crawl-delay` si el proxy lo respeta. |
 | Meta / headers anti-IA | **1** | En HTML público: `robots` con `noai` / `noimageai` donde el stack lo permita; no bloquear verify legítimo. |
-| User-Agent agresivo | **1** (opcional) | Lista corta en ENV (`BLOCKED_BOT_UA_REGEX`) para bots conocidos de entrenamiento; **no** bloquear Badgr/Passport ni crawlers de preview OG de redes. |
+| User-Agent agresivo | **1** (opcional) | Lista corta en ENV (`BLOCKED_BOT_UA_REGEX`) para bots de entrenamiento. |
+| Crawlers / preview OG | **1** (detección); OG tags en **F2** | `PREVIEW_BOT_UA_REGEX` (LinkedIn, WhatsApp, Slack, Facebook, Twitter, etc.): en metadata **no** emitir. Preview OK; Puppeteer no. **No** bloquear Badgr/Passport. |
 | Sin sitemap de certificados | **1** | No generar sitemap que enumere `/c/{slug}`. |
 
 Los permalinks siguen siendo públicos si se conoce el slug (diseño intencional). La defensa es **no enumerabilidad** + rate limit, no oscuridad del PDF.
@@ -423,9 +435,10 @@ Al escribir código de Fase 1 en adelante:
 
 1. Todo endpoint público nuevo → decidir bucket de throttle y documentarlo en OpenAPI.
 2. Ninguna ruta pública debe disparar Puppeteer si el PDF ya está en storage.
-3. Ningún listado masivo sin sesión admin.
-4. Incluir `robots.txt` en el artefacto `web` (o nginx).
-5. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral (ver [09 §11](./09-plan-de-implementacion.md)).
+3. **Solo** metadata (no crawler) llama a `transitionToIssued`; `/file` en `pending` → **409**.
+4. Ningún listado masivo sin sesión admin.
+5. Incluir `robots.txt` en el artefacto `web` (o nginx).
+6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending → **409**; UA preview no emite (ver [09 §11](./09-plan-de-implementacion.md)).
 
 ---
 
@@ -439,7 +452,7 @@ Ejemplos en [`anexos/csv/`](./anexos/csv/):
 | [pregenerados-ejemplo.csv](./anexos/csv/pregenerados-ejemplo.csv) | Import pregenerados sheet+ZIP (+ plantilla panel) | 1 |
 | [awardees-osm-ejemplo.csv](./anexos/csv/awardees-osm-ejemplo.csv) | Import badges OSM (+ plantilla panel) | 3 |
 
-**Delimiter:** `;` (configurable `CSV_DELIMITER`). Encoding: UTF-8 con BOM opcional.
+**Delimiter:** fijo **`;`**. Encoding: UTF-8 con BOM opcional. Sin `CSV_DELIMITER` ni detección automática.
 
 Las pantallas de import ofrecen **Descargar plantilla**: sirven estos CSV (o equivalentes por instancia) para completar en Excel/LibreOffice y reimportar. Ver [03 §8–10](./03-modelo-de-datos.md).
 
@@ -498,8 +511,8 @@ paths:
   /public/certificates/{slug}/file: GET         # PDF/imagen stream
 ```
 
-Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`.  
-Fase 3+: `/public/badges/osm`, `/admin/badges/import`, `/admin/badges/import/template`.
+Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`.  
+Fase 3+: `/public/badges/osm`, `/public/auth/osm/*`, `/public/me`, `/public/me/link-email`, `/admin/badges/import`, `/admin/badges/import/template`.
 
 ---
 
@@ -531,24 +544,20 @@ Fase 3: `OsmProfile`.
 
 ### OSM API — resolver usuario
 
+Por **id** (canónico tras import/vínculo):
+
 ```http
 GET /api/0.6/user/{osm_id}.json
 User-Agent: CertificadosOSMLatam/1.0 (contact@osm.lat)
 ```
 
-### Overpass — conteo changesets (ejemplo)
+Por **username** (CSV awardees y búsqueda pública): resolver `display_name` → `osm_id` en el momento de la operación (endpoint/cliente concreto en implementación; mock en CI). Contrato: fallar la fila/búsqueda si el username no existe.
 
-La query exacta se fija en implementación. El **contrato de producto** son las métricas/umbrales de [06 §5.1](./06-open-badges.md) (`changesets_count`, `traces_count`, …).
+### OSM API — métricas Must (antigüedad, changesets, trazas)
 
-```overpass
-[out:json][timeout:25];
-user(id:123456)->{_.};  // uid
-make stat ::count=count(changesets);
-out;
-```
+Fuente canónica: respuesta `GET /api/0.6/user/{osm_id}` (campos de cuenta / changesets / traces). La query exacta y el parseo se fijan en implementación. El **contrato de producto** (métricas, umbrales, fuente por métrica) está en [06 §5.1](./06-open-badges.md). Mockear en tests.
 
-*(Ajustar query en implementación; mockear en tests.)*
-
+Otras métricas: ver tabla de fuentes en §5.1 (CSV, Should, o evolución). **No** hay Overpass obligatorio en v1.0.
 ### Badgr — redirect backpack (Fase 2)
 
 Plantilla URL (configurable):

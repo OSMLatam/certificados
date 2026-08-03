@@ -13,7 +13,7 @@ Sistema de **credenciales** — certificados de evento **y** Open Badges — des
 | Instancia | URL de despliegue | Propósito |
 |-----------|-------------------|-----------|
 | **osm.lat** | [certificados.osm.lat](https://certificados.osm.lat/) | Certificados comunitarios + badges OSM (eventos y actividad en la plataforma) |
-| **AC3** | `certificados.ac3.org.co` | Certificados institucionales + badges de eventos avalados |
+| **AC3** | `certificados.ac3.org.co` | Certificados institucionales + badges de evento (legal de instancia) |
 
 | Línea | Ejemplo | ¿Diploma PDF? | ¿Open Badge? |
 |-------|---------|---------------|--------------|
@@ -78,8 +78,8 @@ Cada instancia tiene BD, administradores y branding propios, desplegada en **su 
 
 1. Multi-instancia (osm.lat / AC3).
 2. Seguridad, permalinks no adivinables, auditoría, **anti-abuso** (rate limit, sin enumeración pública) y **protección de carga** en servidores compartidos (PDF acotado, sin regenerar lo ya emitido).
-3. i18n e identificación por país.
-4. Compatibilidad con backpacks OB (Badgr, Open Badge Passport).
+3. Identificación por país; **UI y mensajes en español** en v1.0 (cadenas externalizadas para traducción futura).
+4. Compatibilidad con backpacks OB (Badgr, Open Badge Passport) vía **Open Badges 2.0 hosted**.
 
 ---
 
@@ -147,7 +147,7 @@ Incluye:
 - Eventos, multi-rol, plantilla visual, pregenerados, CSV de participantes.
 - Permalinks `/c/` y `/b/`, verificación, revocación.
 - Issuer OB, badges de evento automáticos, badges OSM (**solo osm.lat**).
-- Import CSV de awardees OSM y jobs Overpass con reglas documentadas.
+- Import CSV de awardees OSM y jobs OSM con reglas y **fuente por métrica** documentadas ([06 §5.1](./06-open-badges.md)).
 - Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
 - Open Graph LinkedIn.
 - API de verificación JSON `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (Fase 2), además de las páginas humanas.
@@ -164,7 +164,7 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 
 | Capacidad | Notas | Detalle en |
 |-----------|-------|------------|
-| Firma criptográfica Open Badges v3 | Claves por instancia; en v1.0 `public_key` queda NULL | [06](./06-open-badges.md), [03](./03-modelo-de-datos.md) |
+| Migración a Open Badges 3.0 + firma (`proof`) | v1.0 emite **OB 2.0 hosted**; `public_key` NULL hasta entonces | [06](./06-open-badges.md), [03](./03-modelo-de-datos.md) |
 | API pública para terceros emisores de listas | Integraciones externas de elegibles | — |
 | Webhook de criterios externos | Tercer modo además de CSV (M1) y job (M2) | [06](./06-open-badges.md) |
 | Plantillas reutilizables de imagen badge | Biblioteca en admin; v1.0 = upload por BadgeClass | [06](./06-open-badges.md) |
@@ -176,6 +176,8 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Helper local para prellenar `filename` | Leer carpeta y completar la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
 | Newsletter / Listmonk | Lista con alta explícita; no reutilizar emails de certificados a ciegas | Manual ops |
 | Retención de PDFs en storage | Política de X años (configurable) | — |
+| Traducciones (i18n) | v1.0 = español; cadenas ya externalizadas — añadir locale | — |
+| Supresión / corrección de datos del titular | Procedimiento ops o flujo producto (habeas data); v1.0 = fuera | Manual ops |
 | Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
 | Otros OAuth (no OSM) para panel | v1.0 = solo OAuth OSM | [02](./02-historias-de-usuario.md) HU-7.1 |
 
@@ -191,6 +193,12 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | **Assertion** | Badge emitido a una persona |
 | **Issuer** | Emisor OB (osm.lat o AC3) |
 | **Pregenerado** | Certificado subido como archivo (no renderizado desde plantilla) |
+| **Participante** | Persona registrada en un evento (`participants`); tiene email |
+| **Titular** | Quien acredita la credencial al buscar o abrir el permalink (mismo individuo, vista pública) |
+| **Mapper** | Usuario OSM; identidad `osm_id` (badges de actividad) |
+| **Awardee** | Destinatario de un badge OSM vía CSV/job (término de import) |
+| **Editor (rol)** | Rol del panel (`admin_users.role = editor`) — no confundir con el editor visual de plantillas |
+| **Editor visual** | UI Konva para diseñar plantillas (HU-3.1) |
 
 ---
 
