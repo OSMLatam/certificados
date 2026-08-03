@@ -68,6 +68,9 @@ sequenceDiagram
         W-->>U: Página revocada (sin documento)
     else Válido
         alt mode = pregenerated
+            alt Primera visita (pending → issued)
+                W->>DB: issued_at=now (archivo ya en storage)
+            end
             W->>DB: Obtener stored_file
             W-->>U: Servir imagen/PDF almacenado
         else mode = generated
@@ -86,11 +89,12 @@ sequenceDiagram
 
 ### Reglas
 
-1. **Primera visita** a un certificado `pending` dispara transición a `issued`, fija `issued_at` y **genera y almacena** el PDF (inmutable).
+1. **Primera visita** a un certificado `pending` dispara transición a `issued`, fija `issued_at`. En modo `generated` **genera y almacena** el PDF; en modo `pregenerated` solo activa el estado y **sirve el archivo ya subido**.
 2. Visitas posteriores a certificado `issued` **sirven el archivo almacenado**, no re-renderizan.
 3. El **slug no cambia** nunca.
-4. En AC3, el PDF incluye `legal_snapshot` del momento de emisión.
-5. Metadatos Open Graph (Fase 2) y API verify JSON (Fase 2) complementan la página pública.
+4. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
+5. Soft-delete del evento **no** invalida permalinks ya emitidos.
+6. Metadatos Open Graph (Fase 2) y API verify JSON `GET /api/v1/verify/c/{slug}` (Fase 2) complementan la página pública.
 
 ---
 
@@ -196,13 +200,14 @@ flowchart TD
     B -->|Masiva| D[Descargar plantilla CSV]
     D --> E[Completar en Excel/LibreOffice]
     E --> F[Subir CSV + ZIP de archivos]
-    C --> G[Crear certificate mode=pregenerated]
+    C --> G[Crear certificate mode=pregenerated status=pending]
     F --> G
-    G --> H[Generar slug permalink]
+    G --> H[Generar slug permalink + stored_file]
     H --> I[Participante recibe /c/slug]
+    I --> J[Primera visita: pending → issued; sirve archivo subido]
 ```
 
-No se usa plantilla visual ni renderizador; el archivo subido **es** el certificado. La **plantilla CSV** del panel solo estructura metadatos (`filename`, nombre, email, rol, …).
+No se usa plantilla visual ni renderizador; el archivo subido **es** el certificado. Estado inicial **`pending`** (igual que generated); al pasar a `issued` solo se fija `issued_at` y se sirve el archivo ya almacenado (sin Puppeteer). La **plantilla CSV** del panel solo estructura metadatos (`filename`, nombre, email, rol, …).
 
 ---
 
@@ -288,13 +293,15 @@ sequenceDiagram
     participant B as /b/slug
 
     S->>S: Alta admin → certificate pending
+    S->>S: Asegurar BadgeClass event_role (allowed_roles; también en draft)
     S->>S: Crear badge_assertion pending + slug /b/
     S->>S: certificate → issued (primera visita)
     S->>S: badge pending → issued
-    S->>S: Resolver BadgeClass evento+rol
     Note over C,B: evidence_url = URL del certificado
     S-->>B: Permalink badge activo
 ```
+
+**Nota:** las BadgeClass `event_role` se crean/actualizan al guardar `allowed_roles` (incluso en `draft`). Los endpoints OB públicos de clases solo aplican con evento `active`.
 
 ---
 
@@ -339,8 +346,8 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |
 | GET | `/badges/assertions/{uuid}.json` | 2 | Assertion OB |
-| GET | `/api/v1/verify/c/{slug}` | — | Evolución futura (v1.0: solo página `/c/`) |
-| GET | `/api/v1/verify/b/{slug}` | — | Evolución futura (v1.0: solo página `/b/`) |
+| GET | `/api/v1/verify/c/{slug}` | 2 | Verificación máquina certificado `{ valid, status, … }` |
+| GET | `/api/v1/verify/b/{slug}` | 2 | Verificación máquina badge |
 | POST | `/api/v1/public/search` | 2 | Ampliado: incluye badges `event_role` |
 | POST | `/api/v1/public/badges/osm` | 3 | Búsqueda por osm_id |
 | POST | `/api/v1/admin/badges/import` | 3 | Import awardees CSV |

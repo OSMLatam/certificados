@@ -48,6 +48,10 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Preview plantilla** | Usa config legal **actual** (no snapshot). |
 | **Pregenerados AC3** | Legal ya va en la imagen subida; no se aplica snapshot. |
 | **Slug permalink** | `nanoid` custom alfabeto `[A-Za-z0-9_-]`, **12 caracteres**, único en BD. |
+| **PDF** | A4 landscape @ **150 DPI** (canvas 1754×1240 px); tipografías abiertas embebidas (p. ej. Noto Sans); Puppeteer HTML→PDF. |
+| **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
+| **CSV import (participantes y pregenerados)** | Atómico: error en el lote → 0 filas escritas + informe; lote OK → todo; luego incremental. |
+| **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **Búsqueda pública** | Solo email **o** documento (tipo+número+país). Rate limit: **10 req/min/IP**. |
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; PDF `issued` siempre desde MinIO (sin regenerar). |
@@ -55,11 +59,14 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Evento `closed` en búsqueda** | N/A — no hay estado closed. |
 | **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
 | **Issuer OB AC3** | `issuer.json` lee config **actual** (nombre/NIT vigentes para nuevas emisiones). |
-| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. |
+| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. BadgeClass `event_role` se crea/actualiza al guardar `allowed_roles` (también en `draft`). |
+| **Soft-delete evento** | Sale de listados y búsqueda; permalinks `/c/` y `/b/` **siguen vivos**. |
+| **Email participante** | Obligatorio (osm.lat y AC3) en alta y CSV. |
+| **OSM — vínculo email** | `osm_profiles.email` + `linked_at` (1:1); sin `participant_id`. |
 | **OSM — resolución usuario** | `GET https://api.openstreetmap.org/api/0.6/user/{osm_id}.json` |
 | **OSM — conteo changesets** | **Overpass API** (`out:json`) sobre historial del usuario |
 | **OSM — job schedule** | Cron diario 03:00 UTC (BullMQ repeatable job) |
-| **Catálogo BadgeClass OSM inicial** | `osm-100-changesets`, `osm-500-changesets`, `osm-100-notes-resolved` (osm.lat) |
+| **Catálogo BadgeClass OSM inicial** | Canónico: [06 §5.1](./06-open-badges.md) — p. ej. `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`; métricas `changesets_count`, `notes_closed`, … (osm.lat) |
 | **i18n** | Español único en v1.0 |
 | **Hosting código** | GitHub (repo `certificados`) |
 | **Hosting producción** | **Servidor comunitario osm.lat** + **servidor institucional AC3** (`ac3.org.co`); Docker Compose en cada uno, datos aislados |
@@ -134,7 +141,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-7.4 | Gestión usuarios panel (asignar roles) |
 | HU-8.1 | Branding vía ENV (`SITE_*`) + atribución software (`SOFTWARE_*`, `/about`, health) — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia) |
 
-**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, email, dashboard avanzado.
+**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard avanzado.
 
 ### 2.3. Tablas Prisma (Fase 1)
 
@@ -170,7 +177,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | # | Entregable |
 |---|------------|
 | F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions` |
-| F2.2 | Issuer OB + endpoints JSON-LD |
+| F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
 | F2.5 | Revocación certificado ↔ badge (HU-7.3) **Must** |
@@ -236,7 +243,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F3.9 | Audit log completo (solo rol admin) |
 | F3.10 | Seed BadgeClass OSM según catálogo [06 §5.1](./06-open-badges.md) |
 | F3.11 | Tests integración OSM (mocks + opcional live) |
-| F3.12 | Manual/README operación: backup **BD + MinIO** off-host, SMTP reputación, secrets |
+| F3.12 | Manual/README operación según outline [11](./11-manuales-ops-y-usuario.md): backup **BD + MinIO** off-host, SMTP reputación, secrets |
 
 ### 4.2. Historias de usuario incluidas
 
@@ -290,7 +297,7 @@ flowchart TB
 
 ## 6. Evolución futura (post v1.0)
 
-Las Fases 1–3 implementan **solo** la especificación v1.0. El catálogo post-v1.0 (firma OBv3, webhook, plantillas badge, API terceros, pantalla admin legal, retención MinIO, reglas OSM ampliadas, badges OSM en AC3, otras instancias, etc.) está **solo** en:
+Las Fases 1–3 implementan **solo** la especificación v1.0. El catálogo post-v1.0 (firma OBv3, webhook, plantillas badge, API terceros, retención MinIO, reglas OSM ampliadas, badges OSM en AC3, otras instancias, etc.) está **solo** en:
 
 → [01 — Visión y alcance §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)
 
@@ -317,27 +324,27 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-1.1 | Permalink | **1** + **2** | F1: `/c/` + descarga; F2: Open Graph |
 | HU-1.2 | Búsqueda por identidad | **1** + **2** + **3** | F1: certificados; F2: +badges evento; F3: +badges OSM vinculados |
 | HU-1.2b | Prohibir listado por evento | **1** | |
-| HU-1.3 | Verificación | **1** + **2** | F1/F2: páginas `/c/` `/b/`; API verify = evolución futura |
+| HU-1.3 | Verificación | **1** + **2** | F1: página `/c/`; F2: página `/b/` + API `GET /api/v1/verify/c|b/{slug}` |
 | HU-1.4 | Datos correctos | **1** | |
 | HU-1.5 | Legal AC3 | **2** | Pantalla admin |
 | HU-2.1 | Multi-rol | **1** | |
 | HU-2.2 | Plantilla por rol | **2** | Should |
 | HU-3.1 | Editor visual | **1** | Konva; capas `legal.*` ocultas hasta F2 |
 | HU-3.2 | Preview plantilla | **2** | Should |
-| HU-4.1 | Pregenerados + Pattypan + plantilla CSV | **1** | Plantilla descargable; sin app escritorio |
+| HU-4.1 | Pregenerados + carga masiva (hoja + ZIP) + plantilla CSV | **1** | Plantilla descargable; sin helper de escritorio; status `pending` hasta 1ª visita |
 | HU-4.2 | Evento pregenerated_only | **1** | Should |
-| HU-5.1 – 5.4 | Eventos, sedes, ID | **1** | Soft-delete eventos |
-| HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia |
+| HU-5.1 – 5.4 | Eventos, sedes, ID | **1** | Soft-delete: oculta listados/búsqueda; permalinks siguen vivos |
+| HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia; **envío email enlace = F3** (SMTP) |
 | HU-7.1 | Login OAuth OSM | **1** | |
 | HU-7.2 | Dashboard | **2** + **3** | F2: conteos; F3: jobs; audit solo admin |
 | HU-7.3 | Revocación | **2** | **Must** |
 | HU-7.4 | Gestión usuarios panel | **1** | |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | HU-8.2 | Legal AC3 config | **2** | |
-| HU-9.1 – 9.3 | Badges evento + issuer | **2** | |
-| HU-10.1 – 10.4, 10.6 | Badges OSM | **3** | |
+| HU-9.1 – 9.3 | Badges evento + issuer | **2** | BadgeClass al guardar `allowed_roles` (también draft) |
+| HU-10.1 – 10.4, 10.6 | Badges OSM | **3** | Catálogo [06 §5.1](./06-open-badges.md) |
 | HU-10.3 | Job reglas OSM | **3** | Should |
-| HU-10.5 | Vincular OSM + evento | **3** | Should |
+| HU-10.5 | Vincular OSM + evento | **3** | Should; `osm_profiles.email` + `linked_at` (sin `participant_id`) |
 
 ---
 

@@ -33,10 +33,12 @@ stateDiagram-v2
 
 | Estado | Significado | Búsqueda pública por identidad |
 |--------|-------------|--------------------------------|
-| `draft` | En preparación; cargando participantes y plantillas | No aparece en resultados |
+| `draft` | En preparación; cargando participantes y plantillas | **No** aparece: ningún certificado del evento (tampoco los ya `issued`) |
 | `active` | Publicado; emisión y consulta habilitadas (evento pasado o futuro) | Certificados `issued` y `pending` visibles al titular |
 
 **Regla:** la fecha del evento no cambia el estado. Un Mapathon de 2019 con certificados sigue `active` y consultable.
+
+**`active` → `draft` (desactivar):** regla simple — el evento y **todos** sus certificados salen de la búsqueda pública. Los permalinks `/c/` y `/b/` **siguen resolviendo** (misma política que soft-delete). Sirve para ocultar temporalmente un evento con error sin invalidar enlaces ya repartidos. Volver a `active` restaura la búsqueda.
 
 ---
 
@@ -59,16 +61,20 @@ stateDiagram-v2
 
 ### Política de emisión (definida)
 
-1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado).
+1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado). Aplica a modos `generated` y `pregenerated`.
 2. **Activación a `issued` (solo lazy):** primera visita exitosa del titular al permalink `/c/{slug}` o descarga desde búsqueda por identidad. **No** hay emisión forzada/masiva en v1.0.
 3. **`issued_at`:** timestamp del paso a `issued`.
-4. **Revocación:** editor o admin; motivo opcional en `revoke_reason` (Must desde Fase 2).
-5. **PDF:** inmutable tras `issued`. Restore operativo = backup pareado BD + MinIO (manual de operación).
+4. **Modo `generated`:** al pasar a `issued` se renderiza el PDF (Puppeteer), se guarda en storage y, en AC3, se escribe `legal_snapshot`.
+5. **Modo `pregenerated`:** el archivo ya está en storage desde el upload; al pasar a `issued` solo se fija `issued_at` y se sirve ese archivo (sin re-render).
+6. **Revocación:** editor o admin; motivo opcional en `revoke_reason` (Must desde Fase 2).
+7. **PDF:** inmutable tras `issued`. Restore operativo = backup pareado BD + MinIO (manual de operación).
+8. **Soft-delete del evento:** no cambia el estado del certificado; `/c/{slug}` sigue resolviendo.
 
 ### Badge vinculado (Fase 2+)
 
 Al crear certificado **`pending`** (alta admin):
 
+- Se asegura BadgeClass `event_role` para evento+rol (creada/actualizada al guardar `allowed_roles`, también en `draft`).
 - Se crea `badge_assertion` (`event_role`) en **`pending`** con slug `/b/` reservado.
 
 Al pasar certificado `pending` → `issued`:

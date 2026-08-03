@@ -249,7 +249,7 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | Instancia | `INSTANCE`, `PUBLIC_BASE_URL` | 1 |
 | BD | `DATABASE_URL` | 1 |
 | Storage | `STORAGE_*` | 1 |
-| Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), `OSM_OAUTH_*`, `SEED_ADMIN_OSM_*` | 1 |
+| Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), `OSM_OAUTH_*` (scopes: solo identidad / `read_prefs`), `SEED_ADMIN_OSM_*` | 1 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX` (opcional) | 1 |
@@ -468,14 +468,14 @@ paths:
   /admin/events/{id}/templates: GET, POST, PATCH
   /admin/events/{id}/certificates: GET, POST
   /admin/certificates/{id}/pregenerated: POST   # multipart file (1:1)
-  /admin/events/{id}/pregenerated/import: POST  # Pattypan: sheet + ZIP
+  /admin/events/{id}/pregenerated/import: POST  # sheet + ZIP
   /admin/events/{id}/pregenerated/import/template: GET  # CSV plantilla
   /admin/instance/legal:        GET, PATCH      # AC3 admin only; F2
   /public/search:           POST
   /public/certificates/{slug}: GET              # metadata + lazy issue
 ```
 
-Fase 2+: `/public/badges/...`, `/badges/issuer.json`, verify JSON.  
+Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`.  
 Fase 3+: `/public/badges/osm`, `/admin/badges/import`, `/admin/badges/import/template`.
 
 ---
@@ -513,6 +513,8 @@ User-Agent: CertificadosOSMLatam/1.0 (contact@osm.lat)
 ```
 
 ### Overpass — conteo changesets (ejemplo)
+
+La query exacta se fija en implementación. El **contrato de producto** son las métricas/umbrales de [06 §5.1](./06-open-badges.md) (`changesets_count`, `traces_count`, …).
 
 ```overpass
 [out:json][timeout:25];

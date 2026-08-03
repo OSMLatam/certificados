@@ -42,7 +42,7 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 | Audit log | No | Sí |
 | Gestión usuarios (`admin`/`editor`) | No | Sí |
 
-**Soft-delete:** el evento deja de listarse (`deleted_at`); restore vía admin/SQL. **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
+**Soft-delete:** el evento deja de listarse (`deleted_at`); restore vía admin/SQL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen sirviendo** (no se invalidan por soft-delete del evento; la invalidación individual es `revoked`). **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
 
 **Emisión de certificados:** solo **lazy** (primera visita exitosa a `/c/{slug}` o descarga desde búsqueda). No hay emisión forzada/masiva en v1.0.
 
@@ -63,7 +63,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 | **osm.lat** | `full_name` + `email` (documento opcional) |
 | **AC3** | `full_name` + `email` + país + tipo + número de documento |
 
-Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **manual de usuario**.
+Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emails y datos de participantes llegan desde otra plataforma de registro (evento), donde ya se informa el uso. Este producto solo almacena y emite credenciales; no recoge el consentimiento inicial.
 
 ---
 
@@ -153,7 +153,7 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 1. La página del permalink muestra: nombre, evento, rol, fecha, emisor (instancia).
 2. Indicador claro: **válido** / **revocado** / **no encontrado**.
 3. Instancia AC3 muestra datos institucionales (NIT, razón social) en certificados avalados.
-4. API de verificación JSON disponible.
+4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`).
 
 ---
 
@@ -294,8 +294,8 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 2. En modo pregenerado, se almacena el archivo subido y se expone permalink.
 3. El permalink sirve el archivo almacenado (sin re-renderizar desde plantilla).
 4. **Carga individual** (un archivo por certificado) para correcciones puntuales.
-5. **Carga masiva estilo Pattypan:** hoja (CSV/ODS) + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes.
-6. **Plantilla descargable** desde el panel (CSV UTF-8, abre en Excel/LibreOffice): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin app de escritorio tipo Pattypan en v1.0.
+5. **Carga masiva:** hoja (CSV/ODS) + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes.
+6. **Plantilla descargable** desde el panel (CSV UTF-8, abre en Excel/LibreOffice): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
 7. La edición masiva de metadatos se hace en LibreOffice/Excel; el panel solo ofrece la plantilla, valida e importa.
 
 ---
@@ -379,7 +379,7 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 
 **Como** editor,  
 **quiero** definir sedes de un evento (ciudad, virtual, país),  
-**para** eventos multi-sede o diferenciar modalidades.
+**para** eventos multi-sede o diferenciar modalidades en el texto del certificado.
 
 | Campo | Valor |
 |-------|-------|
@@ -387,9 +387,10 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 
 **Criterios de aceptación:**
 
-1. Sede opcional según evento.
+1. Sede opcional según evento (0 / 1 / N).
 2. Nombre descriptivo y código interno corto.
 3. Fecha específica opcional por sede.
+4. La sede es **metadato de contexto** (PDF, resultado de búsqueda); **no** forma parte de la identidad del certificado (UNIQUE = participante + rol).
 
 ---
 
@@ -412,7 +413,7 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 3. Campo actividad/charla opcional (ponente, tallerista).
 4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado.
 5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)).
-6. Opcional: enviar email con **solo el enlace** `/c/{slug}` (From dedicado de la instancia; ver manual de operación).
+6. Opcional: enviar email con **solo el enlace** `/c/{slug}` (From dedicado de la instancia; ver manual de operación). **Implementación: Fase 3** (SMTP); en Fases 1–2 el editor copia/comparte el permalink manualmente.
 
 **Estados y flujo:** ver documento [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md).
 
@@ -433,7 +434,7 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 1. UTF-8; delimitador configurable (`,` o `;`).
 2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
 3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados.
-4. Informe de filas OK / error al finalizar. Import incremental permitido.
+4. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email/doc + rol).
 5. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta.
 
 ---
@@ -453,11 +454,12 @@ Aviso de uso de datos de contacto (fines relacionados con OSM / el evento): **ma
 **Criterios de aceptación:**
 
 1. Login exclusivo mediante OAuth de openstreetmap.org (sin usuario/contraseña locales).
-2. Sesiones aisladas por instancia (cookie de sesión propia); un admin de osm.lat no accede a AC3.
-3. Identidad canónica: `osm_id`. El `osm_username` se actualiza en cada login.
-4. Sin cuenta OSM no es posible ser `admin` ni `editor`.
-5. Cualquier usuario OSM puede completar OAuth; si no tiene rol (`role` NULL) o está inactivo, ve pantalla “sin acceso” y las APIs admin responden 403.
-6. Bootstrap: usernames en `SEED_ADMIN_OSM_USERNAMES` (y/o ids en `SEED_ADMIN_OSM_IDS`) reciben `role=admin` en el primer OAuth que coincida. Match de username case-sensitive según `display_name` OSM en ese momento; después solo importa `osm_id`.
+2. **Scopes OAuth:** solo los mínimos para leer identidad (`osm_id`, `display_name`) — p. ej. `read_prefs`. **Sin** scopes de escritura en OSM; roles y datos del panel viven solo en esta BD.
+3. Sesiones aisladas por instancia (cookie de sesión propia); un admin de osm.lat no accede a AC3.
+4. Identidad canónica: `osm_id`. El `osm_username` se actualiza en cada login.
+5. Sin cuenta OSM no es posible ser `admin` ni `editor`.
+6. Cualquier usuario OSM puede completar OAuth; si no tiene rol (`role` NULL) o está inactivo, ve pantalla “sin acceso” y las APIs admin responden 403.
+7. Bootstrap: usernames en `SEED_ADMIN_OSM_USERNAMES` (y/o ids en `SEED_ADMIN_OSM_IDS`) reciben `role=admin` en el primer OAuth que coincida. Match de username case-sensitive según `display_name` OSM en ese momento; después solo importa `osm_id`.
 
 ---
 
@@ -615,8 +617,9 @@ Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 **Criterios de aceptación:**
 
 1. `GET /badges/issuer.json` por instancia.
-2. BadgeClass `event_role` se **crea/actualiza al publicar** el evento (`draft` → `active`), una por cada rol en `allowed_roles`. En `draft` no se exponen clases OB públicas.
-3. Imagen del badge configurable por BadgeClass.
+2. BadgeClass `event_role` se **crea/actualiza al guardar** `allowed_roles` del evento (también en `draft`), una por cada rol habilitado. Así el alta de participantes en draft puede reservar `badge_assertion` pending con FK válida.
+3. Endpoints OB públicos de clases (`/badges/classes/...`) solo se exponen cuando el evento está `active`. En `draft` las clases existen en BD pero no son públicas.
+4. Imagen del badge configurable por BadgeClass.
 
 Ver [06-open-badges.md](./06-open-badges.md).
 
@@ -744,9 +747,9 @@ Ver [06-open-badges.md](./06-open-badges.md).
 
 **Criterios de aceptación:**
 
-1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código de un solo uso** por correo (TTL corto, p. ej. 15–30 min); al confirmarlo queda el vínculo.
+1. Tras OAuth OSM (o resolución de id), el usuario indica email y recibe **código de un solo uso** por correo (TTL corto, p. ej. 15–30 min); al confirmarlo se persiste `osm_profiles.email` + `linked_at` (vínculo 1:1 `osm_id` ↔ email).
 2. Ese código es **efímero** (tabla/caché de pendientes de vinculación). **No** es una columna del certificado: el permalink `/c/{slug}` basta para compartir/verificar diplomas.
-3. Vista unificada: `/c/` del email + `/b/` de actividad OSM del `osm_id` (+ badges de evento ligados).
+3. Vista unificada: certificados `/c/` (y badges de evento) del email vinculado + `/b/` de actividad OSM del `osm_id`.
 4. Sin vínculo, no se mezclan identidades (evita spoofing).
 5. Newsletter / marketing = canal aparte con alta explícita (fuera de este flujo).
 

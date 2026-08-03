@@ -91,13 +91,13 @@ Otros países se añaden por **datos de configuración**, no cambios de código.
 | updated_at | TIMESTAMPTZ | |
 
 **Regla UX:** si `venues` count = 1, la sede se infiere en consulta pública.  
-**Soft-delete:** excluir de listados/búsqueda si `deleted_at` no es NULL. Restore = limpiar `deleted_at` (admin/SQL).
+**Soft-delete:** excluir de listados admin y de **búsqueda pública** si `deleted_at` no es NULL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen resolviendo** (enlaces ya compartidos no se rompen). Restore = limpiar `deleted_at` (admin/SQL).
 
 ---
 
 ### 4.2. `venues` (sedes)
 
-Opcional. Algunos eventos no tendrán sedes.
+Opcional. Metadato de **contexto** (ciudad, virtual, fecha local) para PDF y admin — **no** identifica al certificado.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
@@ -107,6 +107,8 @@ Opcional. Algunos eventos no tendrán sedes.
 | code | VARCHAR(20) | Código interno corto |
 | event_date | DATE | NULL = usa fecha del evento |
 | created_at | TIMESTAMPTZ | |
+
+**Para qué sirve:** eventos multi-hub o presencial/virtual; texto `venue_name` en plantilla; fecha opcional por sede. **No** entra en UNIQUE del certificado (`participant` + `role` basta).
 
 ---
 
@@ -118,13 +120,13 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 |---------|------|-------------|
 | id | UUID PK | |
 | event_id | UUID FK | |
-| venue_id | UUID FK | NULL si no aplica |
+| venue_id | UUID FK | NULL si no aplica; **metadato** (dónde/modalidad), no parte de la identidad del certificado |
 | full_name | VARCHAR(255) | Obligatorio (sale en el certificado) |
 | email | VARCHAR(255) | Obligatorio (osm.lat y AC3) |
 | country_code | CHAR(2) | País del documento (obligatorio en AC3) |
 | doc_type_code | VARCHAR(10) | Obligatorio en AC3; opcional en osm.lat |
 | doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat |
-| activity_title | TEXT | Charla/taller (opcional) |
+| activity_title | TEXT | Charla/taller (opcional); si el certificado define override, gana el de `certificates` |
 | created_at | TIMESTAMPTZ | |
 
 **Reglas por instancia:**
@@ -133,7 +135,7 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 - **AC3:** `full_name` + `email` + `country_code` + `doc_type_code` + `doc_number` obligatorios.
 - UNIQUE parcial por evento + email (y doc si aplica).
 
-> **Nota:** los **roles** no van aquí; van en `certificates`.
+> **Nota:** los **roles** no van aquí; van en `certificates`. La **sede** no forma parte de la clave del certificado: una persona es asistente/ponente/… del **evento**; si hubo varias sedes, se elige una sede “de contexto” (o ninguna) para el texto del PDF.
 
 ---
 
@@ -180,14 +182,18 @@ Diseño visual para certificados generados.
 
 **`layout` (generado por editor visual, no editado a mano):**
 
+- **Página:** A4 (210×297 mm). Orientación por defecto del producto: **apaisada** (landscape).
+- **Resolución de render:** **150 DPI** → canvas de referencia **1754×1240 px** (A4 landscape).
+- **Tipografías:** solo fuentes **abiertas** (SIL OFL / Apache / equivalentes), p. ej. familias tipo Google Fonts (**Noto Sans**, Source Sans 3, …). Embebidas o self-hosted en el HTML de Puppeteer y en el preview del editor; no depender de fuentes instaladas en el cliente.
+
 ```json
 {
-  "canvas": { "width": 1754, "height": 1240, "unit": "px" },
+  "canvas": { "width": 1754, "height": 1240, "unit": "px", "paper": "A4", "dpi": 150, "orientation": "landscape" },
   "layers": [
     {
       "field": "full_name",
       "x": 877, "y": 420,
-      "fontFamily": "Inter Bold",
+      "fontFamily": "Noto Sans Bold",
       "fontSize": 48,
       "align": "center",
       "color": "#1a1a1a"
@@ -230,7 +236,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | mode | ENUM | `generated`, `pregenerated` |
 | template_id | UUID FK | NULL si pregenerado |
 | stored_file_id | UUID FK | Archivo servido: pregenerado subido o PDF generado (inmutable tras `issued`) |
-| activity_title | TEXT | Override por rol (ej. charla) |
+| activity_title | TEXT | Override por rol (ej. charla); si NULL, usar `participants.activity_title` |
 | status | ENUM | `pending`, `issued`, `revoked` |
 | issued_at | TIMESTAMPTZ | Primera emisión / activación |
 | revoked_at | TIMESTAMPTZ | NULL |
@@ -361,7 +367,7 @@ Un registro por instancia (o derivado de config ENV).
 
 ```json
 {
-  "metric": "changeset_count",
+  "metric": "changesets_count",
   "operator": ">=",
   "value": 100
 }
@@ -377,15 +383,15 @@ Identidad OSM **estable por `osm_id`**. El username puede cambiar; otro mapper p
 | osm_id | BIGINT UNIQUE NOT NULL | ID numérico OSM (openstreetmap.org) |
 | osm_username | VARCHAR(255) NOT NULL | Nombre **actual** (actualizable) |
 | osm_username_updated_at | TIMESTAMPTZ | Última sync con API OSM |
-| participant_id | UUID FK | NULL; vínculo opcional a participante de evento |
-| email | VARCHAR(255) | NULL; para verificación de vínculo |
-| linked_at | TIMESTAMPTZ | NULL |
+| email | VARCHAR(255) | NULL hasta HU-10.5; UNIQUE parcial cuando NOT NULL |
+| linked_at | TIMESTAMPTZ | NULL; cuándo se verificó el vínculo email ↔ osm_id |
 | created_at | TIMESTAMPTZ | |
 
 **Reglas:**
 
 - Toda emisión/consulta de badge OSM usa **`osm_id`**, no username solo.
 - Username en UI se refresca periódicamente o al buscar por username (resolver → osm_id).
+- **Vínculo con eventos (HU-10.5):** canónico = `email` verificado en este perfil (1:1). **No** hay `participant_id`: `participants` es por evento; la vista unificada busca certificados por el email vinculado.
 
 ### 6.4. `badge_assertions`
 
@@ -458,22 +464,24 @@ No usar `INSTANCE_NAME` ni `API_PUBLIC_URL` (fusionados en `SITE_NAME` / `PUBLIC
 
 **Plantilla en panel:** `GET` de descarga (CSV UTF-8) con los mismos encabezados; el editor la abre en Excel/LibreOffice, completa y sube.
 
+**Import atómico (igual que pregenerados):** validar **todas** las filas; si hay error → no escribir nada; informe de fallos. Lote válido → escribir todo. Imports posteriores = incremental (nuevas altas; rechazar duplicados ya en BD).
+
 Ejemplo: [anexos/csv/participantes-ejemplo.csv](./anexos/csv/participantes-ejemplo.csv).
 
 ```csv
 full_name;email;country_code;doc_type;doc_number;role;activity_title;venue_code
 Ana García;ana@mail.com;CO;CC;1234567890;asistente;;
 Ana García;ana@mail.com;CO;CC;1234567890;voluntario;;
-Carlos López;;CO;CE;987654;ponente;Mapping con OpenStreetMap;VIR
+Carlos López;carlos@mail.com;CO;CE;987654;ponente;Mapping con OpenStreetMap;VIR
 ```
 
 | Columna | Obligatorio | Notas |
 |---------|-------------|-------|
 | full_name | Sí | |
-| email | No* | *Al menos email o doc |
-| country_code | Si hay doc | ISO alpha-2 |
-| doc_type | Si hay doc | CC, CE, TI… |
-| doc_number | Si hay doc | |
+| email | Sí | Obligatorio en osm.lat y AC3 (recipient OB + envío de enlace) |
+| country_code | Si hay doc / siempre en AC3 | ISO alpha-2 |
+| doc_type | Si hay doc / siempre en AC3 | CC, CE, TI… |
+| doc_number | Si hay doc / siempre en AC3 | |
 | role | Sí | Uno por fila |
 | activity_title | No | Ponente/tallerista |
 | venue_code | No | Si evento multi-sede |
@@ -501,7 +509,7 @@ osm_id;osm_username;earned_at;evidence_url
 
 ## 10. Carga de certificados pregenerados
 
-Flujo **estilo Pattypan** (Must):
+Flujo de carga masiva (Must):
 
 1. El editor **descarga la plantilla** CSV desde el panel (encabezados + filas de ejemplo; abre en Excel/LibreOffice).
 2. Completa la hoja: columnas mínimas `filename`, `full_name`, `email`, `role` (+ doc en AC3). `filename` debe coincidir exactamente con un archivo del ZIP.
@@ -510,14 +518,14 @@ Flujo **estilo Pattypan** (Must):
 5. Imports **incrementales** al mismo evento; rechazar filas que dupliquen certificado ya existente.
 6. Upload 1:1 sigue disponible para correcciones.
 
-**Fuera de v1.0:** herramienta de escritorio que lea una carpeta local y prellene `filename` (estilo Pattypan completo).
+**Fuera de v1.0:** herramienta de escritorio que lea una carpeta local y prellene `filename`.
 
 Ejemplo de hoja: [anexos/csv/pregenerados-ejemplo.csv](./anexos/csv/pregenerados-ejemplo.csv).
 
 ```csv
 filename;full_name;email;country_code;doc_type;doc_number;role
 cert-ana-asistente.pdf;Ana García;ana@mail.com;CO;CC;1234567890;asistente
-cert-carlos-ponente.pdf;Carlos López;;CO;CE;987654321;ponente
+cert-carlos-ponente.pdf;Carlos López;carlos@mail.com;CO;CE;987654321;ponente
 ```
 
 ---

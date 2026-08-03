@@ -150,6 +150,7 @@ Incluye:
 - Import CSV de awardees OSM y jobs Overpass con reglas documentadas.
 - Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
 - Open Graph LinkedIn.
+- API de verificación JSON `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (Fase 2), además de las páginas humanas.
 - Imagen de badge: upload PNG/SVG por BadgeClass (sin biblioteca de plantillas).
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
 
@@ -164,7 +165,6 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Capacidad | Notas | Detalle en |
 |-----------|-------|------------|
 | Firma criptográfica Open Badges v3 | Claves por instancia; en v1.0 `public_key` queda NULL | [06](./06-open-badges.md), [03](./03-modelo-de-datos.md) |
-| API verify JSON `/api/v1/verify/...` | v1.0 = solo páginas `/c/` y `/b/` | [06](./06-open-badges.md) |
 | API pública para terceros emisores de listas | Integraciones externas de elegibles | — |
 | Webhook de criterios externos | Tercer modo además de CSV (M1) y job (M2) | [06](./06-open-badges.md) |
 | Plantillas reutilizables de imagen badge | Biblioteca en admin; v1.0 = upload por BadgeClass | [06](./06-open-badges.md) |
@@ -173,7 +173,7 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Privacidad configurable por usuario | Opt-in badges/diplomas públicos | [02](./02-historias-de-usuario.md) |
 | Confirmación 2 editores para borrar eventos antiguos | Anti-compromiso de cuenta | [02](./02-historias-de-usuario.md) RBAC |
 | Emisión forzada/masiva de certificados | v1.0 = solo lazy | [07](./07-estados-y-ciclo-de-vida.md) |
-| Helper local tipo Pattypan | Leer carpeta y prellenar `filename` en la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
+| Helper local para prellenar `filename` | Leer carpeta y completar la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
 | Newsletter / Listmonk | Lista con alta explícita; no reutilizar emails de certificados a ciegas | Manual ops |
 | Retención de PDFs en storage | Política de X años (configurable) | — |
 | Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
@@ -205,3 +205,4 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 - [Datos legales AC3 y plantilla](./08-datos-legales-ac3-plantilla.md)
 - [Plan de implementación (3 fases)](./09-plan-de-implementacion.md)
 - [Diseño de código y anexos](./10-diseno-codigo-y-anexos.md)
+- [Manuales — outline ops y usuario](./11-manuales-ops-y-usuario.md)

@@ -105,9 +105,9 @@ El editor visual **lista estos tokens solo en despliegues AC3**.
 
 ```json
 {
-  "canvas": { "width": 1754, "height": 1240, "unit": "px" },
+  "canvas": { "width": 1754, "height": 1240, "unit": "px", "paper": "A4", "dpi": 150, "orientation": "landscape" },
   "layers": [
-    { "field": "full_name", "x": 877, "y": 400, "fontSize": 48, "align": "center" },
+    { "field": "full_name", "x": 877, "y": 400, "fontSize": 48, "align": "center", "fontFamily": "Noto Sans Bold" },
     { "field": "legal.entity_name", "x": 877, "y": 1050, "fontSize": 10, "align": "center" },
     { "field": "legal.nit", "x": 877, "y": 1065, "fontSize": 10, "align": "center" },
     { "field": "legal.representative", "x": 877, "y": 1080, "fontSize": 9, "align": "center" },

@@ -15,7 +15,7 @@ Open Badges es un **pilar del sistema**, al mismo nivel que los certificados PDF
 | Certificado | `/c/{slug}` | PDF / imagen | Eventos, diploma, LinkedIn, AC3 legal |
 | Badge | `/b/{slug}` | Open Badge 3.0 (JSON-LD) | Backpack, logros OSM, complemento de evento |
 
-Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al publicar el evento; ver HU-9.3).  
+Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al definir `allowed_roles`, incluso en `draft`; ver HU-9.3).  
 Un badge de actividad OSM **puede existir sin certificado**.
 
 ---
@@ -63,9 +63,9 @@ flowchart LR
 
 - Assertion usa **hash de email + salt** (estilo Open Badges 2 / portable a backpacks).
 - Email siempre disponible: es obligatorio en participantes (osm.lat y AC3).
-- Badges `osm_activity` se asocian a `osm_id`; el recipient hasheado aplica cuando hay email vinculado o se usa identidad OSM según implementación F3 (detalle en assertion JSON).
+- Badges `osm_activity` se asocian a `osm_id`; el recipient hasheado aplica cuando hay `osm_profiles.email` vinculado (HU-10.5). Sin email vinculado, la assertion usa identidad OSM según JSON-LD F3 (sin hash de email).
 
-**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion. **Sin** API `/api/v1/verify/...` en v1.0.
+**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion + API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**).
 
 ---
 
@@ -149,6 +149,10 @@ Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
 **Should:** mapping_days.  
 **CSV o evolución:** diarios, amigos, notas.
 
+**Qué ya está cerrado (producto):** las **métricas**, umbrales y códigos de BadgeClass de esta tabla. No hace falta redefinir números al implementar.
+
+**Qué queda a implementación (no es decisión de producto):** mapear cada `metric` a la fuente técnica (`OSM API user` vs Overpass u otra) y escribir la query concreta; en CI, mocks. Contrato: el job debe evaluar `criteria_rule` (`metric` + `operator` + `value`) y emitir de forma idempotente.
+
 ### Actividad OSM (ejemplo JSON)
 
 ```json
@@ -177,10 +181,10 @@ Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
 | `GET /badges/issuer.json` | Issuer OB |
 | `GET /badges/classes/{id}.json` | BadgeClass |
 | `GET /badges/assertions/{uuid}.json` | Assertion JSON-LD |
+| `GET /api/v1/verify/c/{slug}` | Verificación máquina del certificado (Fase 2) |
+| `GET /api/v1/verify/b/{slug}` | Verificación máquina del badge (Fase 2) |
 | `POST /api/v1/admin/badges/import` | Import awardees CSV (osm.lat) |
 | `POST /api/v1/admin/badges/sync/{class_id}` | Ejecutar reglas OSM |
-
-> Verificación máquina tipo `/api/v1/verify/...`: fuera de v1.0 (páginas `/c/` y `/b/` bastan).
 
 ---
 
@@ -214,7 +218,7 @@ sequenceDiagram
 ### 7.3. Actividad OSM — job automático
 
 ```
-1. BadgeClass con criteria_rule (changeset_count >= 100)
+1. BadgeClass con criteria_rule (changesets_count >= 100)
 2. Job nocturno: usuarios vinculados + consulta API
 3. Si cumple y no tiene assertion → emitir
 4. Registrar evidence (snapshot fecha + enlace perfil OSM)
@@ -229,7 +233,7 @@ sequenceDiagram
 | event_role | email / doc (como certificado) | Formulario eventos |
 | osm_activity | **`osm_id`** (username opcional, resuelto vía API) | Formulario "Mis badges OSM" |
 
-**Vinculación:** tabla `osm_profiles` permite unir usuario OSM con email/doc para ver **certificados + badges** en un solo lugar (HU-10.5).
+**Vinculación (HU-10.5):** `osm_profiles.email` + `linked_at` tras código de un solo uso. Relación canónica `osm_id` ↔ email (1:1). La vista unificada resuelve certificados por ese email y badges OSM por `osm_id`. No se usa FK a `participants` (esa fila es por evento).
 
 ---
 

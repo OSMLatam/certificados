@@ -33,6 +33,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | [08 — Datos legales AC3](./08-datos-legales-ac3-plantilla.md) | Config instancia + capas `legal.*` |
 | [10 — Diseño de código](./10-diseno-codigo-y-anexos.md) | Monorepo, módulos Nest, ENV, health, **seguridad/abuso/carga (§10)**, CSV/seeds |
 | [09 — Plan de implementación](./09-plan-de-implementacion.md) | Stack, 3 fases, prompts IA, pruebas (§11) |
+| [11 — Manuales (outline)](./11-manuales-ops-y-usuario.md) | Esbozo runbook ops + manual editor + ayuda pública |
 
 ---
 
@@ -50,6 +51,11 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Datos legales AC3 | Config instancia + capas en plantilla |
 | Anti-abuso / carga | Rate limit búsqueda+permalinks, PDF sin regenerar, `robots.txt` ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
+| Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2 (además de páginas humanas) |
+| Soft-delete evento | Oculta listados/búsqueda; permalinks siguen vivos |
+| Email participante | Siempre obligatorio; envío de enlace por SMTP = Fase 3 |
+| PDF | A4 landscape @ 150 DPI; tipografías abiertas embebidas |
+| CSV import | Atómico (participantes y pregenerados): error → 0 escrituras |
 
 ---
 

@@ -1,5 +1,5 @@
 full_name;email;country_code;doc_type;doc_number;role;activity_title;venue_code
 Ana García;ana@mail.com;CO;CC;1234567890;asistente;;
 Ana García;ana@mail.com;CO;CC;1234567890;voluntario;;
-Carlos López;;CO;CE;987654321;ponente;Mapping con OpenStreetMap;BOG
+Carlos López;carlos@mail.com;CO;CE;987654321;ponente;Mapping con OpenStreetMap;BOG
 María Ruiz;maria@example.org;CO;CC;5555555555;asistente;;

@@ -35,6 +35,7 @@ En paralelo, **AC3** —capítulo local de la OpenStreetMap Foundation (OSMF) en
 - [Datos legales AC3 y plantilla](./docs/08-datos-legales-ac3-plantilla.md)
 - [Plan de implementación — 3 fases](./docs/09-plan-de-implementacion.md)
 - [Diseño de código y anexos](./docs/10-diseno-codigo-y-anexos.md)
+- [Manuales — outline](./docs/11-manuales-ops-y-usuario.md)
 
 **Estado:** especificación v1.0 — Fase 1 lista para implementar.
 
