@@ -16,13 +16,13 @@ Este documento responde qué estados existen en el sistema y cómo transicionan.
 | **Badge (assertion)** | `status` | `pending`, `issued`, `revoked` | Sistema / editor·admin |
 | **Participante** | — | Sin estado propio | — |
 
-No existe un estado global del “participante”; el ciclo vive en cada **certificado** y cada **badge**.
+El ciclo de vida vive en cada **certificado** y cada **badge**, no en el participante.
 
 ---
 
 ## 2. Evento (`events.status`)
 
-Solo dos estados. **No existe `closed`:** un evento ya realizado sigue `active`; si tiene certificados emitidos o pendientes, el titular los ve en búsqueda y permalink con normalidad.
+Valores: `draft` y `active`. Un evento ya realizado sigue `active`; si tiene certificados emitidos o pendientes, el titular los ve en búsqueda y permalink con normalidad.
 
 ```mermaid
 stateDiagram-v2
@@ -140,21 +140,7 @@ No hay `pending` habitual: la emisión ocurre cuando el criterio externo confirm
 
 ---
 
-## 6. Estados que NO existen
-
-Evitar ambigüedad en implementación:
-
-| Término informal | Estado real |
-|------------------|-------------|
-| “Pendiente de carga” | Participante sin certificados aún (no es status) |
-| “Activo/inactivo” del evento | `events.status`, no `certificates` |
-| `pendiente` (español) | Usar **`pending`** en código/BD |
-| “Expirado” | No aplica; certificados no caducan salvo revocación |
-| “Evento cerrado / closed” | No existe; usar `active` (evento pasado sigue consultable) |
-
----
-
-## 7. Referencias
+## 6. Referencias
 
 - [HU-6.1](./02-historias-de-usuario.md) — alta individual
 - [HU-7.3](./02-historias-de-usuario.md) — revocación y corrección (revoke + alta nueva)

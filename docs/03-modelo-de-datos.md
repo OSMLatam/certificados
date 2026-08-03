@@ -542,8 +542,6 @@ Identidad técnica y marca vía ENV; datos legales AC3 vía **tabla `instance_le
 | `LEGAL_*` | Bootstrap opcional AC3 al primer arranque → fila `instance_legal` | — |
 | `DEFAULT_COUNTRY_CODE` | País por defecto formularios | `CO` |
 
-No usar `INSTANCE_NAME` ni `API_PUBLIC_URL` (fusionados en `SITE_NAME` / `PUBLIC_BASE_URL`).
-
 ### 7.2. `instance_legal` (Fase 2 — solo AC3)
 
 Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad editable en pantalla admin (`GET`/`PATCH /api/v1/admin/instance/legal`). Los `LEGAL_*` del ENV solo **siembran** la fila si está vacía al boot.

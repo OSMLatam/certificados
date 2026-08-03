@@ -42,7 +42,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 
 | Tema | Decisión |
 |------|----------|
-| **Estado del evento** | Solo `draft` y `active`. **No existe `closed`.** Un evento pasado sigue `active`; si tiene certificados, se muestran en búsqueda y permalink. `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). |
+| **Estado del evento** | `draft` \| `active`. Evento pasado sigue `active` (certificados visibles en búsqueda y permalink). `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). |
 | **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
 | **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
@@ -64,7 +64,6 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; PDF `issued` siempre desde MinIO (sin regenerar). |
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
-| **Evento `closed` en búsqueda** | N/A — no hay estado closed. |
 | **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
 | **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
@@ -386,7 +385,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 |---|----------|--------|
 | 1 | Stack definido (NestJS, Prisma, React, Puppeteer, Konva, MinIO) | ✓ |
 | 2 | Hosting producción definido (servidores osm.lat + AC3) | ✓ |
-| 3 | Modelo de datos coherente (sin `closed`; `instance_legal`; UNIQUE email; FK badge unidireccional) | ✓ |
+| 3 | Modelo de datos coherente (`instance_legal`; UNIQUE email; FK badge unidireccional) | ✓ |
 | 4 | Estados certificado/badge documentados (`/b/` pending no emite) | ✓ |
 | 5 | Tres fases con entregables y criterios de aceptación | ✓ |
 | 6 | Matriz HU → fase sin huecos | ✓ |

@@ -339,7 +339,6 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Eventos `draft` no aparecen en búsqueda pública. Eventos `active` sí, **incluso si la fecha del evento ya pasó**.
 3. Permalinks `/c/{slug}` y `/b/{slug}` **sí resuelven** (y pueden emitir) aunque el evento esté o haya estado siempre en `draft` — útil para probar antes de publicar. Soft-delete / desactivar: misma política de permalinks vivos.
 4. Un evento puede tener cero, una o muchas sedes.
-5. No existe estado `closed`; un evento terminado permanece `active` mientras tenga certificados consultables.
 
 ---
 
