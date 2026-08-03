@@ -63,6 +63,8 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 | **osm.lat** | `full_name` + `email` (documento opcional) |
 | **AC3** | `full_name` + `email` + país + tipo + número de documento |
 
+**Email:** obligatorio y **único por evento** (una persona = un email). Alta/CSV/pregenerados: email ya existente en el evento → **rechazar** (salvo nuevo rol de la misma persona). Normalizar `trim` + `lower` al guardar. Ver [03 §4.3](./03-modelo-de-datos.md).
+
 Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emails y datos de participantes llegan desde otra plataforma de registro (evento), donde ya se informa el uso. Este producto solo almacena y emite credenciales; no recoge el consentimiento inicial.
 
 ---
@@ -294,9 +296,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. En modo pregenerado, se almacena el archivo subido y se expone permalink.
 3. El permalink sirve el archivo almacenado (sin re-renderizar desde plantilla).
 4. **Carga individual** (un archivo por certificado) para correcciones puntuales.
-5. **Carga masiva:** hoja (CSV/ODS) + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes.
+5. **Carga masiva:** hoja **CSV** + ZIP/carpeta de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Imports **incrementales** al mismo evento (olvidados / altas posteriores); rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo** — editar en Excel/LibreOffice y guardar como CSV.
 6. **Plantilla descargable** desde el panel (CSV UTF-8, abre en Excel/LibreOffice): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
-7. La edición masiva de metadatos se hace en LibreOffice/Excel; el panel solo ofrece la plantilla, valida e importa.
+7. La edición masiva de metadatos se hace en LibreOffice/Excel (export CSV); el panel solo ofrece la plantilla, valida e importa.
 
 ---
 
@@ -408,7 +410,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Datos mínimos según instancia (ver tabla al inicio): osm.lat → nombre + email; AC3 → nombre + email + identificación.
+1. Datos mínimos según instancia (ver tabla al inicio): osm.lat → nombre + email; AC3 → nombre + email + identificación. Email único por evento (rechazar duplicado).
 2. Selección múltiple de roles.
 3. Campo actividad/charla opcional (ponente, tallerista).
 4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado.
@@ -433,9 +435,10 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. UTF-8; delimitador configurable (`,` o `;`).
 2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
-3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados.
-4. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email/doc + rol).
-5. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta.
+3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados (misma persona).
+4. **Email duplicado** (mismo evento + mismo email + mismo rol, o email ya en BD con datos conflictivos) → **rechazar**. Cada persona tiene su propio email.
+5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol).
+6. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta como CSV.
 
 ---
 
@@ -555,13 +558,13 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Pantalla **admin** de instancia para editar: razón social, NIT, representante, imagen de firma (upload a storage). Sin depender de paths en archivo de propiedades para el día a día.
-2. Valores también legibles al arranque desde ENV como bootstrap opcional del primer deploy.
+1. Pantalla **admin** de instancia persiste en tabla **`instance_legal`**: razón social, NIT, representante, imagen de firma (upload → `stored_files`). Sin depender de paths en archivo de propiedades para el día a día.
+2. Valores también legibles al arranque desde ENV (`LEGAL_*`) como bootstrap opcional si la fila está vacía.
 3. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
-4. osm.lat: pantalla/legal ausentes; capas `legal.*` no disponibles.
-5. Página `/c/` e Issuer Open Badges pueden **leer** los mismos valores (uso secundario).
+4. osm.lat: pantalla/`instance_legal` ausentes; capas `legal.*` no disponibles.
+5. Página `/c/` usa `legal_snapshot` del certificado; Issuer Open Badges lee `instance_legal` vigente (nuevas emisiones).
 
-Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [03 §7.2](./03-modelo-de-datos.md).
 
 ---
 

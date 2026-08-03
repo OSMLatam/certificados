@@ -44,13 +44,17 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 |------|----------|
 | **Estado del evento** | Solo `draft` y `active`. **No existe `closed`.** Un evento pasado sigue `active`; si tiene certificados, se muestran en búsqueda y permalink. `draft` = preparación, invisible en búsqueda pública. |
 | **Emisión certificado** | `pending` → `issued` solo en **primera visita** a `/c/{slug}` o descarga desde búsqueda (**lazy**). Sin emisión forzada/masiva en v1.0. |
-| **Datos legales AC3** | Al generar el PDF (paso a `issued`), se copian los valores actuales de config a `certificates.legal_snapshot` y se **graban en el PDF**. Cambios posteriores de NIT/representante/firma en config **solo afectan certificados nuevos**. |
-| **Preview plantilla** | Usa config legal **actual** (no snapshot). |
+| **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al emitir PDF (`issued`, `generated`): copia a `certificates.legal_snapshot` e incrusta en PDF. Cambios posteriores solo afectan emisiones nuevas. |
+| **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | Legal ya va en la imagen subida; no se aplica snapshot. |
-| **Slug permalink** | `nanoid` custom alfabeto `[A-Za-z0-9_-]`, **12 caracteres**, único en BD. |
-| **PDF** | A4 landscape @ **150 DPI** (canvas 1754×1240 px); tipografías abiertas embebidas (p. ej. Noto Sans); Puppeteer HTML→PDF. |
+| **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). |
+| **PDF** | A4 landscape @ **150 DPI** (canvas 1754×1240 px); tipografías abiertas embebidas; Puppeteer HTML→PDF. |
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
-| **CSV import (participantes y pregenerados)** | Atómico: error en el lote → 0 filas escritas + informe; lote OK → todo; luego incremental. |
+| **Sesión admin** | Cookie `cert_session` + tabla **`admin_sessions`** en PostgreSQL (F1/F2 sin Redis). |
+| **Email participante** | Obligatorio; **UNIQUE `(event_id, email)`** normalizado (`trim`+`lower`); duplicado → rechazar. Misma persona + otro rol = OK. |
+| **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
+| **Contrato `/c/`** | SPA HTML verify; API metadata `GET /api/v1/public/certificates/{slug}` (lazy issue); binario `…/file`. |
+| **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF → `pending` + 503. |
 | **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **Búsqueda pública** | Solo email **o** documento (tipo+número+país). Rate limit: **10 req/min/IP**. |
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
@@ -58,10 +62,11 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3. Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
 | **Evento `closed` en búsqueda** | N/A — no hay estado closed. |
 | **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
-| **Issuer OB AC3** | `issuer.json` lee config **actual** (nombre/NIT vigentes para nuevas emisiones). |
-| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. BadgeClass `event_role` se crea/actualiza al guardar `allowed_roles` (también en `draft`). |
+| **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
+| **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role` al guardar `allowed_roles` (también en `draft`); imagen default = logo instancia si no hay upload. |
+| **Vínculo cert↔badge** | Solo FK `badge_assertions.certificate_id` (sin FK inversa en `certificates`). |
+| **Plantilla fondo** | `certificate_templates.background_file_id` → `stored_files`. |
 | **Soft-delete evento** | Sale de listados y búsqueda; permalinks `/c/` y `/b/` **siguen vivos**. |
-| **Email participante** | Obligatorio (osm.lat y AC3) en alta y CSV. |
 | **OSM — vínculo email** | `osm_profiles.email` + `linked_at` (1:1); sin `participant_id`. |
 | **OSM — resolución usuario** | `GET https://api.openstreetmap.org/api/0.6/user/{osm_id}.json` |
 | **OSM — conteo changesets** | **Overpass API** (`out:json`) sobre historial del usuario |
@@ -113,7 +118,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.6 | Generación PDF (Puppeteer) + almacenamiento MinIO; **PDF inmutable** al pasar a `issued` |
 | F1.7 | Certificados `generated` y `pregenerated` (`pregenerated_only`); import masivo sheet+ZIP + **descarga de plantilla** CSV |
 | F1.8 | Estados `pending` → `issued` en primera visita |
-| F1.9 | Permalink público `GET /c/{slug}` (verify + descarga) |
+| F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock) |
 | F1.10 | Búsqueda pública por email o documento |
 | F1.11 | Multi-rol: un certificado por rol |
 | F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI) + roles desde YAML anexos |
@@ -145,7 +150,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 ### 2.3. Tablas Prisma (Fase 1)
 
-`country_identity_config`, `roles`, `events`, `venues`, `participants`, `certificate_templates`, `certificates`, `stored_files`, `admin_users`, `audit_log`, `permalink_access_log`.
+`country_identity_config`, `roles`, `events`, `venues`, `participants`, `certificate_templates`, `certificates`, `stored_files`, `admin_users`, `admin_sessions`, `audit_log`, `permalink_access_log`.
 
 ### 2.4. Criterio de aceptación de fase
 
@@ -176,7 +181,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 | # | Entregable |
 |---|------------|
-| F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions` |
+| F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions`, `instance_legal` |
 | F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
@@ -364,8 +369,8 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 |---|----------|--------|
 | 1 | Stack definido (NestJS, Prisma, React, Puppeteer, Konva, MinIO) | ✓ |
 | 2 | Hosting producción definido (servidores osm.lat + AC3) | ✓ |
-| 3 | Modelo de datos coherente (sin `closed`, `legal_snapshot`) | ✓ |
-| 4 | Estados certificado/badge documentados | ✓ |
+| 3 | Modelo de datos coherente (sin `closed`; `instance_legal`; UNIQUE email; FK badge unidireccional) | ✓ |
+| 4 | Estados certificado/badge documentados (`/b/` pending no emite) | ✓ |
 | 5 | Tres fases con entregables y criterios de aceptación | ✓ |
 | 6 | Matriz HU → fase sin huecos | ✓ |
 | 7 | API por fase en flujos (§15) | ✓ |
@@ -434,7 +439,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 
 **Unitarios:**
 
-- Copia `LEGAL_*` → `legal_snapshot` al emitir.
+- Copia `instance_legal` → `legal_snapshot` al emitir.
 - Creación `badge_assertion` **pending** al alta certificado; pasa a **issued** con el certificado.
 - Revocación en cascada certificado → badge `event_role`.
 

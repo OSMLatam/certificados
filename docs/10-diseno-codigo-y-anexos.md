@@ -119,15 +119,15 @@ certificados/
 |--------|-----------------|
 | `config` | Carga ENV, validación Zod al boot |
 | `health` | Liveness/readiness |
-| `auth` | Login, logout, session guard, roles |
+| `auth` | Login, logout, session guard (tabla `admin_sessions`), roles |
 | `events` | CRUD eventos `draft`/`active` |
 | `venues` | Sedes por evento |
-| `participants` | Alta individual + deduplicación por evento |
-| `templates` | Plantillas, layout JSONB |
-| `certificates` | Slug, estados, pregenerados, emisión |
+| `participants` | Alta individual + UNIQUE email por evento |
+| `templates` | Plantillas, layout JSONB, fondo → `stored_files` |
+| `certificates` | Slug, estados, pregenerados, emisión con lock |
 | `pdf` | HTML template → Puppeteer → buffer |
 | `storage` | Upload/download MinIO |
-| `public` | `POST /public/search`, `GET /c/:slug` data |
+| `public` | `POST /public/search`, metadata `/public/certificates/:slug`, `/file` |
 | `import` | CSV participantes |
 
 ### Fase 2 (añadir)
@@ -135,7 +135,7 @@ certificados/
 | Módulo | Responsabilidad |
 |--------|-----------------|
 | `badges` | Issuer, BadgeClass, assertions, `/b/` |
-| `legal` | Resolver `LEGAL_*`, `legal_snapshot` |
+| `legal` | `instance_legal` CRUD + bootstrap ENV; `legal_snapshot` |
 | `revocation` | Sub-módulo de `certificates` + `badges` (no paquete aparte) |
 
 ### Fase 3 (añadir)
@@ -164,16 +164,37 @@ certificados/
 ### 4.2. Flujo típico — emisión certificado
 
 ```text
-GET /c/:slug
-  → CertificatesController.findPublic(slug)
+GET /api/v1/public/certificates/:slug          # metadata + lazy issue
   → CertificatesService.resolvePublic(slug)
-       → si pending: transitionToIssued()
-            → PdfService.render(participant, template, legalSnapshot?)
+       → si pending: transitionToIssued()  # con lock por certificate_id
+            → PdfService.render(...)
             → StorageService.put(pdf)
-            → prisma.certificate.update({ stored_file_id, legal_snapshot, issued_at })
-       → si issued: StorageService.get(stored_file_id)
-  → PublicController stream PDF + HTML verify page
+            → update { stored_file_id, legal_snapshot?, issued_at, status=issued }
+            → si PDF falla: queda pending; HTTP 503; reintento en siguiente visita
+       → si issued: leer stored_file metadata
+GET /api/v1/public/certificates/:slug/file     # binario PDF/imagen
+  → stream desde MinIO (Content-Disposition: inline | attachment según ?download=1)
+
+SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
+  → llama API metadata; enlace/iframe a /file para el documento
 ```
+
+**Contrato de superficies (cerrado):**
+
+| Superficie | Ruta | Responsabilidad |
+|------------|------|-----------------|
+| HTML verify | `/c/{slug}` (web) | Página humana; no regenera PDF |
+| Metadata JSON | `GET /api/v1/public/certificates/{slug}` | Estado, datos verify, dispara lazy issue |
+| Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream del archivo en storage |
+| Descarga forzada | mismo `/file?download=1` | `Content-Disposition: attachment` |
+
+### 4.2.1. Emisión concurrente (cerrado)
+
+Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppeteer:
+
+1. `SELECT … FOR UPDATE` (o advisory lock por `certificate_id`) dentro de la transición.
+2. El segundo request espera el lock; si ya está `issued`, sirve el archivo.
+3. `PDF_CONCURRENCY` limita Chromium **globales** de la instancia; el lock es **por certificado**.
 
 ### 4.3. Formato de errores API
 
@@ -249,12 +270,13 @@ Plantilla completa: [`anexos/.env.example`](./anexos/.env.example).
 | Instancia | `INSTANCE`, `PUBLIC_BASE_URL` | 1 |
 | BD | `DATABASE_URL` | 1 |
 | Storage | `STORAGE_*` | 1 |
-| Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), `OSM_OAUTH_*` (scopes: solo identidad / `read_prefs`), `SEED_ADMIN_OSM_*` | 1 |
+| Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), store en Postgres (`admin_sessions`), `OSM_OAUTH_*`, `SEED_ADMIN_OSM_*` | 1 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX` (opcional) | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS` | 1 |
-| Legal AC3 | Pantalla admin + bootstrap `LEGAL_*` opcional | 2 |
+| Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
+| Legal AC3 | Tabla `instance_legal` + bootstrap `LEGAL_*` opcional | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
 | OSM API | `OSM_API_*`, `OVERPASS_*` | 3 |
 | Turnstile | `TURNSTILE_*` | 3 |
@@ -392,7 +414,7 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 | Timeout PDF | `PDF_TIMEOUT_MS` (ej. 30s); fallo → 503 + reintento admin, no saturar |
 | Preview admin | Misma cola/semáforo; no lanzar N Chromium en paralelo desde el editor |
 | Jobs masivos | Solo vía BullMQ (admin o cron); chunks pequeños; backoff |
-| Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; límites PDF en-proceso |
+| Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; sesiones en Postgres (`admin_sessions`); límites PDF en-proceso |
 | Caché HTTP | Permalinks `issued`: `Cache-Control` razonable en estáticos/PDF (CDN o nginx); HTML verify puede ser más corto |
 
 ### 10.5. Checklist para implementación (IA / humano)
@@ -473,6 +495,7 @@ paths:
   /admin/instance/legal:        GET, PATCH      # AC3 admin only; F2
   /public/search:           POST
   /public/certificates/{slug}: GET              # metadata + lazy issue
+  /public/certificates/{slug}/file: GET         # PDF/imagen stream
 ```
 
 Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`.  
@@ -486,19 +509,20 @@ Entidades mínimas (nombres alineados con [03-modelo-de-datos.md](./03-modelo-de
 
 ```prisma
 model Role { id, code, label, displayOrder, isActive, ... }
-model Event { id, name, year, startDate, endDate, countryCode, allowedRoles Json, status, pregeneratedOnly, ... }
+model Event { id, name, year, startDate, endDate, countryCode, allowedRoles Json, status, pregeneratedOnly, defaultTemplateId?, ... }
 model Venue { ... }
-model Participant { ... }
-model CertificateTemplate { id, eventId, roleCode?, layout Json, backgroundFileId, ... }
-model Certificate { id, slug, status, mode, legalSnapshot Json?, storedFileId, ... }
+model Participant { id, eventId, email /* unique per event, normalized */, ... }
+model CertificateTemplate { id, eventId, roleCode?, layout Json, backgroundFileId /* StoredFile */, ... }
+model Certificate { id, slug /* nanoid 12 */, status, mode, legalSnapshot Json?, storedFileId, ... }
 model StoredFile { id, storageKey, mimeType, checksumSha256, ... }
 model AdminUser { id, osmId, osmUsername, role, isActive, lastLoginAt, ... }
+model AdminSession { id, adminUserId, data Json, expiresAt, ... }
 model CountryIdentityConfig { ... }
 model AuditLog { ... }
 model PermalinkAccessLog { ... }
 ```
 
-Fase 2: `BadgeIssuer`, `BadgeClass`, `BadgeAssertion`.  
+Fase 2: `BadgeIssuer`, `BadgeClass`, `BadgeAssertion` (FK `certificateId` hacia Certificate; **sin** FK inversa en Certificate), `InstanceLegal`.  
 Fase 3: `OsmProfile`.
 
 ---

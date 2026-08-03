@@ -11,25 +11,23 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 
 ```text
 ┌─────────────────────────┐
-│  Config instancia AC3   │  ← única fuente de verdad (ENV / admin instancia)
-│  LEGAL_ENTITY_NAME      │
-│  LEGAL_NIT              │
-│  LEGAL_REPRESENTATIVE   │
-│  LEGAL_SIGNATURE_FILE   │
-└───────────┬─────────────┘
-            │ valores en render
+│  instance_legal (BD)    │  ← única fuente de verdad (admin AC3)
+│  entity_name, nit, …    │     bootstrap opcional desde LEGAL_* ENV
+│  signature_file_id      │
+└──────────┬──────────────┘
+            │ valores en render / snapshot
             ▼
 ┌─────────────────────────┐
 │  Editor visual          │  ← posición, fuente, tamaño (layout JSONB)
 │  capa: legal.nit        │
 │  capa: legal.entity_name│
-│  capa: legal.signature  │  ← imagen desde config
-└───────────┬─────────────┘
+│  capa: legal.signature  │  ← imagen desde stored_files
+└──────────┬──────────────┘
             ▼
        PDF / preview /c/{slug}
 ```
 
-**osm.lat:** esas claves de config **no existen**; las capas `legal.*` no se ofrecen en el editor (o se ignoran al renderizar).
+**osm.lat:** no se usa `instance_legal`; las capas `legal.*` no se ofrecen en el editor (o se ignoran al renderizar).
 
 ---
 
@@ -39,20 +37,20 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 
 | Dónde | Quién | Qué |
 |-------|-------|-----|
-| **Pantalla admin AC3** | Rol `admin` | Razón social, NIT, representante, upload firma |
-| **ENV (bootstrap)** | Deploy | Valores iniciales opcionales del primer arranque |
+| **Tabla `instance_legal`** + pantalla admin AC3 | Rol `admin` | Razón social, NIT, representante, upload firma |
+| **ENV `LEGAL_*` (bootstrap)** | Deploy | Siembra la fila si está vacía al primer arranque |
 | **No** en cada evento | — | Los eventos nuevos usan la config del momento de emisión |
 | **No** en cada participante | — | Son datos de la entidad, no de la persona |
 
-Equivalente documentado en [05-personalizacion-multi-instancia.md](./05-personalizacion-multi-instancia.md).
+Equivalente documentado en [05-personalizacion-multi-instancia.md](./05-personalizacion-multi-instancia.md) y esquema en [03 §7.2](./03-modelo-de-datos.md).
 
-**v1.0:** edición día a día vía **pantalla admin**; ENV solo como semilla de despliegue.
+**v1.0:** edición día a día vía **pantalla admin** → BD; ENV solo como semilla de despliegue.
 
 ### 2.2. Snapshot al emitir (decisión cerrada)
 
 Los valores legales son **texto e imagen sobre la gráfica del certificado**, igual que el nombre del participante:
 
-1. **Vista previa / plantilla nueva:** el editor lee la config **actual** (`LEGAL_*`).
+1. **Vista previa / plantilla nueva:** el editor lee `instance_legal` **actual**.
 2. **Al generar el PDF** (certificado pasa a `issued`, modo `generated`): el sistema copia los valores vigentes a `certificates.legal_snapshot` y los **incrusta en el PDF** almacenado.
 3. **Certificados ya emitidos:** no cambian si se actualiza NIT, representante o firma en config. Esos cambios aplican solo a **nuevas emisiones** (otros eventos o nuevos titulares).
 4. **Pregenerados:** el legal ya va en el archivo subido; no hay snapshot ni re-render.
@@ -94,10 +92,10 @@ Los valores legales son **texto e imagen sobre la gráfica del certificado**, ig
 
 | Token `field` | Origen del valor |
 |---------------|------------------|
-| `legal.entity_name` | `LEGAL_ENTITY_NAME` |
-| `legal.nit` | `LEGAL_NIT` (ej. prefijo UI: "NIT …") |
-| `legal.representative` | `LEGAL_REPRESENTATIVE` |
-| `legal.signature` | imagen `LEGAL_SIGNATURE_FILE` (capa tipo imagen, no texto) |
+| `legal.entity_name` | `instance_legal.entity_name` |
+| `legal.nit` | `instance_legal.nit` (ej. prefijo UI: "NIT …") |
+| `legal.representative` | `instance_legal.representative` |
+| `legal.signature` | imagen vía `instance_legal.signature_file_id` → `stored_files` (capa tipo imagen, no texto) |
 
 El editor visual **lista estos tokens solo en despliegues AC3**.
 
@@ -151,10 +149,10 @@ Las definiciones canónicas están en [02-historias-de-usuario.md](./02-historia
 ## 7. Flujo admin AC3 (resumen)
 
 ```text
-1. Deploy / admin instancia → cargar LEGAL_* (HU-8.2)
+1. Deploy / admin instancia → cargar `instance_legal` (HU-8.2; bootstrap ENV opcional)
 2. Crear evento → diseñar plantilla en editor visual (HU-3.1)
 3. Colocar capas legal.* donde corresponda
-4. Vista previa → PDF con NIT/razón social de config
+4. Vista previa → PDF con NIT/razón social de `instance_legal`
 5. Cargar participantes → emitir certificados igual que osm.lat
 ```
 

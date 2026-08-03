@@ -53,9 +53,13 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2 (además de páginas humanas) |
 | Soft-delete evento | Oculta listados/búsqueda; permalinks siguen vivos |
-| Email participante | Siempre obligatorio; envío de enlace por SMTP = Fase 3 |
+| Email participante | Obligatorio; **único por evento** (rechazar duplicado); normalizado |
 | PDF | A4 landscape @ 150 DPI; tipografías abiertas embebidas |
-| CSV import | Atómico (participantes y pregenerados): error → 0 escrituras |
+| CSV import | Atómico (solo CSV); error → 0 escrituras |
+| Sesión admin | Cookie + tabla `admin_sessions` (Postgres; sin Redis en F1/F2) |
+| Legal AC3 | Tabla `instance_legal` + bootstrap ENV; snapshot al emitir |
+| Contrato `/c/` | SPA HTML + API metadata + `/file` binario |
+| Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 
 ---
 

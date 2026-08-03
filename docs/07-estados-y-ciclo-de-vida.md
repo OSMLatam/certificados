@@ -64,7 +64,7 @@ stateDiagram-v2
 1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado). Aplica a modos `generated` y `pregenerated`.
 2. **Activación a `issued` (solo lazy):** primera visita exitosa del titular al permalink `/c/{slug}` o descarga desde búsqueda por identidad. **No** hay emisión forzada/masiva en v1.0.
 3. **`issued_at`:** timestamp del paso a `issued`.
-4. **Modo `generated`:** al pasar a `issued` se renderiza el PDF (Puppeteer), se guarda en storage y, en AC3, se escribe `legal_snapshot`.
+4. **Modo `generated`:** al pasar a `issued` se renderiza el PDF (Puppeteer), se guarda en storage y, en AC3, se escribe `legal_snapshot` desde `instance_legal`. Transición con **lock por certificado** (ver [10 §4.2.1](./10-diseno-codigo-y-anexos.md)); fallo PDF → queda `pending` + 503.
 5. **Modo `pregenerated`:** el archivo ya está en storage desde el upload; al pasar a `issued` solo se fija `issued_at` y se sirve ese archivo (sin re-render).
 6. **Revocación:** editor o admin; motivo opcional en `revoke_reason` (Must desde Fase 2).
 7. **PDF:** inmutable tras `issued`. Restore operativo = backup pareado BD + MinIO (manual de operación).
@@ -99,9 +99,11 @@ stateDiagram-v2
 
 | Estado | Permalink `/b/{slug}` | JSON-LD OB |
 |--------|----------------------|------------|
-| `pending` | No público o “próximamente” | No exportable |
+| `pending` | Página “aún no emitido” o **404** (configurable UI); **no** dispara emisión del certificado | No exportable |
 | `issued` | Verificación + backpack | Sí |
 | `revoked` | Estado revocado | `revoked: true` |
+
+**Regla cerrada:** la emisión del certificado (y del badge vinculado) ocurre **solo** en primera visita exitosa a `/c/{slug}` o descarga desde búsqueda. Visitar `/b/{slug}` en `pending` **nunca** llama a `transitionToIssued`.
 
 ### 4.2. Badge actividad OSM (`osm_activity`)
 

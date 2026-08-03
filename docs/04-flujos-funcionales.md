@@ -95,6 +95,7 @@ sequenceDiagram
 4. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
 5. Soft-delete del evento **no** invalida permalinks ya emitidos.
 6. Metadatos Open Graph (Fase 2) y API verify JSON `GET /api/v1/verify/c/{slug}` (Fase 2) complementan la página pública.
+7. **Contrato rutas:** HTML verify = SPA `/c/{slug}`; metadata + lazy issue = `GET /api/v1/public/certificates/{slug}`; binario = `…/file` (ver [10 §4.2](./10-diseno-codigo-y-anexos.md)).
 
 ---
 
@@ -277,7 +278,7 @@ Admin revoca certificate
 
 | # | Caso | Fase | Esperado |
 |---|------|------|----------|
-| T13 | Certificado issued | 2 | Badge `/b/` creado automáticamente |
+| T13 | Alta certificado → badge pending; cert issued → badge issued | 2 | Assertion creada en pending al alta; `/b/` público solo tras issued; visitar `/b/` pending **no** emite |
 | T14 | Import CSV osm_id | 3 | Assertions emitidas idempotentes |
 | T15 | Revocar certificado | 2 | Badge evento revocado |
 | T16 | Badge OSM sin certificado | 3 | Solo `/b/`, sin `/c/` |
@@ -337,7 +338,9 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 
 | Método | Ruta | Fase | Uso |
 |--------|------|------|-----|
-| GET | `/c/{slug}` | 1 | Certificado público + descarga |
+| GET | `/c/{slug}` | 1 | Página HTML verify (SPA) |
+| GET | `/api/v1/public/certificates/{slug}` | 1 | Metadata + lazy issue |
+| GET | `/api/v1/public/certificates/{slug}/file` | 1 | Stream PDF/imagen |
 | POST | `/api/v1/public/search` | 1 | Búsqueda por correo/doc (solo certificados) |
 | GET | `/api/v1/admin/auth/osm/start` | 1 | Inicio OAuth OSM |
 | GET | `/api/v1/admin/auth/osm/callback` | 1 | Callback OAuth → sesión |

@@ -89,16 +89,18 @@ https://certificados.ac3.org.co/c/{slug}
 | Texto footer (organización) | Comunidad LATAM | Texto legal AC3 |
 | Crédito de software | Igual en ambas (ver [§10](#10-atribución-del-software-multi-instancia)) | Idem |
 
-### 3.2. Datos legales AC3 (config de instancia — no plantilla)
+### 3.2. Datos legales AC3 (tabla `instance_legal` — no plantilla)
 
-**Fuente única de verdad** para textos legales. La **posición** en el certificado se define en el editor visual (capas `legal.*`).
+**Fuente única de verdad** para textos legales (BD). La **posición** en el certificado se define en el editor visual (capas `legal.*`).
 
-| Parámetro | Contenido |
-|-----------|-----------|
-| `LEGAL_ENTITY_NAME` | Razón social |
-| `LEGAL_NIT` | NIT |
-| `LEGAL_REPRESENTATIVE` | Representante legal |
-| `LEGAL_SIGNATURE_FILE` | Imagen firma/sello |
+| Campo (BD / UI) | Contenido |
+|-----------------|-----------|
+| `entity_name` | Razón social |
+| `nit` | NIT |
+| `representative` | Representante legal |
+| `signature_file_id` | Imagen firma/sello (`stored_files`) |
+
+Bootstrap opcional al deploy: `LEGAL_ENTITY_NAME`, `LEGAL_NIT`, `LEGAL_REPRESENTATIVE`, `LEGAL_SIGNATURE_FILE` → siembran la fila si está vacía.
 
 **Usos del mismo config:**
 
@@ -108,7 +110,7 @@ https://certificados.ac3.org.co/c/{slug}
 | Verify `/c/` | Muestra `legal_snapshot` del certificado (AC3) |
 | Open Badges Issuer | `name` / `description` del issuer |
 
-osm.lat: parámetros ausentes; render ignora capas `legal.*`.
+osm.lat: sin fila / sin capas `legal.*`.
 
 Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 

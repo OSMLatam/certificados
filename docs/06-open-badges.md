@@ -61,11 +61,22 @@ flowchart LR
 
 ## 2.3. Recipient (identidad OB)
 
-- Assertion usa **hash de email + salt** (estilo Open Badges 2 / portable a backpacks).
-- Email siempre disponible: es obligatorio en participantes (osm.lat y AC3).
-- Badges `osm_activity` se asocian a `osm_id`; el recipient hasheado aplica cuando hay `osm_profiles.email` vinculado (HU-10.5). Sin email vinculado, la assertion usa identidad OSM según JSON-LD F3 (sin hash de email).
+- Assertion usa **hash de email + salt** (estilo Open Badges 2 / portable a backpacks) cuando hay email.
+- Email siempre disponible en badges `event_role`: es obligatorio en participantes.
+- Badges `osm_activity` se asocian a `osm_id`. Con `osm_profiles.email` vinculado (HU-10.5): mismo hash de email. **Sin email vinculado**, el recipient usa identidad OSM en el JSON-LD, por ejemplo:
 
-**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion + API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**).
+```json
+{
+  "type": "IdentityObject",
+  "identityType": "url",
+  "identity": "https://www.openstreetmap.org/user/{osm_id}",
+  "hashed": false
+}
+```
+
+(Exacto campo según serialización OBv3 elegida en F3; contrato: identificador estable = `osm_id`, no username.)
+
+**Verificación en v1.0:** páginas humanas `/c/{slug}` y `/b/{slug}` + JSON-LD de assertion + API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado.
 
 ---
 
@@ -249,10 +260,10 @@ sequenceDiagram
 
 ## 10. Imagen del badge
 
-- **Evento:** diseño por BadgeClass (admin sube PNG/SVG); puede derivarse de miniatura del certificado.
-- **Actividad OSM:** iconografía estándar por tipo (changeset, nota, etc.) configurable.
+- **Evento (`event_role`):** al auto-crear BadgeClass desde `allowed_roles`, usar **imagen default de instancia** (logo `SITE_LOGO_URL` / asset embebido) si el admin no subió PNG/SVG. Override opcional en admin por BadgeClass. Puede derivarse después de miniatura del certificado (Should).
+- **Actividad OSM:** iconografía estándar por tipo (changeset, nota, etc.) configurable; seed F3 puede incluir PNGs por familia.
 
-Editor simple de imagen badge en admin: upload de PNG/SVG. Plantillas reutilizables: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+Editor simple: upload de PNG/SVG por BadgeClass. Plantillas reutilizables: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 ---
 
