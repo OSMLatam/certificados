@@ -306,8 +306,8 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Auth mapper (osm.lat) | `MAPPER_SESSION_COOKIE_NAME=cert_mapper_session`, `OSM_OAUTH_PUBLIC_REDIRECT_URI`, tablas `mapper_sessions` / `osm_email_link_codes` | 3 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
-| Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX` | 1 |
-| PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS` | 1 |
+| Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX`, `TRUST_PROXY` | 1 |
+| PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS`, `PUPPETEER_NO_SANDBOX` | 1 |
 | Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
 | Legal AC3 | Tabla `instance_legal` + bootstrap `LEGAL_*` opcional | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
@@ -315,7 +315,7 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Turnstile | `TURNSTILE_*` | 3 |
 | SMTP | `SMTP_*` (From dedicado; obligatorio osm.lat F3) | 3 |
 
-**Validación al arranque:** `apps/api/src/config/env.schema.ts` (Zod) — falla fast si falta `DATABASE_URL`, `SESSION_SECRET` o `OSM_OAUTH_CLIENT_ID` / `OSM_OAUTH_CLIENT_SECRET`.
+**Validación al arranque:** `apps/api/src/config/env.schema.ts` (Zod) — falla fast si falta `DATABASE_URL`, `SESSION_SECRET` o `OSM_OAUTH_CLIENT_ID` / `OSM_OAUTH_CLIENT_SECRET`. En `NODE_ENV=production`: rechazar `SESSION_SECRET` que contenga `change-me` y `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` iguales a `minioadmin`.
 
 ---
 
@@ -400,12 +400,75 @@ Las instancias viven en **servidores comunitarios/institucionales compartidos**.
 |------|----------|
 | Sesión admin | Cookie `httpOnly`, `Secure` en prod, `SameSite=Lax` |
 | CSRF | `SameSite=Lax` en cookie + validar header `Origin` en mutaciones admin POST/PATCH/DELETE |
-| CORS | Prod: mismo origen (nginx proxy); dev: `localhost:5173` |
+| CORS | Prod: mismo origen (nginx/Caddy proxy); dev: `localhost:5173` |
 | Headers | `helmet` en NestJS: CSP básico, HSTS en prod |
-| Uploads sueltos (fondo, firma, 1:1) | Max **10 MB**; MIME: `image/png`, `image/jpeg`, `application/pdf` |
-| Lote pregenerados (CSV + ZIP) | Max **100 MB** total; ZIP MIME `application/zip` (o `application/x-zip-compressed`); entradas internas: png/jpeg/pdf |
+| Uploads sueltos (fondo, firma, 1:1) | Max **10 MB**; MIME declarado **y** magic bytes (ver §10.1.3) |
+| Lote pregenerados (CSV + ZIP) | Max **100 MB** comprimido; zip-slip/bomb §10.1.2; entradas internas png/jpeg/pdf validadas como upload |
 | Slug | nanoid 12 chars — no secuencial, no enumerable. UNIQUE violation → reintentar (máx. 5); agotar → 500 `SLUG_COLLISION`. Mismo criterio para slugs `/b/`. |
-| Secrets | Nunca en repo; `.env` gitignored |
+| Secrets | Nunca en repo; `.env` gitignored. `SESSION_SECRET` y `STORAGE_*` de ejemplo **no** valen en `NODE_ENV=production` (fail-fast al boot). |
+| Trust proxy | `TRUST_PROXY` (default `0`). Detrás de Caddy/nginx: `1`. El throttler usa la IP del hop de confianza (`X-Forwarded-For`). Ver §10.1.4. |
+| Logging PII | `LOG_REDACT_IP=true` (default). No persistir IP en `permalink_access_log` (ya sin columna IP). |
+| Cifrado en reposo | Ops: volumen cifrado (disco/LUKS o equivalente) para Postgres + MinIO, y backups cifrados off-host. La app **no** cifra columnas (rompería búsqueda). Ver §10.1.5. |
+
+#### 10.1.1. Puppeteer / Chromium (aislamiento)
+
+El HTML de render incluye fondos y fuentes **ya subidos**. No es un navegador abierto a internet.
+
+| Regla | Decisión |
+|-------|----------|
+| Usuario del contenedor | **No-root** (UID no privilegiado). Caps mínimas; no `--privileged`. |
+| Red en el render | Interceptar peticiones de página: **abort** todo lo que no sea `about:blank` o `data:`. Sin `http(s):`, `file:` remoto ni WebSocket. Fondos/fuentes se **inlinan** (data URI o buffer) desde `stored_files` **antes** de `setContent`. |
+| Sandbox | Preferir sandbox de Chromium + seccomp del runtime. `PUPPETEER_NO_SANDBOX=true` **solo** si el host no puede seccomp, y **únicamente** junto a no-root. Default `false`. |
+| Flags base | `--disable-dev-shm-usage`, `--disable-gpu`, timeout = `PDF_TIMEOUT_MS`. |
+| Qué no hace el template | El `layout` JSON no admite URLs remotas en capas. Un `field` no es HTML libre. |
+
+SSRF desde plantilla queda fuera de diseño: no hay fetch de URL de usuario en el render.
+
+#### 10.1.2. ZIP (zip-slip y zip-bomb)
+
+Además de la bijección CSV↔ZIP ([03 §10](./03-modelo-de-datos.md)):
+
+| Límite | Valor (cerrado v1.0) |
+|--------|----------------------|
+| Path | Rechazar entrada cuyo nombre contenga `..`, `/`, `\` o sea absoluta. Solo basename. |
+| Entradas de archivo | Máx. **500**. Directorios vacíos se ignoran. Sin ZIP anidado como certificado. |
+| Comprimido (lote CSV+ZIP) | **100 MB** (ya en HU-4.1). |
+| Descomprimido total | Máx. **200 MB**. Superar → `ZIP_BOMB`. |
+| Ratio por entrada | Si `uncompressed / compressed > 100` (y compressed > 0) → `ZIP_BOMB`. |
+| Una entrada | Máx. **20 MB** descomprimida (coherente con upload 10 MB + margen). |
+
+No descomprimir a disco con la ruta del ZIP; leer cada entrada a buffer tras validar el nombre.
+
+#### 10.1.3. Contenido de uploads (no solo MIME)
+
+El `Content-Type` del cliente **no** basta.
+
+| Tipo | Validación |
+|------|------------|
+| PNG / JPEG | Magic bytes (`89 50 4E 47` / `FF D8 FF`). Decodificar con límite: máx. **8000 px** por lado y **20 Mpx** totales. Fallo o bomb → 400 `UPLOAD_IMAGE_REJECTED`. |
+| PDF | Magic `%PDF`. Parsear catálogo; **rechazar** si hay acciones `/JS`, `/JavaScript`, `/Launch`, `/SubmitForm` (o equivalente de la librería). No pasar el PDF de usuario por Puppeteer. |
+| Fondo de plantilla | Solo PNG/JPEG (no PDF). Mismos límites de imagen. |
+
+Los pregenerados se **almacenan y sirven**, no se re-renderizan; igual se aplican estas reglas al import.
+
+#### 10.1.4. Rate limit detrás de reverse proxy
+
+Caddy/nginx termina TLS y pone `X-Forwarded-For`. Si Nest **no** hace `trust proxy`, todo el tráfico es 127.0.0.1: el throttle o no dispara o bloquea a **todos**.
+
+- `TRUST_PROXY=0` (default, dev sin proxy).
+- Producción detrás de **un** proxy: `TRUST_PROXY=1`. No usar `true`/ilimitado (spoofing de `X-Forwarded-For`).
+- El throttler y el audit (si hay IP) leen la IP ya resuelta por el framework, no el header crudo.
+- Test: dos IPs distintas detrás de un proxy de prueba cuentan buckets separados; sin `TRUST_PROXY` el test documenta el fallo.
+
+#### 10.1.5. Cifrado en reposo y backups (ops)
+
+No hay cifrado campo-a-campo en v1.0 (índices y búsqueda por documento/email). Sí es **requisito de despliegue producción**:
+
+1. Volúmenes de Postgres y MinIO en disco **cifrado** (LUKS, ZFS encryption, o cifrado del proveedor).
+2. Backups off-host **cifrados** (age/gpg o bucket con SSE) y **pareados** BD+MinIO ([05 §1.1](./05-personalizacion-multi-instancia.md)).
+3. Tránsito: HTTPS en el proxy; MinIO y Postgres no expuestos a internet.
+
+Detalle operativo: [11](./11-manuales-ops-y-usuario.md).
 
 ### 10.2. Rate limiting y anti-abuso (Fase 1+)
 
@@ -419,6 +482,7 @@ Usar `@nestjs/throttler` (o equivalente) en **todos** los endpoints públicos co
 | Admin autenticado | Sin throttle agresivo; sí auth + CSRF | Panel confiable |
 
 - Respuesta ante exceso: **HTTP 429** + `Retry-After`.
+- **IP cliente:** ver §10.1.4 (`TRUST_PROXY`). Sin esto el rate limit no distingue usuarios reales detrás del proxy.
 - **Cloudflare Turnstile** en búsqueda: **Fase 3** (o antes si hay abuso real); no sustituye el rate limit.
 - **No** exponer APIs públicas de listado por evento, año o sede (HU-1.2b).
 - Mensaje de búsqueda **genérico** si no hay resultados (no filtrar existencia de documento).
@@ -448,6 +512,7 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 | Timeout PDF | `PDF_TIMEOUT_MS` (ej. 30s); fallo transitorio → 503 + `issue_attempts++`; al alcanzar `PDF_MAX_ISSUE_ATTEMPTS` (default 5) → `failed` (sin más Chromium hasta `retry-issue`) |
 | Dead-letter | Certificados `failed` visibles en ficha del evento; `POST /api/v1/admin/certificates/{id}/retry-issue` |
 | Preview admin | Misma cola/semáforo; no lanzar N Chromium en paralelo desde el editor |
+| Aislamiento Chromium | No-root; abort de red salvo `data:`; ver §10.1.1 |
 | Jobs masivos | Solo vía BullMQ (admin o cron); chunks pequeños; backoff |
 | Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; sesiones en Postgres (`admin_sessions`); límites PDF en-proceso |
 | Caché HTTP | Permalinks `issued`: `Cache-Control` razonable en estáticos/PDF (CDN o nginx); HTML verify puede ser más corto |
@@ -461,8 +526,9 @@ Al escribir código de Fase 1 en adelante:
 3. **Solo** metadata (no crawler) llama a `transitionToIssued` y **solo** si `pending`; `/file` en `pending`/`failed` → **409**; `failed` no lanza Puppeteer.
 4. Ningún listado masivo sin sesión admin.
 5. Incluir `robots.txt` en el artefacto `web` (o nginx).
-6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium; CSV `role` ∉ `allowed_roles` y ZIP no biyectivo → lote 0 (ver [09 §11](./09-plan-de-implementacion.md)).
+6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium; CSV `role` ∉ `allowed_roles` y ZIP no biyectivo → lote 0; entrada ZIP con `..` → rechazo; upload con MIME mentiroso → 400 (ver [09 §11](./09-plan-de-implementacion.md)).
 7. `transitionToIssued` (`generated`): **put MinIO → luego UPDATE** `issued`. Nunca al revés ([§4.2.2](#422-atomicidad-minio--postgres-decisión-cerrada)).
+8. Puppeteer: no-root; sin fetch remoto; `TRUST_PROXY` correcto en prod ([§10.1](#101-defaults-de-seguridad)).
 
 ---
 

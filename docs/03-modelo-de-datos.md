@@ -658,7 +658,7 @@ Flujo de carga masiva (Must):
 - `role` de cada fila ∈ `allowed_roles` (misma regla que §8).
 - Cualquier error → **0 escrituras** + informe (no se “ignoran” extras).
 
-El put de cada archivo al storage sigue [10 §4.2.2](./10-diseno-codigo-y-anexos.md) (put → luego fila BD). Zip-slip / zip-bomb: defaults de seguridad en [10 §10](./10-diseno-codigo-y-anexos.md) (hardening aparte).
+El put de cada archivo al storage sigue [10 §4.2.2](./10-diseno-codigo-y-anexos.md) (put → luego fila BD). Zip-slip / zip-bomb y magic bytes: [10 §10.1.2–10.1.3](./10-diseno-codigo-y-anexos.md).
 
 **Fuera de v1.0:** herramienta de escritorio que lea una carpeta local y prellene `filename`.
 

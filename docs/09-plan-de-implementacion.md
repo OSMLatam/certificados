@@ -67,6 +67,10 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; `PDF_MAX_ISSUE_ATTEMPTS=5`; PDF `issued` siempre desde MinIO (sin regenerar). |
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
+| **Trust proxy** | `TRUST_PROXY=0` dev; `1` detrás de un Caddy/nginx. Throttler usa IP del hop de confianza. |
+| **Uploads / ZIP** | Magic bytes + límites de decode; zip-slip (`..` `/`) y zip-bomb (200 MB / ratio 100). [10 §10.1](./10-diseno-codigo-y-anexos.md). |
+| **Puppeteer** | No-root; abort de red salvo `data:`; `PUPPETEER_NO_SANDBOX` solo con no-root. |
+| **Cifrado reposo** | Ops: volúmenes y backups cifrados. App sin cifrado por columna. |
 | **Verify `/c/` legal AC3** | `issued`: muestra `legal_snapshot` del certificado, no config actual. `pending`/`failed`: sin bloque legal estructurado. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
 | **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
@@ -143,7 +147,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.13 | Tests unitarios + integración (ver §11) |
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
-| F1.16 | Anti-abuso y carga: rate limit búsqueda + permalinks, `robots.txt`, semáforo PDF (`PDF_CONCURRENCY`) — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
+| F1.16 | Anti-abuso y carga: rate limit + `TRUST_PROXY`, `robots.txt`, semáforo PDF, Puppeteer no-root/sin fetch remoto, zip-slip/bomb, magic bytes — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
 
 ### 2.2. Historias de usuario incluidas
 
@@ -184,7 +188,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
 
-> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
+> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
 
 ---
 
@@ -441,7 +445,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 - Parser CSV participantes (roles múltiples, sede única inferida).
 - Resolución de campos de plantilla → payload de render.
 
-**Integración (ejemplos — mapean a T1–T12, T17–T20 y T22–T24 en [04-flujos §10](./04-flujos-funcionales.md)):**
+**Integración (ejemplos — mapean a T1–T12, T17–T20 y T22–T26 en [04-flujos §10](./04-flujos-funcionales.md)):**
 
 | Test | Verifica |
 |------|----------|
@@ -460,6 +464,8 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Upload pregenerado | Sirve archivo original |
 | CSV `role` ∉ `allowed_roles` | **0** filas; informe de fallos |
 | ZIP con archivo de más o de menos | Lote **0**; `ZIP_FILE_UNEXPECTED` / `ZIP_FILE_MISSING` |
+| ZIP entrada con `..` o path | Rechazo zip-slip; lote **0** |
+| Upload PNG/PDF con MIME mentiroso o JS en PDF | **400** `UPLOAD_*` / catálogo PDF rechazado |
 | Auth guard | Endpoints admin rechazan anónimo |
 
 #### Fase 2

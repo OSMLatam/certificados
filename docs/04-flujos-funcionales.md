@@ -298,6 +298,8 @@ Badge OSM (u otro) sin certificado:
 | T22 | CSV rol fuera de `allowed_roles` | **0** filas; informe campo `role` |
 | T23 | ZIP falta archivo / sobra archivo | Lote **0**; `ZIP_FILE_MISSING` / `ZIP_FILE_UNEXPECTED` |
 | T24 | Unique violation de slug | Reintenta nanoid (máx. 5); no expone slug secuencial |
+| T25 | ZIP con `../` en una entrada | Lote **0**; no escribe en disco fuera del basename |
+| T26 | PNG o PDF con magic bytes / JS inválidos | **400**; no se almacena |
 
 ---
 

@@ -59,7 +59,7 @@ Detalle completo: [`docs/09-plan-de-implementacion.md`](./docs/09-plan-de-implem
 **Fase 1 — Certificados core**
 
 ```text
-Implementa Fase 1 según docs/09-plan-de-implementacion.md sección 2, docs/10-diseno-codigo-y-anexos.md y docs/03-modelo-de-datos.md (§1–5).
+Implementa Fase 1 según docs/09-plan-de-implementacion.md sección 2, docs/10-diseno-codigo-y-anexos.md (**§10** seguridad: Puppeteer no-root, zip-slip/bomb, TRUST_PROXY, magic bytes) y docs/03-modelo-de-datos.md (§1–5).
 
 Stack: monorepo pnpm, NestJS + Prisma + PostgreSQL, React + Vite + Konva, Puppeteer, MinIO, Docker Compose.
 

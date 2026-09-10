@@ -50,7 +50,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Identidad OSM | `osm_id` inmutable + username actualizable; vínculo email vía `/me` (F3) |
 | Documento | `country_identity_config.normalize`: `digits` \| `alnum` \| `raw` (por tipo, no por `if` de país) |
 | Datos legales AC3 | Config instancia + capas en plantilla |
-| Anti-abuso / carga | Rate limit búsqueda+permalinks, PDF sin regenerar, `robots.txt` ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
+| Anti-abuso / carga | Rate limit + `TRUST_PROXY`, PDF sin regenerar, `robots.txt`, Puppeteer no-root, zip-slip/bomb ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2 (además de páginas humanas) |
 | Corrección emitido | Revocar + alta nueva (sin editar PDF issued) |
