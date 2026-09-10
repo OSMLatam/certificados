@@ -3,7 +3,7 @@
 **Versión:** 1.0  
 **Fecha:** 2026-06-06
 
-Este documento unifica cómo se modelan NIT, razón social, representante legal, **N firmantes**, **ciudad/fecha de expedición** y **folio consecutivo** en AC3. **No hay un subsistema “legal” aparte**: son campos de **configuración de instancia** (más un contador de sistema) usados como **capas en el editor visual**, igual que el nombre del participante.
+Este documento unifica cómo se modelan NIT, razón social, representante legal, **N firmantes**, **ciudad/fecha de expedición**, **disclaimer de participación** y **folio consecutivo** en AC3. **No hay un subsistema “legal” aparte**: son campos de **configuración de instancia** (más un contador de sistema) usados como **capas en el editor visual**, igual que el nombre del participante.
 
 ---
 
@@ -15,6 +15,7 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal,
 │  entity_name, nit, …    │     bootstrap opcional desde LEGAL_* ENV
 │  last_folio (sistema)   │  ← no editable en pantalla; serie global
 │  issue_city             │  ← ciudad de expedición (pie legal)
+│  disclaimer             │  ← participación, no título formal
 │  instance_legal_signers │  ← N firmantes; slots 1..8 estables
 └──────────┬──────────────┘
             │ valores en render / snapshot
@@ -26,6 +27,7 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal,
 │  capa: legal.folio      │  ← consecutivo al issued (preview: “—”)
 │  capa: legal.issue_city │
 │  capa: legal.issue_date │  ← issued_at (preview: “—”); ≠ event_date
+│  capa: legal.disclaimer │
 │  capa: legal.signer.1.* │  ← name, title, signature (imagen)
 │  capa: legal.signer.2.* │  ← idem; hasta slot 8
 └──────────┬──────────────┘
@@ -45,7 +47,7 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal,
 
 | Dónde | Quién | Qué |
 |-------|-------|-----|
-| **Tabla `instance_legal`** + `instance_legal_signers` + pantalla admin AC3 | Rol `admin` | Razón social, NIT, representante, ciudad de expedición, N firmantes (nombre, cargo, imagen). **No** edita `last_folio`. |
+| **Tabla `instance_legal`** + `instance_legal_signers` + pantalla admin AC3 | Rol `admin` | Razón social, NIT, representante, ciudad de expedición, disclaimer, N firmantes (nombre, cargo, imagen). **No** edita `last_folio`. |
 | **ENV `LEGAL_*` (bootstrap)** | Deploy | Siembra la fila si está vacía al primer arranque |
 | **No** en cada evento | — | Los eventos nuevos usan la config del momento de emisión |
 | **No** en cada participante | — | Son datos de la entidad, no de la persona |
@@ -59,10 +61,10 @@ Equivalente documentado en [05-personalizacion-multi-instancia.md](./05-personal
 Los valores legales del **PDF generado** son texto e imagen sobre la gráfica, igual que el nombre del participante. La **página `/c/`** y la API verify **nunca** leen `instance_legal` vigente de un certificado ya `issued` (si el NIT cambia, un permalink viejo no debe mentir).
 
 1. **Vista previa / plantilla nueva:** el editor lee `instance_legal` **actual**.
-2. **Al pasar a `issued` (instancia AC3, ambos modos):** el sistema reserva `folio` (§2.4), fija la fecha de expedición (§2.6) y copia los valores vigentes **más folio, firmantes, ciudad y `issued_at`** a `certificates.legal_snapshot`.
-   - **`generated`:** además **incrusta** esos valores en el PDF almacenado (capas `legal.*`, incluido `legal.folio`, `legal.issue_*` y `legal.signer.{n}.*`).
+2. **Al pasar a `issued` (instancia AC3, ambos modos):** el sistema reserva `folio` (§2.4), fija la fecha de expedición (§2.6) y copia los valores vigentes **más folio, firmantes, ciudad, disclaimer y `issued_at`** a `certificates.legal_snapshot`.
+   - **`generated`:** además **incrusta** esos valores en el PDF almacenado (capas `legal.*`, incluido `legal.folio`, `legal.issue_*`, `legal.disclaimer` y `legal.signer.{n}.*`).
    - **`pregenerated`:** el archivo subido **no se reescribe** (el legal visual ya va en el arte). El snapshot existe **solo** para `/c/` y `GET /api/v1/verify/c/{slug}`. Un “N.º”, firmas o “expedido en…” pintados en el arte **no** se sincronizan con el snapshot.
-3. **Certificados ya `issued`:** no cambian si se actualiza NIT, representante, firmantes o firma en config. Esos cambios aplican solo a **nuevas** emisiones.
+3. **Certificados ya `issued`:** no cambian si se actualiza NIT, representante, firmantes, disclaimer o firma en config. Esos cambios aplican solo a **nuevas** emisiones.
 4. **`pending` / `failed`:** aún no hay snapshot. `/c/` muestra el indicador de estado y **no** un bloque legal estructurado (no se usa config vigente como si fuera la credencial).
 5. **osm.lat:** `legal_snapshot` queda NULL.
 
@@ -75,6 +77,7 @@ No hay fallback a `instance_legal` vigente en `/c/` de un `issued`: eso reescrib
   "representative": "Nombre Apellido",
   "issue_city": "Bogotá D.C.",
   "issued_at": "2026-09-10T19:23:00.000Z",
+  "disclaimer": "Este documento certifica la participación en la actividad indicada. No constituye título profesional, grado académico ni habilitación legal.",
   "folio": 142,
   "signers": [
     {
@@ -160,6 +163,22 @@ Con emisión lazy, esa fecha puede ser **días o semanas después** del evento: 
 | Bootstrap | `LEGAL_ISSUE_CITY`. |
 | No es | `event_date`, sede del evento, ni un token único “expedido en X a Y” (el editor coloca las dos capas). |
 
+### 2.7. Disclaimer de participación (decisión cerrada)
+
+Campo de instancia + token `legal.disclaimer`. Aclara que el documento **certifica participación** (o el rol indicado), **no** un título profesional, grado académico ni habilitación legal. No es asesoría jurídica ni firma criptográfica.
+
+| Pieza | Contrato |
+|-------|----------|
+| Columna | `instance_legal.disclaimer` TEXT. Máx. **500** caracteres. Vacío permitido → capa en blanco. |
+| Default de seed | Si al crear la fila el ENV no trae texto, se siembra `LEGAL_DISCLAIMER_DEFAULT`: *“Este documento certifica la participación en la actividad indicada. No constituye título profesional, grado académico ni habilitación legal.”* |
+| Token | `legal.disclaimer`. Preview = texto **vigente** (como el NIT). |
+| Snapshot | Copia el string al `issued`. Un PATCH posterior no altera certificados ya emitidos. |
+| `/c/` y verify | Muestran el disclaimer del snapshot (AC3 `issued`). |
+| Pregenerado | El arte no se reescribe; `/c/` sí muestra el snapshot. |
+| osm.lat | Sin token. |
+| Bootstrap | `LEGAL_DISCLAIMER` (si vacío, el default de seed). |
+| PATCH | 400 si supera 500 caracteres. |
+
 ---
 
 ## 3. Catálogo de campos de plantilla
@@ -190,6 +209,7 @@ Catálogo canónico compartido con [04 §5](./04-flujos-funcionales.md). **No** 
 | `legal.folio` | `certificates.folio` al `issued`; en preview: “—” |
 | `legal.issue_city` | `instance_legal.issue_city` |
 | `legal.issue_date` | `certificates.issued_at` en `America/Bogota` (solo fecha, `es-CO`); preview: “—” |
+| `legal.disclaimer` | `instance_legal.disclaimer` (preview = vigente) |
 | `legal.signer.{n}.name` | `instance_legal_signers.name` del slot `n` (1..8) |
 | `legal.signer.{n}.title` | `instance_legal_signers.title` |
 | `legal.signer.{n}.signature` | imagen vía `signature_file_id` → `stored_files` |
@@ -209,6 +229,7 @@ El editor visual **lista estos tokens solo en despliegues AC3**. Paleta de firma
     { "field": "legal.nit", "x": 877, "y": 1065, "fontSize": 10, "align": "center" },
     { "field": "legal.issue_city", "x": 877, "y": 1100, "fontSize": 10, "align": "center" },
     { "field": "legal.issue_date", "x": 877, "y": 1115, "fontSize": 10, "align": "center" },
+    { "field": "legal.disclaimer", "x": 877, "y": 1180, "fontSize": 8, "align": "center" },
     { "field": "legal.representative", "x": 877, "y": 1080, "fontSize": 9, "align": "center" },
     { "field": "legal.signer.1.signature", "x": 400, "y": 980, "width": 180, "height": 60 },
     { "field": "legal.signer.1.name", "x": 490, "y": 1050, "fontSize": 10, "align": "center" },
@@ -238,7 +259,7 @@ El editor visual **lista estos tokens solo en despliegues AC3**. Paleta de firma
 | Superficie | Comportamiento |
 |------------|----------------|
 | **PDF / preview** | Capas `legal.*` en layout. Preview de `legal.folio` y `legal.issue_date` = “—”. |
-| **Página `/c/{slug}`** (verify) | `issued` AC3: muestra `legal_snapshot` (folio, firmantes, ciudad/fecha de expedición) **y** la fecha del evento. `pending`/`failed`: sin bloque legal estructurado. |
+| **Página `/c/{slug}`** (verify) | `issued` AC3: muestra `legal_snapshot` (folio, firmantes, ciudad/fecha de expedición, disclaimer) **y** la fecha del evento. `pending`/`failed`: sin bloque legal estructurado. |
 | **Open Badges Issuer** | `name` / `description` del issuer AC3 desde config **vigente** (nuevas emisiones) |
 | **Certificado pregenerado** | Archivo intacto (legal visual en el upload). Snapshot al `issued` para `/c/` y verify, igual que `generated`. |
 
@@ -257,7 +278,7 @@ Las definiciones canónicas están en [02-historias-de-usuario.md](./02-historia
 ```text
 1. Deploy / admin instancia → cargar `instance_legal` (ciudad de expedición) y firmantes (HU-8.2)
 2. Crear evento → diseñar plantilla en editor visual (HU-3.1)
-3. Colocar capas de **evento** (`event_date`, `venue_name`) y de **pie legal** (`legal.issue_city`, `legal.issue_date`, firmantes, …)
+3. Colocar capas de **evento** (`event_date`, `venue_name`) y de **pie legal** (`legal.issue_city`, `legal.issue_date`, `legal.disclaimer`, firmantes, …)
 4. Vista previa → ciudad real; folio y fecha de expedición = “—”
 5. Cargar participantes → emitir (lazy): `issued_at` = primera visita humana
 ```

@@ -64,7 +64,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).
 11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending`/`failed` sí se puede corregir; `retry-issue` desde `failed` (F1).
 12. **Emisión fallida (F1)** — listado en ficha del evento; umbral `PDF_MAX_ISSUE_ATTEMPTS`; no relanzar Chromium en `failed`.
-13. **Legal AC3 (F2)** — pantalla admin; capas `legal.*` y `legal.signer.{n}.*` (hasta 8 slots); folio global; pie legal = ciudad de instancia + fecha de expedición (`issued_at`, distinta de la fecha del evento).
+13. **Legal AC3 (F2)** — pantalla admin; capas `legal.*` y `legal.signer.{n}.*` (hasta 8 slots); folio global; pie legal = ciudad + `issued_at` (≠ fecha del evento) + disclaimer de participación (editable; snapshot).
 14. **Badges OSM (F3, osm.lat)** — BadgeClass, import awardees, job (visión de editor).
 15. **Soft-delete** — ocultar evento vs revocar credencial. **Restore** (solo ops):
 

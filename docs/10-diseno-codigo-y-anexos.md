@@ -176,7 +176,7 @@ GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no cr
                  → sha256 → StorageService.put
                  → luego UPDATE issued + stored_files  # nunca issued sin objeto; ver §4.2.2
             → si pregenerated: archivo ya en storage (no Puppeteer)
-            → si INSTANCE=ac3: copiar instance_legal + signers + folio + issue_city + issuedAtCandidate → legal_snapshot
+            → si INSTANCE=ac3: copiar instance_legal + signers + folio + issue_city + disclaimer + issuedAtCandidate → legal_snapshot
             → update { stored_file_id?, legal_snapshot?, issued_at=issuedAtCandidate, status=issued, issue_attempts }
             → si PDF (generated) falla: no persistir issued_at; reintento toma un now() nuevo
             → si PDF (generated) falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
@@ -220,7 +220,7 @@ Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppet
 
 MinIO y PostgreSQL **no** comparten transacción. Contrato para `transitionToIssued` en modo `generated` (y para el put de un pregenerado en el **import**, no en el lazy issue):
 
-1. **Orden:** (AC3: reservar `folio` si NULL) → capturar `issuedAtCandidate=now()` → render (buffer, con `legal.folio` / `legal.issue_date` ya conocidos) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `issued`, `issued_at=issuedAtCandidate`, `legal_snapshot` AC3 con folio + `signers` + `issue_city` + `issued_at`). **Nunca** marcar `issued` si el objeto aún no está en storage. Si el render/put falla: folio reservado se conserva; **`issued_at` no se escribe** (el reintento usa un `now` nuevo).
+1. **Orden:** (AC3: reservar `folio` si NULL) → capturar `issuedAtCandidate=now()` → render (buffer, con `legal.folio` / `legal.issue_date` ya conocidos) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `issued`, `issued_at=issuedAtCandidate`, `legal_snapshot` AC3 con folio + `signers` + `issue_city` + `disclaimer` + `issued_at`). **Nunca** marcar `issued` si el objeto aún no está en storage. Si el render/put falla: folio reservado se conserva; **`issued_at` no se escribe** (el reintento usa un `now` nuevo).
 2. **Clave determinista:** `certs/{certificate_id}/{sha256}.pdf` (o `.png`). Un reintento del mismo buffer pisa la misma clave (idempotente).
 3. **Idempotencia:** si el certificado ya está `issued` con el mismo `checksum_sha256`, no hay put ni render. Si el objeto existe y el update a `issued` falló antes, el siguiente `put` es no-op/overwrite y se reintenta solo el update.
 4. **Compensación:** si el `put` OK y el `UPDATE` falla → el certificado **sigue `pending`**; best-effort `delete` de esa clave si ningún `stored_files.storage_key` la referencia. Si el delete también falla, queda un **huérfano**.

@@ -195,7 +195,7 @@ flowchart TD
 | Participante | `full_name`, `document`, `role_label`, `activity_title` |
 | Evento | `event_name`, `venue_name`, `event_date` |
 | Sistema | `certificate_slug` (texto del slug), `permalink_qr` (QR → URL `/c/{slug}`) |
-| Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.issue_city`, `legal.issue_date`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (`n` = 1..8) |
+| Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.issue_city`, `legal.issue_date`, `legal.disclaimer`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (`n` = 1..8) |
 
 `certificate_slug` y `permalink_qr` son **dos** tokens distintos. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field` (`legal.signer.{n}.*` con `n` ∈ 1..8).
 
@@ -307,7 +307,8 @@ Badge OSM (u otro) sin certificado:
 | T31 | Capa `legal.signer.3.signature` sin fila en slot 3 | Emisión OK; capa vacía |
 | T32 | Borrar firmante slot 1; slot 2 intacto | Tokens `legal.signer.2.*` siguen resolviendo al mismo firmante |
 | T33 | AC3: `event_date` del evento ≠ día del `transitionToIssued` | PDF y `/c/` muestran ambas fechas; `legal.issue_date` = `issued_at` en `America/Bogota` |
-| T34 | Preview plantilla AC3 | `legal.issue_city` = config; `legal.folio` y `legal.issue_date` = “—”; no incrementa `last_folio` ni escribe `issued_at` |
+| T34 | Preview plantilla AC3 | `legal.issue_city` y `legal.disclaimer` = config; `legal.folio` y `legal.issue_date` = “—”; no incrementa `last_folio` ni escribe `issued_at` |
+| T35 | AC3: emitir, luego PATCH del disclaimer | El `issued` conserva el texto del snapshot; el preview usa el nuevo |
 
 ---
 
@@ -319,7 +320,7 @@ Badge OSM (u otro) sin certificado:
 | T14 | Import CSV osm_id | 3 | Assertions emitidas idempotentes |
 | T15 | Revocar certificado | 2 | Badge evento revocado |
 | T16 | Badge OSM sin certificado | 3 | Solo `/b/`, sin `/c/` |
-| T21 | AC3 pregenerado → issued | 2 | `/c/` y verify muestran `legal_snapshot` (folio, firmantes, ciudad/`issued_at`); el binario **no** cambia; config nueva no altera la página |
+| T21 | AC3 pregenerado → issued | 2 | `/c/` y verify muestran `legal_snapshot` (folio, firmantes, ciudad/`issued_at`, disclaimer); el binario **no** cambia; config nueva no altera la página |
 
 ---
 

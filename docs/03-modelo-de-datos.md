@@ -299,7 +299,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | folio | INT | NULL; **solo AC3**. Consecutivo **global de la instancia** (no se reinicia por evento ni por año). Se **reserva** al primer intento de `transitionToIssued` (antes del render). osm.lat: siempre NULL. Ver [08 §2.4](./08-datos-legales-ac3-plantilla.md). |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| legal_snapshot | JSONB | NULL; copia de `instance_legal` (incl. `issue_city`) + firmantes + `folio` + `issued_at` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
+| legal_snapshot | JSONB | NULL; copia de `instance_legal` (incl. `issue_city`, `disclaimer`) + firmantes + `folio` + `issued_at` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
@@ -321,7 +321,7 @@ https://certificados.osm.lat/c/{slug}
 https://certificados.ac3.org.co/c/{slug}
 ```
 
-**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal` (incl. `issue_city`), la lista de **firmantes**, el `folio` reservado y `issued_at`. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal` (incl. `issue_city`, `disclaimer`), la lista de **firmantes**, el `folio` reservado y `issued_at`. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
 ---
 
@@ -582,16 +582,19 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 | nit | VARCHAR(50) | NIT |
 | representative | VARCHAR(255) | Representante legal de la entidad (texto institucional; no es la lista de firmantes) |
 | issue_city | VARCHAR(100) | NULL; ciudad de **expedición** del documento (pie legal). No es la sede del evento. Ver [08 §2.6](./08-datos-legales-ac3-plantilla.md). |
+| disclaimer | TEXT | NULL o texto; máx. 500. Aviso de participación (no título formal). Default de seed: [08 §2.7](./08-datos-legales-ac3-plantilla.md). |
 | last_folio | INT | NOT NULL DEFAULT 0; último consecutivo **global** asignado. Solo lo incrementa el sistema al `issued` (no es campo de la pantalla legal). |
 | updated_by | UUID FK | `admin_users.id` |
 | updated_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | |
 
-**Render:** capas `legal.*` leen esta tabla y `instance_legal_signers` (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot` (incluye `folio` y `signers`). **osm.lat:** tablas vacías / no usadas; el editor no ofrece capas `legal.*`.
+**Render:** capas `legal.*` leen esta tabla y `instance_legal_signers` (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot` (incluye `folio`, `signers`, `issue_city`, `disclaimer`, `issued_at`). **osm.lat:** tablas vacías / no usadas; el editor no ofrece capas `legal.*`.
 
 **Folio (decisión cerrada):** serie **global de AC3** (todos los eventos, todos los años). No se reinicia. Se reserva al **primer intento** de emisión (el PDF `generated` necesita el número antes de Puppeteer). Detalle: [08 §2.4](./08-datos-legales-ac3-plantilla.md). `last_folio` **no** se edita por PATCH de la pantalla legal (carrera con emisiones concurrentes). Reset solo por ops SQL si hay desastre.
 
 **Expedición (decisión cerrada):** `issue_city` + `issued_at` en el pie legal; `event_date` / `venue_name` en el cuerpo. [08 §2.6](./08-datos-legales-ac3-plantilla.md).
+
+**Disclaimer (decisión cerrada):** texto de instancia + token `legal.disclaimer`; entra en el snapshot. [08 §2.7](./08-datos-legales-ac3-plantilla.md).
 
 ### 7.3. `instance_legal_signers` (Fase 2 — solo AC3)
 
