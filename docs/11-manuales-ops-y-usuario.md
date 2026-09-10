@@ -29,7 +29,7 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 3. **OAuth OSM** — registrar app, `OSM_OAUTH_*`; en osm.lat F3 registrar **dos** redirect URI (admin + público HU-10.5); scopes solo identidad / `read_prefs`.
 4. **Bootstrap admin** — `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`; primer login.
 5. **Migraciones y seed** — Prisma migrate, `country_identity` (`normalize` por tipo) + roles.
-6. **Storage MinIO** — bucket, acceso, que los PDF `issued` no se regeneran.
+6. **Storage MinIO** — bucket, acceso, que los PDF `issued` no se regeneran; **put → luego DB**; GC de objetos `certs/` huérfanos (>24 h sin fila `stored_files`).
 7. **Backups** — `pg_dump` + sync MinIO **pareados**, off-host; frecuencia; retención.
 8. **Restore** — procedimiento; verificación de que BD y objetos coinciden; no regenerar PDF a ciegas.
 9. **Health** — `/health`, `/ready`; qué mirar tras deploy.
@@ -58,7 +58,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 4. **Sedes** — 0 / 1 / N; inferencia; sede = texto en certificado, no identidad.
 5. **Plantilla visual** — fondo, capas, preview; A4 @ 150 DPI; fuentes abiertas.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
-7. **Pregenerados** — 1:1 y sheet+ZIP; mismas reglas atómicas.
+7. **Pregenerados** — 1:1 y sheet+ZIP; CSV↔ZIP 1:1 (falta/sobrante tumba el lote); rol ∈ `allowed_roles`; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
 9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (metadata; crawlers no emiten; `/file` pending/failed → 409; `failed` = “no se pudo generar”).
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).

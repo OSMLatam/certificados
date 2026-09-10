@@ -300,8 +300,8 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. En modo `pregenerated`, se almacena el archivo subido y se expone permalink.
 3. El permalink sirve el archivo almacenado (sin re-renderizar desde plantilla).
 4. **Carga individual** (un archivo por certificado) para correcciones puntuales.
-5. **Carga masiva:** hoja **CSV** (delimitador fijo `;`, UTF-8) + ZIP de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Límite del lote **100 MB**. Imports **incrementales** al mismo evento; rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo**.
-6. **Plantilla descargable** desde el panel (CSV UTF-8 `;`): encabezados + filas de ejemplo; el editor la completa (`filename` debe coincidir con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
+5. **Carga masiva:** hoja **CSV** (delimitador fijo `;`, UTF-8) + ZIP de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Límite del lote **100 MB**. Imports **incrementales** al mismo evento; rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo**. **CSV ↔ ZIP biyectivo:** falta de archivo, archivo sobrante, basename con `/` o `..`, o `role` ∉ `allowed_roles` → falla el lote (ver [03 §10](./03-modelo-de-datos.md)).
+6. **Plantilla descargable** desde el panel (CSV UTF-8 `;`): encabezados + filas de ejemplo; el editor la completa (`filename` = basename que debe coincidir 1:1 con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
 7. La edición masiva de metadatos se hace en LibreOffice/Excel (export CSV); el panel solo ofrece la plantilla, valida e importa.
 
 ---
@@ -418,7 +418,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 **Criterios de aceptación:**
 
 1. Datos mínimos según instancia (ver tabla al inicio): osm.lat → nombre + email; AC3 → nombre + email + identificación. Email único por evento (rechazar duplicado).
-2. Selección múltiple de roles.
+2. Selección múltiple de roles (**solo** los de `events.allowed_roles`; un rol fuera de esa lista o del catálogo → **400**).
 3. Campo actividad/charla opcional (ponente, tallerista).
 4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado. En modo `generated`, si no hay plantilla de rol ni default → **400** (no se crea).
 5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)). Si el certificado queda `failed`, el badge sigue `pending`.
@@ -444,7 +444,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
 3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados (misma persona).
 4. **Email duplicado** (mismo evento + mismo email + mismo rol, o email ya en BD con datos conflictivos) → **rechazar**. Cada persona tiene su propio email.
-5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol). **Fila `generated` sin plantilla de rol ni default del evento:** error de validación (y, por atomicidad, falla el lote).
+5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol). **Fila `generated` sin plantilla de rol ni default del evento:** error de validación (y, por atomicidad, falla el lote). **`role` ∉ `allowed_roles`:** error de fila; falla el lote.
 6. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta como CSV.
 
 ---

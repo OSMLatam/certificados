@@ -168,8 +168,10 @@ GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no cr
   → CertificatesService.resolvePublic(slug, { isCrawler })
        → si failed && !isCrawler: 200 { status: "failed" }  # no Puppeteer
        → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
-            → si generated: PdfService.render(...) → StorageService.put(pdf)
-            → si pregenerated: archivo ya en storage (no Puppeteer)
+            → si generated:
+                 PdfService.render → sha256 → StorageService.put (clave certs/{id}/{sha256})
+                 → luego UPDATE issued + stored_files  # nunca issued sin objeto; ver §4.2.2
+            → si pregenerated: archivo ya en storage (no Puppeteer; solo UPDATE issued)
             → si INSTANCE=ac3: copiar instance_legal → legal_snapshot
             → update { stored_file_id?, legal_snapshot?, issued_at, status=issued, issue_attempts }
             → si PDF (generated) falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
@@ -207,6 +209,19 @@ Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppet
 2. El segundo request espera el lock; si ya está `issued`, sirve el archivo; si pasó a `failed`, no relanza Chromium.
 3. `PDF_CONCURRENCY` limita Chromium **globales** de la instancia; el lock es **por certificado**.
 4. Un certificado `failed` **nunca** entra a `transitionToIssued` hasta `POST …/retry-issue`.
+
+### 4.2.2. Atomicidad MinIO ↔ Postgres (decisión cerrada)
+
+MinIO y PostgreSQL **no** comparten transacción. Contrato para `transitionToIssued` en modo `generated` (y para el put de un pregenerado en el **import**, no en el lazy issue):
+
+1. **Orden:** render (buffer) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `certificates.status=issued`, `stored_file_id`, `issued_at`, `legal_snapshot` AC3). **Nunca** marcar `issued` si el objeto aún no está en storage.
+2. **Clave determinista:** `certs/{certificate_id}/{sha256}.pdf` (o `.png`). Un reintento del mismo buffer pisa la misma clave (idempotente).
+3. **Idempotencia:** si el certificado ya está `issued` con el mismo `checksum_sha256`, no hay put ni render. Si el objeto existe y el update a `issued` falló antes, el siguiente `put` es no-op/overwrite y se reintenta solo el update.
+4. **Compensación:** si el `put` OK y el `UPDATE` falla → el certificado **sigue `pending`**; best-effort `delete` de esa clave si ningún `stored_files.storage_key` la referencia. Si el delete también falla, queda un **huérfano**.
+5. **GC de huérfanos (ops, v1.0):** objetos en el prefijo `certs/` sin fila en `stored_files` y con `LastModified` > 24 h. Runbook: listar y borrar a mano (MinIO client). Sin pantalla admin. Un job automático es evolución futura.
+6. **Pregenerado (lazy issue):** el archivo ya se subió en el import; `transitionToIssued` **solo** actualiza Postgres (`issued_at`, snapshot). No hay segundo put.
+
+Invertir el orden (issued sin archivo) está **prohibido**: el titular vería “válido” y `/file` 404.
 
 ### 4.3. Formato de errores API
 
@@ -389,7 +404,7 @@ Las instancias viven en **servidores comunitarios/institucionales compartidos**.
 | Headers | `helmet` en NestJS: CSP básico, HSTS en prod |
 | Uploads sueltos (fondo, firma, 1:1) | Max **10 MB**; MIME: `image/png`, `image/jpeg`, `application/pdf` |
 | Lote pregenerados (CSV + ZIP) | Max **100 MB** total; ZIP MIME `application/zip` (o `application/x-zip-compressed`); entradas internas: png/jpeg/pdf |
-| Slug | nanoid 12 chars — no secuencial, no enumerable |
+| Slug | nanoid 12 chars — no secuencial, no enumerable. UNIQUE violation → reintentar (máx. 5); agotar → 500 `SLUG_COLLISION`. Mismo criterio para slugs `/b/`. |
 | Secrets | Nunca en repo; `.env` gitignored |
 
 ### 10.2. Rate limiting y anti-abuso (Fase 1+)
@@ -446,7 +461,8 @@ Al escribir código de Fase 1 en adelante:
 3. **Solo** metadata (no crawler) llama a `transitionToIssued` y **solo** si `pending`; `/file` en `pending`/`failed` → **409**; `failed` no lanza Puppeteer.
 4. Ningún listado masivo sin sesión admin.
 5. Incluir `robots.txt` en el artefacto `web` (o nginx).
-6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium (ver [09 §11](./09-plan-de-implementacion.md)).
+6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium; CSV `role` ∉ `allowed_roles` y ZIP no biyectivo → lote 0 (ver [09 §11](./09-plan-de-implementacion.md)).
+7. `transitionToIssued` (`generated`): **put MinIO → luego UPDATE** `issued`. Nunca al revés ([§4.2.2](#422-atomicidad-minio--postgres-decisión-cerrada)).
 
 ---
 

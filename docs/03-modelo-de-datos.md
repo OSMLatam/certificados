@@ -304,7 +304,8 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 **Constraints:**
 
 - UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Incluye `pending`, `issued` y **`failed`**. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
-- UNIQUE `slug`.
+- UNIQUE `slug`. **Alta:** generar nanoid 12; si hay unique_violation, reintentar hasta **5** veces; si se agota → 500 `SLUG_COLLISION` (no slug secuencial ni elegido por el usuario). Los slugs `revoked` **siguen** ocupando el UNIQUE (el permalink revocado no se recicla). Mismo criterio para `badge_assertions.slug`.
+- `role_code` **debe** ∈ `events.allowed_roles` **y** existir en el catálogo `roles` (`is_active`). Si no → **400** (alta) o error de fila (CSV atómico). No hay CHECK en BD (`allowed_roles` es JSONB); la regla es de aplicación + tests.
 
 **Sede (decisión cerrada):** al alta individual o CSV, `venue_code` → se escribe en **`certificates.venue_id`** (y, si se desea consistencia, también en `participants.venue_id`). Token `venue_name`: leer `certificates.venue_id` → si NULL, fallback `participants.venue_id` → si NULL, vacío.
 
@@ -331,7 +332,7 @@ Archivos binarios (pregenerados o renders cacheados).
 | storage_key | VARCHAR(500) | |
 | mime_type | VARCHAR(100) | `image/png`, `application/pdf` |
 | byte_size | BIGINT | |
-| checksum_sha256 | CHAR(64) | Integridad |
+| checksum_sha256 | CHAR(64) | Integridad; también clave de idempotencia del put (ver [10 §4.2.2](./10-diseno-codigo-y-anexos.md)) |
 | uploaded_by | UUID FK admin | |
 | created_at | TIMESTAMPTZ | |
 
@@ -594,6 +595,8 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 
 **Email duplicado en el lote o ya en BD (mismo evento, mismo email, mismo rol):** rechazar. **Mismo email + otro rol:** OK (otro certificado). **Mismo email con documento distinto al del participante existente:** rechazar.
 
+**`role` ∉ `events.allowed_roles` (o ausente del catálogo `roles`):** error de validación de **esa fila**; por atomicidad **falla todo el lote**. Informe: campo `role`, valor rechazado. Misma regla en alta individual (HU-6.1 → 400).
+
 Ejemplo: [anexos/csv/participantes-ejemplo.csv](./anexos/csv/participantes-ejemplo.csv).
 
 ```csv
@@ -610,7 +613,7 @@ Carlos López;carlos@mail.com;CO;CE;987654321;ponente;Mapping con OpenStreetMap;
 | country_code | Si hay doc / siempre en AC3 | ISO alpha-2 |
 | doc_type | Si hay doc / siempre en AC3 | CC, CE, TI… |
 | doc_number | Si hay doc / siempre en AC3 | |
-| role | Sí | Uno por fila |
+| role | Sí | Uno por fila; **debe** ∈ `allowed_roles` del evento |
 | activity_title | No | Ponente/tallerista |
 | venue_code | No | Si evento multi-sede |
 
@@ -646,6 +649,16 @@ Flujo de carga masiva (Must):
 4. Validar **todo el lote**; si hay error → no escribir nada; devolver informe.
 5. Imports **incrementales** al mismo evento; rechazar filas que dupliquen certificado ya existente (mismo email + rol) o email con datos conflictivos.
 6. Upload 1:1 sigue disponible para correcciones.
+
+**Correspondencia CSV ↔ ZIP (decisión cerrada, lote atómico):**
+
+- `filename` es **solo basename** (p. ej. `ana-asistente.pdf`). Caracteres `/`, `\` o `..` → error de fila. Comparación **case-sensitive**.
+- Cada fila CSV debe tener **exactamente un** archivo en el ZIP con ese basename. Falta → error `ZIP_FILE_MISSING`.
+- Cada archivo del ZIP (entradas de archivo; directorios vacíos se ignoran) debe tener **exactamente una** fila CSV. Sobrante → error `ZIP_FILE_UNEXPECTED`. Duplicados de basename en el ZIP o en el CSV → error.
+- `role` de cada fila ∈ `allowed_roles` (misma regla que §8).
+- Cualquier error → **0 escrituras** + informe (no se “ignoran” extras).
+
+El put de cada archivo al storage sigue [10 §4.2.2](./10-diseno-codigo-y-anexos.md) (put → luego fila BD). Zip-slip / zip-bomb: defaults de seguridad en [10 §10](./10-diseno-codigo-y-anexos.md) (hardening aparte).
 
 **Fuera de v1.0:** herramienta de escritorio que lea una carpeta local y prellene `filename`.
 

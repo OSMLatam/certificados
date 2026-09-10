@@ -295,6 +295,9 @@ Badge OSM (u otro) sin certificado:
 | T18 | Alta `generated` sin plantilla resoluble | **400**; no se crea `pending` (CSV: lote 0 filas) |
 | T19 | Render falla `PDF_MAX_ISSUE_ATTEMPTS` veces | Pasa a `failed`; metadata posterior **no** lanza Puppeteer; `/file` **409** |
 | T20 | `POST …/retry-issue` sobre `failed` | Vuelve a `pending` (`issue_attempts=0`); la siguiente visita humana emite |
+| T22 | CSV rol fuera de `allowed_roles` | **0** filas; informe campo `role` |
+| T23 | ZIP falta archivo / sobra archivo | Lote **0**; `ZIP_FILE_MISSING` / `ZIP_FILE_UNEXPECTED` |
+| T24 | Unique violation de slug | Reintenta nanoid (máx. 5); no expone slug secuencial |
 
 ---
 

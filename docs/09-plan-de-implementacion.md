@@ -50,7 +50,9 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al pasar a `issued` (AC3, **ambos** modos): copia a `certificates.legal_snapshot`. En `generated` además se incrusta en el PDF. Cambios posteriores solo afectan emisiones nuevas. `/c/` de un `issued` **no** lee config vigente. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | El archivo no se re-renderiza (legal visual ya va en el upload). Igual se escribe `legal_snapshot` al `issued` para `/c/` y verify. |
-| **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). |
+| **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). Unique violation → retry máx. **5**; agotar → 500 `SLUG_COLLISION`. No se reciclan slugs `revoked`. Mismo criterio en `/b/`. |
+| **Rol vs `allowed_roles`** | Alta y CSV (participantes y pregenerados): `role` debe ∈ `events.allowed_roles` y el catálogo `roles`. Si no → 400 / error de fila; lote atómico = 0 escrituras. |
+| **CSV ↔ ZIP pregenerados** | Bijección basename: falta, sobrante, duplicado o path (`/` `..`) → falla el lote. |
 | **PDF** | A4 **landscape** @ **150 DPI** (canvas 1754×1240 px) en v1.0; tipografías abiertas embebidas; Puppeteer HTML→PDF. El campo `layout.canvas.orientation` existe por forward-compat; el editor **no** ofrece retrato en v1.0. |
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
 | **Sesión admin** | Cookie `cert_session` + tabla **`admin_sessions`** en PostgreSQL (F1/F2 sin Redis). |
@@ -59,6 +61,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
 | **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending`/`failed` → 409** (no emite). |
 | **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF transitorio → `pending` + 503; al umbral → `failed`. |
+| **Put MinIO → luego DB** | Nunca `issued` sin objeto. Clave `certs/{id}/{sha256}`. Huérfano si UPDATE falla: compensación delete + GC ops 24 h. [10 §4.2.2](./10-diseno-codigo-y-anexos.md). |
 | **Crawlers / Open Graph** | Detectar UA de preview (LinkedIn, WhatsApp, Slack, …): metadata/OG **sin** emitir (`PREVIEW_BOT_UA_REGEX`). |
 | **Búsqueda pública** | Solo email **o** (país + tipo + número de documento). Rate limit: **10 req/min/IP**. Documento normalizado al comparar. |
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
@@ -85,7 +88,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Catálogos roles / tipos doc** | Solo **seed YAML** en el repo + `prisma/seed` (redeploy). Cada tipo de doc trae `normalize` (`digits` \| `alnum` \| `raw`). Sin pantalla admin en v1.0. |
 | **Sede (venue)** | Import/alta escriben `certificates.venue_id` (y opcionalmente espejo en participante). Token `venue_name`: lee certificado → fallback `participants.venue_id`. |
 | **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` en plantillas `generated`; `legal_snapshot` en `/c/` de **ambos** modos). **Sin** flag `endorsed` por evento. |
-| **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. |
+| **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. CSV↔ZIP biyectivo ([03 §10](./03-modelo-de-datos.md)). |
 | **Soft-delete restore** | Solo SQL: `UPDATE events SET deleted_at = NULL WHERE id = …`. Sin API/UI. Documentado en [11](./11-manuales-ops-y-usuario.md). |
 | **Supresión datos titular** | Fuera de v1.0 → [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
 | **Hosting código** | GitHub (repo `certificados`) |
@@ -432,13 +435,13 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 
 **Unitarios (ejemplos):**
 
-- Generación de slug (unicidad, formato).
+- Generación de slug (unicidad, formato, retry ante unique_violation).
 - Transición `pending` → `issued` en primera visita; `pending` → `failed` al umbral de fallos.
 - Validación documento por país (`country_identity_config.normalize` + regex); unitarios de `digits` / `alnum` / `raw`.
 - Parser CSV participantes (roles múltiples, sede única inferida).
 - Resolución de campos de plantilla → payload de render.
 
-**Integración (ejemplos — mapean a T1–T12 y T17–T20 en [04-flujos §10](./04-flujos-funcionales.md)):**
+**Integración (ejemplos — mapean a T1–T12, T17–T20 y T22–T24 en [04-flujos §10](./04-flujos-funcionales.md)):**
 
 | Test | Verifica |
 |------|----------|
@@ -455,6 +458,8 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Rate limit búsqueda / permalink | **429** tras umbral (`THROTTLE_*`) |
 | `GET /c/{slug}` issued (2ª visita) | Sirve MinIO; **sin** nueva generación Puppeteer |
 | Upload pregenerado | Sirve archivo original |
+| CSV `role` ∉ `allowed_roles` | **0** filas; informe de fallos |
+| ZIP con archivo de más o de menos | Lote **0**; `ZIP_FILE_UNEXPECTED` / `ZIP_FILE_MISSING` |
 | Auth guard | Endpoints admin rechazan anónimo |
 
 #### Fase 2
