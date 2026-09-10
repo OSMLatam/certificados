@@ -47,7 +47,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
 | **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
 | **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). Sin emisión forzada/masiva en v1.0. |
-| **Datos legales AC3** | Tabla `instance_legal` (singleton) + `instance_legal_signers` (N slots 1..8) + pantalla admin; ENV `LEGAL_*` solo bootstrap (firmantes: slot 1). Folio **global** de instancia (`certificates.folio` + `last_folio`); se reserva al primer `transitionToIssued`. Al pasar a `issued` (AC3, **ambos** modos): copia a `certificates.legal_snapshot` (incluye folio y `signers`). En `generated` además se incrusta en el PDF. Cambios posteriores solo afectan emisiones nuevas. `/c/` de un `issued` **no** lee config vigente. |
+| **Datos legales AC3** | Tabla `instance_legal` (singleton) + `instance_legal_signers` (N slots 1..8) + pantalla admin; ENV `LEGAL_*` solo bootstrap (firmantes: slot 1). Folio **global**; ciudad de expedición en config; fecha de expedición = `issued_at` (≠ `event_date`). Al `issued` (AC3, **ambos** modos): `legal_snapshot` (folio, signers, issue_city, issued_at). En `generated` se incrusta en el PDF. `/c/` de un `issued` **no** lee config vigente. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | El archivo no se re-renderiza (legal visual ya va en el upload). Igual se escribe `legal_snapshot` al `issued` para `/c/` y verify. |
 | **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). Unique violation → retry máx. **5**; agotar → 500 `SLUG_COLLISION`. No se reciclan slugs `revoked`. Mismo criterio en `/b/`. |
@@ -475,6 +475,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 - Copia `instance_legal` + firmantes → `legal_snapshot` al pasar a `issued` (también `pregenerated`; el binario no cambia).
 - Folio AC3: primer `transitionToIssued` reserva `last_folio+1`; reintento / `failed` reutiliza el mismo; UNIQUE no recicla revocados.
 - Firmantes: slots 1..8 estables; capa sin fila = vacía; borrar slot 1 no renumera el 2.
+- Expedición: `legal.issue_date` = `issued_at` (America/Bogota, solo fecha); distinto de `event_date`; preview “—”.
 - Creación `badge_assertion` **pending** al alta certificado; pasa a **issued** con el certificado.
 - Revocación en cascada certificado → badge `event_role`.
 

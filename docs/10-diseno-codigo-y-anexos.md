@@ -170,12 +170,15 @@ GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no cr
        → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
             → si INSTANCE=ac3 && folio IS NULL:
                  lock instance_legal; last_folio+1 → certificates.folio  # reserva; no durante Puppeteer
+            → issuedAtCandidate = now()  # mismo instante para PDF legal.issue_date y columna issued_at
             → si generated:
-                 PdfService.render (incluye legal.folio si AC3) → sha256 → StorageService.put
+                 PdfService.render (AC3: legal.folio + legal.issue_date desde issuedAtCandidate)
+                 → sha256 → StorageService.put
                  → luego UPDATE issued + stored_files  # nunca issued sin objeto; ver §4.2.2
             → si pregenerated: archivo ya en storage (no Puppeteer)
-            → si INSTANCE=ac3: copiar instance_legal + signers + folio → legal_snapshot
-            → update { stored_file_id?, legal_snapshot?, issued_at, status=issued, issue_attempts }
+            → si INSTANCE=ac3: copiar instance_legal + signers + folio + issue_city + issuedAtCandidate → legal_snapshot
+            → update { stored_file_id?, legal_snapshot?, issued_at=issuedAtCandidate, status=issued, issue_attempts }
+            → si PDF (generated) falla: no persistir issued_at; reintento toma un now() nuevo
             → si PDF (generated) falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
                  queda pending **con folio reservado**; incrementa issue_attempts; HTTP 503
             → si PDF (generated) falla y attempts alcanza MAX: status=failed (folio se conserva); HTTP 503 (ese request);
@@ -217,7 +220,7 @@ Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppet
 
 MinIO y PostgreSQL **no** comparten transacción. Contrato para `transitionToIssued` en modo `generated` (y para el put de un pregenerado en el **import**, no en el lazy issue):
 
-1. **Orden:** (AC3: reservar `folio` si NULL) → render (buffer, con `legal.folio` y firmantes vigentes) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `certificates.status=issued`, `stored_file_id`, `issued_at`, `legal_snapshot` AC3 con folio + `signers`). **Nunca** marcar `issued` si el objeto aún no está en storage. Si el render/put falla, el folio **ya reservado** se conserva; **no** se vuelve a incrementar.
+1. **Orden:** (AC3: reservar `folio` si NULL) → capturar `issuedAtCandidate=now()` → render (buffer, con `legal.folio` / `legal.issue_date` ya conocidos) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `issued`, `issued_at=issuedAtCandidate`, `legal_snapshot` AC3 con folio + `signers` + `issue_city` + `issued_at`). **Nunca** marcar `issued` si el objeto aún no está en storage. Si el render/put falla: folio reservado se conserva; **`issued_at` no se escribe** (el reintento usa un `now` nuevo).
 2. **Clave determinista:** `certs/{certificate_id}/{sha256}.pdf` (o `.png`). Un reintento del mismo buffer pisa la misma clave (idempotente).
 3. **Idempotencia:** si el certificado ya está `issued` con el mismo `checksum_sha256`, no hay put ni render. Si el objeto existe y el update a `issued` falló antes, el siguiente `put` es no-op/overwrite y se reintenta solo el update.
 4. **Compensación:** si el `put` OK y el `UPDATE` falla → el certificado **sigue `pending`**; best-effort `delete` de esa clave si ningún `stored_files.storage_key` la referencia. Si el delete también falla, queda un **huérfano**.
@@ -286,7 +289,7 @@ shared/src/
 │   ├── participant-csv.ts  # fila CSV
 │   └── layout.ts           # validación layout JSONB
 ├── constants/
-│   ├── field-tokens.ts     # catálogo: full_name, legal.nit, legal.folio, legal.signer.{n}.*, …
+│   ├── field-tokens.ts     # catálogo: full_name, event_date, legal.issue_date, legal.signer.{n}.*, …
 │   └── instance.ts         # InstanceId enum
 ├── lib/
 │   └── normalize.ts        # email trim+lower; doc_number via config.normalize (digits|alnum|raw)

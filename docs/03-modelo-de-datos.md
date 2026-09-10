@@ -295,11 +295,11 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | issue_attempts | INT | Default 0; intentos de render en `generated`. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md). |
 | last_issue_error | TEXT | NULL; código corto del último fallo (`PDF_TIMEOUT`, …). |
 | last_issue_attempt_at | TIMESTAMPTZ | NULL |
-| issued_at | TIMESTAMPTZ | Primera emisión / activación |
+| issued_at | TIMESTAMPTZ | Primera emisión / activación. En AC3 alimenta el token `legal.issue_date` (pie legal; ≠ `event_date`). |
 | folio | INT | NULL; **solo AC3**. Consecutivo **global de la instancia** (no se reinicia por evento ni por año). Se **reserva** al primer intento de `transitionToIssued` (antes del render). osm.lat: siempre NULL. Ver [08 §2.4](./08-datos-legales-ac3-plantilla.md). |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| legal_snapshot | JSONB | NULL; copia de `instance_legal` + firmantes + `folio` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
+| legal_snapshot | JSONB | NULL; copia de `instance_legal` (incl. `issue_city`) + firmantes + `folio` + `issued_at` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
@@ -321,7 +321,7 @@ https://certificados.osm.lat/c/{slug}
 https://certificados.ac3.org.co/c/{slug}
 ```
 
-**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal`, la lista de **firmantes** y el `folio` reservado. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal` (incl. `issue_city`), la lista de **firmantes**, el `folio` reservado y `issued_at`. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
 ---
 
@@ -568,7 +568,7 @@ Identidad técnica y marca vía ENV; datos legales AC3 vía **tabla `instance_le
 | `SITE_NAME` | Nombre visible (marca) | Certificados OSM Latam |
 | `PUBLIC_BASE_URL` | Base única: web, permalinks, OG, links en email | https://certificados.osm.lat |
 | `SITE_LOGO_URL` / `SITE_PRIMARY_COLOR` / … | Branding | — |
-| `LEGAL_*` | Bootstrap opcional AC3 al primer arranque → fila `instance_legal` + firmante slot 1 | — |
+| `LEGAL_*` | Bootstrap opcional AC3 al primer arranque → fila `instance_legal` (incl. `LEGAL_ISSUE_CITY`) + firmante slot 1 | — |
 | `DEFAULT_COUNTRY_CODE` | País por defecto formularios | `CO` |
 
 ### 7.2. `instance_legal` (Fase 2 — solo AC3)
@@ -581,6 +581,7 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 | entity_name | VARCHAR(255) | Razón social |
 | nit | VARCHAR(50) | NIT |
 | representative | VARCHAR(255) | Representante legal de la entidad (texto institucional; no es la lista de firmantes) |
+| issue_city | VARCHAR(100) | NULL; ciudad de **expedición** del documento (pie legal). No es la sede del evento. Ver [08 §2.6](./08-datos-legales-ac3-plantilla.md). |
 | last_folio | INT | NOT NULL DEFAULT 0; último consecutivo **global** asignado. Solo lo incrementa el sistema al `issued` (no es campo de la pantalla legal). |
 | updated_by | UUID FK | `admin_users.id` |
 | updated_at | TIMESTAMPTZ | |
@@ -589,6 +590,8 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 **Render:** capas `legal.*` leen esta tabla y `instance_legal_signers` (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot` (incluye `folio` y `signers`). **osm.lat:** tablas vacías / no usadas; el editor no ofrece capas `legal.*`.
 
 **Folio (decisión cerrada):** serie **global de AC3** (todos los eventos, todos los años). No se reinicia. Se reserva al **primer intento** de emisión (el PDF `generated` necesita el número antes de Puppeteer). Detalle: [08 §2.4](./08-datos-legales-ac3-plantilla.md). `last_folio` **no** se edita por PATCH de la pantalla legal (carrera con emisiones concurrentes). Reset solo por ops SQL si hay desastre.
+
+**Expedición (decisión cerrada):** `issue_city` + `issued_at` en el pie legal; `event_date` / `venue_name` en el cuerpo. [08 §2.6](./08-datos-legales-ac3-plantilla.md).
 
 ### 7.3. `instance_legal_signers` (Fase 2 — solo AC3)
 

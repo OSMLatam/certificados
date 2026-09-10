@@ -154,9 +154,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. La página del permalink muestra: nombre, evento, rol, fecha, emisor (instancia).
+1. La página del permalink muestra: nombre, evento, rol, **fecha del evento**, emisor (instancia). En AC3 `issued`, además folio, ciudad y **fecha de expedición** (`issued_at`).
 2. Indicador claro: **válido** / **pendiente** / **no generado** (`failed`) / **revocado** / **no encontrado**.
-3. Instancia AC3 muestra datos institucionales (NIT, razón social, **folio**) en la página `/c/` vía `legal_snapshot` de **todos** los certificados `issued` de esa instancia (`generated` y `pregenerated`). El archivo pregenerado no se reescribe. En `pending`/`failed` no hay bloque legal estructurado (aún no hay snapshot; no se usa `instance_legal` vigente).
+3. Instancia AC3 muestra datos institucionales (NIT, razón social, **folio**, ciudad/fecha de expedición, firmantes) en la página `/c/` vía `legal_snapshot` de **todos** los certificados `issued` de esa instancia (`generated` y `pregenerated`). El archivo pregenerado no se reescribe. En `pending`/`failed` no hay bloque legal estructurado (aún no hay snapshot; no se usa `instance_legal` vigente).
 4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`). En `failed`: `{ valid: false, reason: "failed" }`.
 
 ---
@@ -164,7 +164,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 ### HU-1.4 — Certificado generado con datos correctos
 
 **Como** participante,  
-**quiero** que el documento refleje mi nombre, rol, evento, sede (si aplica), actividad/charla y fecha,  
+**quiero** que el documento refleje mi nombre, rol, evento, sede (si aplica), actividad/charla y **fecha del evento**,  
 **para** que sea fiel a mi participación.
 
 | Campo | Valor |
@@ -176,13 +176,14 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 1. Renderizado desde plantilla del evento/rol o desde archivo pregenerado.
 2. Tildes, eñes y caracteres especiales correctos.
 3. El permalink incluye el mismo contenido en cada acceso.
+4. `event_date` / `venue_name` describen la **actividad**. En AC3, la fecha de **expedición** del pie legal es otro token (`legal.issue_date` ← `issued_at`; [08 §2.6](./08-datos-legales-ac3-plantilla.md)).
 
 ---
 
 ### HU-1.5 — Certificado con respaldo institucional AC3
 
 **Como** participante de un evento en la instancia AC3,  
-**quiero** un certificado que muestre los datos legales de AC3 (razón social, NIT, representante, folio, firmantes),  
+**quiero** un certificado que muestre los datos legales de AC3 (razón social, NIT, representante, folio, firmantes, ciudad y fecha de expedición),  
 **para** contar con un documento de mayor peso formal.
 
 | Campo | Valor |
@@ -193,9 +194,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 **Criterios de aceptación (negocio):**
 
 1. Las plantillas AC3 incluyen capas `legal.*` en el editor visual (ver HU-3.1 y [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md)).
-2. Los **valores** (NIT, razón social, firmantes, etc.) vienen de **config de instancia** (HU-8.2), no se reescriben por evento ni por participante. El **folio** es consecutivo global de instancia (sistema; [08 §2.4](./08-datos-legales-ac3-plantilla.md)). Los **firmantes** son N slots 1..8 ([08 §2.5](./08-datos-legales-ac3-plantilla.md)).
+2. Los **valores** (NIT, razón social, ciudad de expedición, firmantes, etc.) vienen de **config de instancia** (HU-8.2), no se reescriben por evento ni por participante. El **folio** es consecutivo global ([08 §2.4](./08-datos-legales-ac3-plantilla.md)). Los **firmantes** son N slots 1..8 ([08 §2.5](./08-datos-legales-ac3-plantilla.md)). La **fecha de expedición** es `issued_at`, distinta de `event_date` ([08 §2.6](./08-datos-legales-ac3-plantilla.md)).
 3. osm.lat no ofrece capas `legal.*`.
-4. Un certificado **pregenerado** AC3 lleva el legal en el archivo subido; la página `/c/` muestra NIT/razón social/firmantes vía `legal_snapshot` tomado al `issued` (sin re-render).
+4. Un certificado **pregenerado** AC3 lleva el legal en el archivo subido; la página `/c/` muestra NIT/razón social/firmantes/ciudad y fecha de expedición vía `legal_snapshot` tomado al `issued` (sin re-render).
 
 **Nota técnica:** no hay subsistema “legal” aparte; es render de capas de plantilla + config AC3.
 
@@ -258,8 +259,8 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 1. Interfaz WYSIWYG: fondo + capas de texto/QR alineables.
 2. Campos disponibles en paleta — tokens canónicos ([04 §5](./04-flujos-funcionales.md)):
    - `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink_qr`.
-   - **Instancia AC3 only:** `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (n = 1..8; ver [08](./08-datos-legales-ac3-plantilla.md)).
-3. Vista previa con datos de ejemplo; en AC3 la preview de capas `legal.*` usa config real de instancia. `legal.folio` en preview muestra “—” (no consume el consecutivo).
+   - **Instancia AC3 only:** `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.issue_city`, `legal.issue_date`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (n = 1..8; ver [08](./08-datos-legales-ac3-plantilla.md)).
+3. Vista previa con datos de ejemplo; en AC3 la preview de capas `legal.*` usa config real de instancia. `legal.folio` y `legal.issue_date` en preview muestran “—” (no consumen folio ni fijan `issued_at`).
 4. El sistema persiste posiciones en `layout` JSONB; validación contra el catálogo de tokens en `packages/shared`.
 5. No se requiere que el usuario edite JSON crudo.
 
@@ -560,7 +561,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 ### HU-8.2 — Datos institucionales AC3 (config de instancia)
 
 **Como** responsable AC3,  
-**quiero** definir **una vez** razón social, NIT, representante legal y **N firmantes** (nombre, cargo, imagen) en la config de la instancia,  
+**quiero** definir **una vez** razón social, NIT, representante legal, ciudad de expedición y **N firmantes** (nombre, cargo, imagen) en la config de la instancia,  
 **para** que todas las plantillas reutilicen los mismos valores al renderizar capas `legal.*`.
 
 | Campo | Valor |
@@ -570,7 +571,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Pantalla **admin** de instancia persiste **`instance_legal`** (razón social, NIT, representante) y **`instance_legal_signers`** (hasta 8 slots estables: nombre, cargo, imagen → `stored_files`). Sin depender de paths en archivo de propiedades para el día a día. **`last_folio` no es editable** (lo incrementa el sistema al `issued`; [08 §2.4](./08-datos-legales-ac3-plantilla.md)). Borrar un slot **no** renumera los demás ([08 §2.5](./08-datos-legales-ac3-plantilla.md)).
+1. Pantalla **admin** de instancia persiste **`instance_legal`** (razón social, NIT, representante, **ciudad de expedición**) y **`instance_legal_signers`** (hasta 8 slots estables: nombre, cargo, imagen → `stored_files`). Sin depender de paths en archivo de propiedades para el día a día. **`last_folio` no es editable** (lo incrementa el sistema al `issued`; [08 §2.4](./08-datos-legales-ac3-plantilla.md)). Borrar un slot **no** renumera los demás ([08 §2.5](./08-datos-legales-ac3-plantilla.md)). La fecha de expedición **no** se edita aquí: es `issued_at` ([08 §2.6](./08-datos-legales-ac3-plantilla.md)).
 2. Valores también legibles al arranque desde ENV (`LEGAL_*`) como bootstrap opcional si la fila está vacía.
 3. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
 4. osm.lat: pantalla/`instance_legal` ausentes; capas `legal.*` no disponibles.
