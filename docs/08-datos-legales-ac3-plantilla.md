@@ -3,7 +3,7 @@
 **Versión:** 1.0  
 **Fecha:** 2026-06-06
 
-Este documento unifica cómo se modelan NIT, razón social, representante legal y firma en AC3. **No hay un subsistema “legal” aparte**: son campos de **configuración de instancia** usados como **capas en el editor visual**, igual que el nombre del participante.
+Este documento unifica cómo se modelan NIT, razón social, representante legal, **N firmantes**, firma(s) y **folio consecutivo** en AC3. **No hay un subsistema “legal” aparte**: son campos de **configuración de instancia** (más un contador de sistema) usados como **capas en el editor visual**, igual que el nombre del participante.
 
 ---
 
@@ -13,7 +13,8 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 ┌─────────────────────────┐
 │  instance_legal (BD)    │  ← única fuente de verdad (admin AC3)
 │  entity_name, nit, …    │     bootstrap opcional desde LEGAL_* ENV
-│  signature_file_id      │
+│  last_folio (sistema)   │  ← no editable en pantalla; serie global
+│  instance_legal_signers │  ← N firmantes; slots 1..8 estables
 └──────────┬──────────────┘
             │ valores en render / snapshot
             ▼
@@ -21,7 +22,9 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 │  Editor visual          │  ← posición, fuente, tamaño (layout JSONB)
 │  capa: legal.nit        │
 │  capa: legal.entity_name│
-│  capa: legal.signature  │  ← imagen desde stored_files
+│  capa: legal.folio      │  ← consecutivo al issued (preview: “—”)
+│  capa: legal.signer.1.* │  ← name, title, signature (imagen)
+│  capa: legal.signer.2.* │  ← idem; hasta slot 8
 └──────────┬──────────────┘
             ▼
        PDF / preview /c/{slug}
@@ -39,7 +42,7 @@ Este documento unifica cómo se modelan NIT, razón social, representante legal 
 
 | Dónde | Quién | Qué |
 |-------|-------|-----|
-| **Tabla `instance_legal`** + pantalla admin AC3 | Rol `admin` | Razón social, NIT, representante, upload firma |
+| **Tabla `instance_legal`** + `instance_legal_signers` + pantalla admin AC3 | Rol `admin` | Razón social, NIT, representante, N firmantes (nombre, cargo, imagen). **No** edita `last_folio`. |
 | **ENV `LEGAL_*` (bootstrap)** | Deploy | Siembra la fila si está vacía al primer arranque |
 | **No** en cada evento | — | Los eventos nuevos usan la config del momento de emisión |
 | **No** en cada participante | — | Son datos de la entidad, no de la persona |
@@ -53,10 +56,10 @@ Equivalente documentado en [05-personalizacion-multi-instancia.md](./05-personal
 Los valores legales del **PDF generado** son texto e imagen sobre la gráfica, igual que el nombre del participante. La **página `/c/`** y la API verify **nunca** leen `instance_legal` vigente de un certificado ya `issued` (si el NIT cambia, un permalink viejo no debe mentir).
 
 1. **Vista previa / plantilla nueva:** el editor lee `instance_legal` **actual**.
-2. **Al pasar a `issued` (instancia AC3, ambos modos):** el sistema copia los valores vigentes a `certificates.legal_snapshot`.
-   - **`generated`:** además **incrusta** esos valores en el PDF almacenado (capas `legal.*`).
-   - **`pregenerated`:** el archivo subido **no se reescribe** (el legal visual ya va en el arte). El snapshot existe **solo** para `/c/` y `GET /api/v1/verify/c/{slug}`.
-3. **Certificados ya `issued`:** no cambian si se actualiza NIT, representante o firma en config. Esos cambios aplican solo a **nuevas** emisiones.
+2. **Al pasar a `issued` (instancia AC3, ambos modos):** el sistema reserva `folio` (§2.4) y copia los valores vigentes **más el folio y los firmantes** a `certificates.legal_snapshot`.
+   - **`generated`:** además **incrusta** esos valores en el PDF almacenado (capas `legal.*`, incluido `legal.folio` y `legal.signer.{n}.*`).
+   - **`pregenerated`:** el archivo subido **no se reescribe** (el legal visual ya va en el arte). El snapshot existe **solo** para `/c/` y `GET /api/v1/verify/c/{slug}`. Un “N.º” o firmas pintadas en el arte **no** se sincronizan con el snapshot; no pintar un consecutivo competidor en el upload.
+3. **Certificados ya `issued`:** no cambian si se actualiza NIT, representante, firmantes o firma en config. Esos cambios aplican solo a **nuevas** emisiones.
 4. **`pending` / `failed`:** aún no hay snapshot. `/c/` muestra el indicador de estado y **no** un bloque legal estructurado (no se usa config vigente como si fuera la credencial).
 5. **osm.lat:** `legal_snapshot` queda NULL.
 
@@ -67,16 +70,21 @@ No hay fallback a `instance_legal` vigente en `/c/` de un `issued`: eso reescrib
   "entity_name": "Asociación …",
   "nit": "900.123.456-7",
   "representative": "Nombre Apellido",
-  "signature_storage_key": "legal/signatures/2026.png"
-}
-```
-
-```json
-{
-  "entity_name": "Asociación …",
-  "nit": "900.123.456-7",
-  "representative": "Nombre Apellido",
-  "signature_storage_key": "legal/signatures/2026.png"
+  "folio": 142,
+  "signers": [
+    {
+      "slot": 1,
+      "name": "Ana Pérez",
+      "title": "Presidente",
+      "signature_storage_key": "legal/signatures/ana.png"
+    },
+    {
+      "slot": 2,
+      "name": "Luis Gómez",
+      "title": "Secretario",
+      "signature_storage_key": "legal/signatures/luis.png"
+    }
+  ]
 }
 ```
 
@@ -86,6 +94,48 @@ No hay fallback a `instance_legal` vigente en `/c/` de un `issued`: eso reescrib
 |-------|-------|-----|
 | **Editor visual de plantilla** | Editor de evento | x, y, fuente, tamaño, alineación de cada capa |
 | Por evento / rol | — | Igual que `full_name` o `fecha_evento` |
+
+### 2.4. Folio consecutivo (decisión cerrada)
+
+Serie **global de la instancia AC3**: un solo contador para todos los eventos y años. No se reinicia. osm.lat no asigna folio.
+
+El folio es el número humano (“certificado AC3 n.º 142”). El `slug` sigue siendo el identificador técnico del permalink.
+
+| Pieza | Contrato |
+|-------|----------|
+| Columna `certificates.folio` | INT NULL. UNIQUE parcial `WHERE folio IS NOT NULL`. |
+| Contador `instance_legal.last_folio` | INT NOT NULL DEFAULT 0. Lo incrementa **solo** el sistema. |
+| Cuándo nace | Al **primer** `transitionToIssued` (lazy: primera visita humana a metadata). **No** al alta CSV. |
+| Por qué antes del `issued` | El PDF `generated` pinta `legal.folio`; hay que **reservar** el número **antes** de Puppeteer. No se puede asignar después del put. |
+| Reserva | Lock certificado → si `folio` IS NULL: `SELECT instance_legal FOR UPDATE`; `last_folio + 1`; escribir `certificates.folio`; soltar el lock de `instance_legal` (no retenerlo durante el render). Reintento / `failed` / `retry-issue`: **mismo** folio (no incrementar otra vez). |
+| Render falla | El certificado sigue `pending` (o pasa a `failed`) **con folio ya reservado**. Hueco si nunca llega a `issued`. No se decrementa `last_folio`. |
+| Pregenerado | Misma reserva al inicio de `transitionToIssued`; el archivo no se reescribe. Folio visible en `/c/` vía snapshot. No pintar un “N.º” competidor en el arte. |
+| `issued` | Snapshot incluye `folio`. Put MinIO **antes** del UPDATE `issued` ([10 §4.2.2](./10-diseno-codigo-y-anexos.md)). |
+| Revocación | Conserva el folio. No se reutiliza. |
+| Preview / plantilla | Token `legal.folio` muestra **“—”**. **No** reserva ni incrementa. |
+| `/c/` y verify | Folio del snapshot (AC3 `issued`). Búsqueda pública v1.0: email/documento. Admin **sí** filtra por folio. |
+| PATCH legal | No acepta `last_folio`. Reset de emergencia = ops SQL. |
+
+### 2.5. Firmantes N (decisión cerrada)
+
+No hay un único `signature_file_id` en `instance_legal`. Hay **N firmantes** en `instance_legal_signers`, cada uno con nombre, cargo e imagen.
+
+El **representante legal** (`instance_legal.representative` / token `legal.representative`) sigue siendo dato **institucional** de la entidad. Puede coincidir con un firmante; no se fusiona en el esquema.
+
+| Pieza | Contrato |
+|-------|----------|
+| Máximo | `LEGAL_MAX_SIGNERS` = **8** (constante de spec/código, no ENV). |
+| Slot | Entero **1..8**, estable. Borrar el slot 2 **no** convierte el 3 en 2. |
+| Fila | Slot vacío = no hay fila. `name` obligatorio si la fila existe; `title` e imagen opcionales. |
+| Tokens | `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (imagen). **No** existe `legal.signature` (singular). |
+| Paleta del editor | AC3 lista solo los slots **con fila**. El schema de `layout` acepta `n` 1..8 (una plantilla hecha para 3 firmas sigue válida si luego hay 2). |
+| Render | Slot sin fila → capa vacía (emisión OK). Firmante sin capa en la plantilla → no sale en el PDF. |
+| Preview | Usa firmantes **vigentes** (como NIT). |
+| Snapshot | Array `signers` con `slot`, `name`, `title`, `signature_storage_key`. |
+| `/c/` y verify | Muestran nombres/cargos del snapshot (imágenes opcionales). `pending`/`failed`: sin bloque. |
+| Pregenerado | Firmas visuales van en el arte; el snapshot igual se escribe para `/c/`. |
+| Bootstrap | Solo slot 1: `LEGAL_SIGNER_1_NAME`, `LEGAL_SIGNER_1_TITLE`, `LEGAL_SIGNER_1_SIGNATURE_FILE`. |
+| PATCH | Reescritura de la lista de slots; 400 si `slot` fuera de 1..8 o duplicado. |
 
 ---
 
@@ -113,10 +163,13 @@ Catálogo canónico compartido con [04 §5](./04-flujos-funcionales.md). **No** 
 |---------------|------------------|
 | `legal.entity_name` | `instance_legal.entity_name` |
 | `legal.nit` | `instance_legal.nit` (ej. prefijo UI: "NIT …") |
-| `legal.representative` | `instance_legal.representative` |
-| `legal.signature` | imagen vía `instance_legal.signature_file_id` → `stored_files` (capa tipo imagen, no texto) |
+| `legal.representative` | `instance_legal.representative` (entidad; no es un firmante) |
+| `legal.folio` | `certificates.folio` al `issued`; en preview: “—” |
+| `legal.signer.{n}.name` | `instance_legal_signers.name` del slot `n` (1..8) |
+| `legal.signer.{n}.title` | `instance_legal_signers.title` |
+| `legal.signer.{n}.signature` | imagen vía `signature_file_id` → `stored_files` |
 
-El editor visual **lista estos tokens solo en despliegues AC3**.
+El editor visual **lista estos tokens solo en despliegues AC3**. Paleta de firmantes: solo slots **con fila**. Schema: `n` ∈ 1..8. **No** hay token `legal.signature`.
 
 ### 3.3. Ejemplo de `layout` con capas legales
 
@@ -127,8 +180,14 @@ El editor visual **lista estos tokens solo en despliegues AC3**.
     { "field": "full_name", "x": 877, "y": 400, "fontSize": 48, "align": "center", "fontFamily": "Noto Sans Bold" },
     { "field": "legal.entity_name", "x": 877, "y": 1050, "fontSize": 10, "align": "center" },
     { "field": "legal.nit", "x": 877, "y": 1065, "fontSize": 10, "align": "center" },
+    { "field": "legal.folio", "x": 140, "y": 80, "fontSize": 12, "align": "left" },
     { "field": "legal.representative", "x": 877, "y": 1080, "fontSize": 9, "align": "center" },
-    { "field": "legal.signature", "x": 1200, "y": 1020, "width": 180, "height": 60 }
+    { "field": "legal.signer.1.signature", "x": 400, "y": 980, "width": 180, "height": 60 },
+    { "field": "legal.signer.1.name", "x": 490, "y": 1050, "fontSize": 10, "align": "center" },
+    { "field": "legal.signer.1.title", "x": 490, "y": 1065, "fontSize": 9, "align": "center" },
+    { "field": "legal.signer.2.signature", "x": 1200, "y": 980, "width": 180, "height": 60 },
+    { "field": "legal.signer.2.name", "x": 1290, "y": 1050, "fontSize": 10, "align": "center" },
+    { "field": "legal.signer.2.title", "x": 1290, "y": 1065, "fontSize": 9, "align": "center" }
   ]
 }
 ```
@@ -142,7 +201,7 @@ El editor visual **lista estos tokens solo en despliegues AC3**.
 | Bloque legal institucional | Capas `legal.*` en la plantilla, no subsistema aparte |
 | Presencia del bloque legal | Si la plantilla no tiene capas `legal.*`, no se muestra nada |
 | Responsabilidades HU | **HU-8.2** = editar valores (config instancia); **HU-1.5** + **HU-3.1** = colocar capas en plantilla |
-| Render | Genérico: `field` → resolver fuente (participant / event / **instance config**) |
+| Render | Genérico: `field` → resolver fuente (participant / event / **instance config** / firmantes / `certificates.folio`) |
 
 ---
 
@@ -150,8 +209,8 @@ El editor visual **lista estos tokens solo en despliegues AC3**.
 
 | Superficie | Comportamiento |
 |------------|----------------|
-| **PDF / preview** | Capas `legal.*` en layout |
-| **Página `/c/{slug}`** (verify) | `issued` AC3: muestra `legal_snapshot` (no config actual). `pending`/`failed`: sin bloque legal estructurado. |
+| **PDF / preview** | Capas `legal.*` en layout. Preview de `legal.folio` = “—” (no reserva). |
+| **Página `/c/{slug}`** (verify) | `issued` AC3: muestra `legal_snapshot` (incluye folio y firmantes; no config actual). `pending`/`failed`: sin bloque legal estructurado (aunque el folio ya esté reservado). |
 | **Open Badges Issuer** | `name` / `description` del issuer AC3 desde config **vigente** (nuevas emisiones) |
 | **Certificado pregenerado** | Archivo intacto (legal visual en el upload). Snapshot al `issued` para `/c/` y verify, igual que `generated`. |
 
@@ -168,10 +227,10 @@ Las definiciones canónicas están en [02-historias-de-usuario.md](./02-historia
 ## 7. Flujo admin AC3 (resumen)
 
 ```text
-1. Deploy / admin instancia → cargar `instance_legal` (HU-8.2; bootstrap ENV opcional)
+1. Deploy / admin instancia → cargar `instance_legal` y firmantes (HU-8.2; bootstrap ENV opcional, slot 1)
 2. Crear evento → diseñar plantilla en editor visual (HU-3.1)
-3. Colocar capas legal.* donde corresponda
-4. Vista previa → PDF con NIT/razón social de `instance_legal`
+3. Colocar capas legal.* y legal.signer.{n}.* donde corresponda
+4. Vista previa → PDF con NIT/razón social/firmantes vigentes
 5. Cargar participantes → emitir certificados igual que osm.lat
 ```
 

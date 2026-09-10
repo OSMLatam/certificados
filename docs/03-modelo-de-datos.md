@@ -41,6 +41,7 @@ osm_profiles 1──N osm_email_link_codes
 
 badge_issuers (1 por instancia, singleton lógico)
 instance_legal (0..1 — AC3)
+instance_legal 1──N instance_legal_signers (AC3; máx. 8 slots)
 certificates → /c/{slug}
 badge_assertions → /b/{slug}
 
@@ -295,9 +296,10 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | last_issue_error | TEXT | NULL; código corto del último fallo (`PDF_TIMEOUT`, …). |
 | last_issue_attempt_at | TIMESTAMPTZ | NULL |
 | issued_at | TIMESTAMPTZ | Primera emisión / activación |
+| folio | INT | NULL; **solo AC3**. Consecutivo **global de la instancia** (no se reinicia por evento ni por año). Se **reserva** al primer intento de `transitionToIssued` (antes del render). osm.lat: siempre NULL. Ver [08 §2.4](./08-datos-legales-ac3-plantilla.md). |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| legal_snapshot | JSONB | NULL; copia de `instance_legal` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
+| legal_snapshot | JSONB | NULL; copia de `instance_legal` + firmantes + `folio` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
@@ -305,6 +307,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 
 - UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Incluye `pending`, `issued` y **`failed`**. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
 - UNIQUE `slug`. **Alta:** generar nanoid 12; si hay unique_violation, reintentar hasta **5** veces; si se agota → 500 `SLUG_COLLISION` (no slug secuencial ni elegido por el usuario). Los slugs `revoked` **siguen** ocupando el UNIQUE (el permalink revocado no se recicla). Mismo criterio para `badge_assertions.slug`.
+- UNIQUE `folio` **parcial** `WHERE folio IS NOT NULL`. Un `revoked` **conserva** el folio (no se reutiliza; queda hueco en la serie). `pending`/`failed` son NULL **hasta** el primer intento de `transitionToIssued` (AC3); a partir de ahí el folio queda reservado en esa fila.
 - `role_code` **debe** ∈ `events.allowed_roles` **y** existir en el catálogo `roles` (`is_active`). Si no → **400** (alta) o error de fila (CSV atómico). No hay CHECK en BD (`allowed_roles` es JSONB); la regla es de aplicación + tests.
 
 **Sede (decisión cerrada):** al alta individual o CSV, `venue_code` → se escribe en **`certificates.venue_id`** (y, si se desea consistencia, también en `participants.venue_id`). Token `venue_name`: leer `certificates.venue_id` → si NULL, fallback `participants.venue_id` → si NULL, vacío.
@@ -318,7 +321,7 @@ https://certificados.osm.lat/c/{slug}
 https://certificados.ac3.org.co/c/{slug}
 ```
 
-**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal`. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal`, la lista de **firmantes** y el `folio` reservado. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
 ---
 
@@ -565,7 +568,7 @@ Identidad técnica y marca vía ENV; datos legales AC3 vía **tabla `instance_le
 | `SITE_NAME` | Nombre visible (marca) | Certificados OSM Latam |
 | `PUBLIC_BASE_URL` | Base única: web, permalinks, OG, links en email | https://certificados.osm.lat |
 | `SITE_LOGO_URL` / `SITE_PRIMARY_COLOR` / … | Branding | — |
-| `LEGAL_*` | Bootstrap opcional AC3 al primer arranque → fila `instance_legal` | — |
+| `LEGAL_*` | Bootstrap opcional AC3 al primer arranque → fila `instance_legal` + firmante slot 1 | — |
 | `DEFAULT_COUNTRY_CODE` | País por defecto formularios | `CO` |
 
 ### 7.2. `instance_legal` (Fase 2 — solo AC3)
@@ -577,13 +580,38 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 | id | UUID PK | |
 | entity_name | VARCHAR(255) | Razón social |
 | nit | VARCHAR(50) | NIT |
-| representative | VARCHAR(255) | Representante legal |
-| signature_file_id | UUID FK | → `stored_files` (firma/sello); NULL si aún no hay upload |
+| representative | VARCHAR(255) | Representante legal de la entidad (texto institucional; no es la lista de firmantes) |
+| last_folio | INT | NOT NULL DEFAULT 0; último consecutivo **global** asignado. Solo lo incrementa el sistema al `issued` (no es campo de la pantalla legal). |
 | updated_by | UUID FK | `admin_users.id` |
 | updated_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | |
 
-**Render:** capas `legal.*` leen esta tabla (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot`. **osm.lat:** tabla vacía / no usada; el editor no ofrece capas `legal.*`.
+**Render:** capas `legal.*` leen esta tabla y `instance_legal_signers` (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot` (incluye `folio` y `signers`). **osm.lat:** tablas vacías / no usadas; el editor no ofrece capas `legal.*`.
+
+**Folio (decisión cerrada):** serie **global de AC3** (todos los eventos, todos los años). No se reinicia. Se reserva al **primer intento** de emisión (el PDF `generated` necesita el número antes de Puppeteer). Detalle: [08 §2.4](./08-datos-legales-ac3-plantilla.md). `last_folio` **no** se edita por PATCH de la pantalla legal (carrera con emisiones concurrentes). Reset solo por ops SQL si hay desastre.
+
+### 7.3. `instance_legal_signers` (Fase 2 — solo AC3)
+
+Lista de firmantes de la instancia. **Decisión cerrada:** N firmas (no exactamente 2). Slots **estables** `1..LEGAL_MAX_SIGNERS` (`LEGAL_MAX_SIGNERS` = **8**): borrar el slot 2 no renumera el 3 (las plantillas no se desalinean).
+
+| Columna | Tipo | Descripción |
+|--------|------|-------------|
+| id | UUID PK | |
+| instance_legal_id | UUID FK | → `instance_legal.id` ON DELETE CASCADE |
+| slot | INT | 1..8; índice del token `legal.signer.{slot}.*` |
+| name | VARCHAR(255) | Nombre de quien firma |
+| title | VARCHAR(255) | NULL; cargo (Presidente, Secretario, …) |
+| signature_file_id | UUID FK | → `stored_files`; NULL si aún no hay imagen |
+
+**Constraints:** UNIQUE `(instance_legal_id, slot)`. CHECK `slot BETWEEN 1 AND 8`. Máximo 8 filas por instancia (el UNIQUE de slot lo garantiza). `name` NOT NULL en fila existente; un slot vacío = **no hay fila**.
+
+**Tokens:** `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (imagen). Capa cuyo `n` no tiene fila → render vacío (no falla la emisión). Firmantes extra sin capa en la plantilla no aparecen en el PDF.
+
+**API:** `GET`/`PATCH /api/v1/admin/instance/legal` incluye `signers[]`. El PATCH reescribe la lista (alta/baja/edición de slots). No compacta índices.
+
+**Bootstrap ENV:** como máximo **el slot 1** (`LEGAL_SIGNER_1_NAME`, `LEGAL_SIGNER_1_TITLE`, `LEGAL_SIGNER_1_SIGNATURE_FILE`). El resto se carga en pantalla admin.
+
+Detalle de tokens y snapshot: [08 §2.5](./08-datos-legales-ac3-plantilla.md).
 
 ---
 
@@ -700,4 +728,8 @@ CREATE UNIQUE INDEX idx_badge_classes_event_role
 CREATE INDEX idx_events_year_status ON events(year, status);
 CREATE UNIQUE INDEX idx_country_identity_country_type
   ON country_identity_config(country_code, doc_type_code);
+CREATE UNIQUE INDEX idx_certificates_folio
+  ON certificates(folio) WHERE folio IS NOT NULL;
+CREATE UNIQUE INDEX idx_instance_legal_signers_slot
+  ON instance_legal_signers(instance_legal_id, slot);
 ```

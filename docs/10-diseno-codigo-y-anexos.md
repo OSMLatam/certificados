@@ -135,7 +135,7 @@ certificados/
 | Módulo | Responsabilidad |
 |--------|-----------------|
 | `badges` | Issuer, BadgeClass, assertions, `/b/` |
-| `legal` | `instance_legal` CRUD + bootstrap ENV; `legal_snapshot` |
+| `legal` | `instance_legal` + `instance_legal_signers` CRUD + bootstrap ENV; `legal_snapshot` |
 | `revocation` | Sub-módulo de `certificates` + `badges` (no paquete aparte) |
 
 ### Fase 3 (añadir)
@@ -168,15 +168,17 @@ GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no cr
   → CertificatesService.resolvePublic(slug, { isCrawler })
        → si failed && !isCrawler: 200 { status: "failed" }  # no Puppeteer
        → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
+            → si INSTANCE=ac3 && folio IS NULL:
+                 lock instance_legal; last_folio+1 → certificates.folio  # reserva; no durante Puppeteer
             → si generated:
-                 PdfService.render → sha256 → StorageService.put (clave certs/{id}/{sha256})
+                 PdfService.render (incluye legal.folio si AC3) → sha256 → StorageService.put
                  → luego UPDATE issued + stored_files  # nunca issued sin objeto; ver §4.2.2
-            → si pregenerated: archivo ya en storage (no Puppeteer; solo UPDATE issued)
-            → si INSTANCE=ac3: copiar instance_legal → legal_snapshot
+            → si pregenerated: archivo ya en storage (no Puppeteer)
+            → si INSTANCE=ac3: copiar instance_legal + signers + folio → legal_snapshot
             → update { stored_file_id?, legal_snapshot?, issued_at, status=issued, issue_attempts }
             → si PDF (generated) falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
-                 queda pending; incrementa issue_attempts; HTTP 503
-            → si PDF (generated) falla y attempts alcanza MAX: status=failed; HTTP 503 (ese request);
+                 queda pending **con folio reservado**; incrementa issue_attempts; HTTP 503
+            → si PDF (generated) falla y attempts alcanza MAX: status=failed (folio se conserva); HTTP 503 (ese request);
                  visitas siguientes: 200 failed, sin render
        → si pending && isCrawler: devolver metadata/OG sin emitir
        → si issued: leer stored_file metadata
@@ -209,17 +211,18 @@ Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppet
 2. El segundo request espera el lock; si ya está `issued`, sirve el archivo; si pasó a `failed`, no relanza Chromium.
 3. `PDF_CONCURRENCY` limita Chromium **globales** de la instancia; el lock es **por certificado**.
 4. Un certificado `failed` **nunca** entra a `transitionToIssued` hasta `POST …/retry-issue`.
+5. **Folio AC3:** si `folio` IS NULL, `SELECT instance_legal FOR UPDATE` y `last_folio+1` **antes** del render (transacción corta). Certificados distintos se serializan solo en ese instante; el preview **no** reserva. Un reintento con folio ya escrito no incrementa.
 
 ### 4.2.2. Atomicidad MinIO ↔ Postgres (decisión cerrada)
 
 MinIO y PostgreSQL **no** comparten transacción. Contrato para `transitionToIssued` en modo `generated` (y para el put de un pregenerado en el **import**, no en el lazy issue):
 
-1. **Orden:** render (buffer) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `certificates.status=issued`, `stored_file_id`, `issued_at`, `legal_snapshot` AC3). **Nunca** marcar `issued` si el objeto aún no está en storage.
+1. **Orden:** (AC3: reservar `folio` si NULL) → render (buffer, con `legal.folio` y firmantes vigentes) → `sha256` → **`put` a MinIO** → **después** transacción Postgres (`stored_files` + `certificates.status=issued`, `stored_file_id`, `issued_at`, `legal_snapshot` AC3 con folio + `signers`). **Nunca** marcar `issued` si el objeto aún no está en storage. Si el render/put falla, el folio **ya reservado** se conserva; **no** se vuelve a incrementar.
 2. **Clave determinista:** `certs/{certificate_id}/{sha256}.pdf` (o `.png`). Un reintento del mismo buffer pisa la misma clave (idempotente).
 3. **Idempotencia:** si el certificado ya está `issued` con el mismo `checksum_sha256`, no hay put ni render. Si el objeto existe y el update a `issued` falló antes, el siguiente `put` es no-op/overwrite y se reintenta solo el update.
 4. **Compensación:** si el `put` OK y el `UPDATE` falla → el certificado **sigue `pending`**; best-effort `delete` de esa clave si ningún `stored_files.storage_key` la referencia. Si el delete también falla, queda un **huérfano**.
 5. **GC de huérfanos (ops, v1.0):** objetos en el prefijo `certs/` sin fila en `stored_files` y con `LastModified` > 24 h. Runbook: listar y borrar a mano (MinIO client). Sin pantalla admin. Un job automático es evolución futura.
-6. **Pregenerado (lazy issue):** el archivo ya se subió en el import; `transitionToIssued` **solo** actualiza Postgres (`issued_at`, snapshot). No hay segundo put.
+6. **Pregenerado (lazy issue):** el archivo ya se subió en el import; `transitionToIssued` reserva folio AC3 si NULL y actualiza Postgres (`issued_at`, snapshot). No hay segundo put.
 
 Invertir el orden (issued sin archivo) está **prohibido**: el titular vería “válido” y `/file` 404.
 
@@ -283,7 +286,7 @@ shared/src/
 │   ├── participant-csv.ts  # fila CSV
 │   └── layout.ts           # validación layout JSONB
 ├── constants/
-│   ├── field-tokens.ts     # catálogo canónico: full_name, certificate_slug, permalink_qr, legal.nit, …
+│   ├── field-tokens.ts     # catálogo: full_name, legal.nit, legal.folio, legal.signer.{n}.*, …
 │   └── instance.ts         # InstanceId enum
 ├── lib/
 │   └── normalize.ts        # email trim+lower; doc_number via config.normalize (digits|alnum|raw)
@@ -309,7 +312,7 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX`, `TRUST_PROXY` | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS`, `PUPPETEER_NO_SANDBOX` | 1 |
 | Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
-| Legal AC3 | Tabla `instance_legal` + bootstrap `LEGAL_*` opcional | 2 |
+| Legal AC3 | Tabla `instance_legal` + `instance_legal_signers` (máx. 8) + bootstrap `LEGAL_*` opcional; folio global | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
 | OSM API | `OSM_API_*` (fuentes por métrica en [06 §5.1](./06-open-badges.md)) | 3 |
 | Turnstile | `TURNSTILE_*` | 3 |

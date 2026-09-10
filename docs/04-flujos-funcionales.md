@@ -195,9 +195,9 @@ flowchart TD
 | Participante | `full_name`, `document`, `role_label`, `activity_title` |
 | Evento | `event_name`, `venue_name`, `event_date` |
 | Sistema | `certificate_slug` (texto del slug), `permalink_qr` (QR → URL `/c/{slug}`) |
-| Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.signature` |
+| Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (`n` = 1..8) |
 
-`certificate_slug` y `permalink_qr` son **dos** tokens distintos. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field`.
+`certificate_slug` y `permalink_qr` son **dos** tokens distintos. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field` (`legal.signer.{n}.*` con `n` ∈ 1..8).
 
 Valores `legal.*` → config instancia. Resto → BD del participante/evento/certificado.
 
@@ -287,8 +287,8 @@ Badge OSM (u otro) sin certificado:
 | T6 | Doc CO CC + número con puntos | Encuentra certificados (búsqueda **pública**; `normalize: digits`) |
 | T7 | Certificado pregenerado | Sirve archivo original |
 | T8 | Revocado | Permalink sin documento descargable |
-| T9 | AC3 generado | Incluye NIT en PDF y en `/c/` vía snapshot |
-| T10 | osm.lat generado | Sin NIT |
+| T9 | AC3 generado | Incluye NIT y folio en PDF y en `/c/` vía snapshot |
+| T10 | osm.lat generado | Sin NIT ni folio |
 | T11 | CSV 2 filas mismo doc distinto rol | 2 certificates |
 | T12 | Instancias separadas | Slug en AC3 no existe en osm.lat |
 | T17 | Activar `generated` sin `default_template_id` | **400**; el evento sigue `draft` |
@@ -300,6 +300,12 @@ Badge OSM (u otro) sin certificado:
 | T24 | Unique violation de slug | Reintenta nanoid (máx. 5); no expone slug secuencial |
 | T25 | ZIP con `../` en una entrada | Lote **0**; no escribe en disco fuera del basename |
 | T26 | PNG o PDF con magic bytes / JS inválidos | **400**; no se almacena |
+| T27 | Dos `transitionToIssued` AC3 concurrentes (certs distintos) | Folios consecutivos, UNIQUE, sin duplicar `last_folio` |
+| T28 | AC3: render falla tras reservar folio; luego `retry-issue` | Mismo `folio`; no incrementa otra vez |
+| T29 | Revocar AC3 `issued` y emitir otro para el mismo participante+rol | El folio revocado **no** se reutiliza; el nuevo toma el siguiente |
+| T30 | AC3: 2 firmantes en slots 1 y 2; plantilla con capas `legal.signer.1.*` y `legal.signer.2.*` | PDF y snapshot incluyen ambos; `/c/` muestra nombres/cargos |
+| T31 | Capa `legal.signer.3.signature` sin fila en slot 3 | Emisión OK; capa vacía |
+| T32 | Borrar firmante slot 1; slot 2 intacto | Tokens `legal.signer.2.*` siguen resolviendo al mismo firmante |
 
 ---
 
@@ -311,7 +317,7 @@ Badge OSM (u otro) sin certificado:
 | T14 | Import CSV osm_id | 3 | Assertions emitidas idempotentes |
 | T15 | Revocar certificado | 2 | Badge evento revocado |
 | T16 | Badge OSM sin certificado | 3 | Solo `/b/`, sin `/c/` |
-| T21 | AC3 pregenerado → issued | 2 | `/c/` y verify muestran `legal_snapshot`; el binario **no** cambia; config nueva no altera la página |
+| T21 | AC3 pregenerado → issued | 2 | `/c/` y verify muestran `legal_snapshot` (folio + firmantes); el binario **no** cambia; config nueva no altera la página |
 
 ---
 

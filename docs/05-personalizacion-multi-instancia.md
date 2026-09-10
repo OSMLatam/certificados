@@ -97,10 +97,11 @@ https://certificados.ac3.org.co/c/{slug}
 |-----------------|-----------|
 | `entity_name` | Razón social |
 | `nit` | NIT |
-| `representative` | Representante legal |
-| `signature_file_id` | Imagen firma/sello (`stored_files`) |
+| `representative` | Representante legal (entidad) |
+| `last_folio` | Contador de sistema (no UI). Serie global; [08 §2.4](./08-datos-legales-ac3-plantilla.md) |
+| `instance_legal_signers` | N firmantes, slots 1..8 estables (nombre, cargo, imagen); [08 §2.5](./08-datos-legales-ac3-plantilla.md) |
 
-Bootstrap opcional al deploy: `LEGAL_ENTITY_NAME`, `LEGAL_NIT`, `LEGAL_REPRESENTATIVE`, `LEGAL_SIGNATURE_FILE` → siembran la fila si está vacía.
+Bootstrap opcional al deploy: `LEGAL_ENTITY_NAME`, `LEGAL_NIT`, `LEGAL_REPRESENTATIVE`, y como máximo el **slot 1** (`LEGAL_SIGNER_1_NAME`, `LEGAL_SIGNER_1_TITLE`, `LEGAL_SIGNER_1_SIGNATURE_FILE`) → siembran si la fila/firmantes están vacíos.
 
 **Usos del mismo config:**
 
