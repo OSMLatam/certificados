@@ -48,6 +48,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Plantillas | Default `role_code` NULL + `default_template_id`; tokens canónicos ([04](./04-flujos-funcionales.md)) |
 | Pregenerados | Upload de PDF/imagen + permalink |
 | Identidad OSM | `osm_id` inmutable + username actualizable; vínculo email vía `/me` (F3) |
+| Documento | `country_identity_config.normalize`: `digits` \| `alnum` \| `raw` (por tipo, no por `if` de país) |
 | Datos legales AC3 | Config instancia + capas en plantilla |
 | Anti-abuso / carga | Rate limit búsqueda+permalinks, PDF sin regenerar, `robots.txt` ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |

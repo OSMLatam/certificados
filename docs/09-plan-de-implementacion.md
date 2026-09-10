@@ -55,7 +55,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
 | **Sesión admin** | Cookie `cert_session` + tabla **`admin_sessions`** en PostgreSQL (F1/F2 sin Redis). |
 | **Email participante** | Obligatorio; **UNIQUE `(event_id, email)`** normalizado (`trim`+`lower`); duplicado → rechazar. Misma persona + otro rol = OK. |
-| **Documento** | Al guardar y buscar: quitar espacios/puntos/comas/guiones; CO → solo dígitos; validar regex **después**. País obligatorio en búsqueda por documento. Detalle: [03](./03-modelo-de-datos.md). |
+| **Documento** | Al guardar y buscar: `trim` + estrategia `country_identity_config.normalize` (`digits` \| `alnum` \| `raw`); validar regex **después**. Sin `if` por país. País obligatorio en búsqueda por documento. Detalle: [03 §3.2](./03-modelo-de-datos.md). |
 | **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
 | **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending`/`failed` → 409** (no emite). |
 | **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF transitorio → `pending` + 503; al umbral → `failed`. |
@@ -82,7 +82,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Catálogo BadgeClass OSM inicial** | Canónico: [06 §5.1](./06-open-badges.md) — p. ej. `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`; métricas `changesets_count`, `notes_closed`, … (osm.lat) |
 | **i18n** | **Español** en v1.0; cadenas UI/API externalizadas (archivos de locale) para traducir después sin reescribir lógica. |
 | **CSV** | Delimitador fijo **`;`**. UTF-8. Sin detección ni parámetro por import. |
-| **Catálogos roles / tipos doc** | Solo **seed YAML** en el repo + `prisma/seed` (redeploy). Sin pantalla admin en v1.0. |
+| **Catálogos roles / tipos doc** | Solo **seed YAML** en el repo + `prisma/seed` (redeploy). Cada tipo de doc trae `normalize` (`digits` \| `alnum` \| `raw`). Sin pantalla admin en v1.0. |
 | **Sede (venue)** | Import/alta escriben `certificates.venue_id` (y opcionalmente espejo en participante). Token `venue_name`: lee certificado → fallback `participants.venue_id`. |
 | **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` en plantillas `generated`; `legal_snapshot` en `/c/` de **ambos** modos). **Sin** flag `endorsed` por evento. |
 | **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. |
@@ -136,7 +136,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock) |
 | F1.10 | Búsqueda pública por email o documento |
 | F1.11 | Multi-rol: un certificado por rol |
-| F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI) + roles desde YAML anexos |
+| F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI, `normalize: digits`) + roles desde YAML anexos |
 | F1.13 | Tests unitarios + integración (ver §11) |
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
@@ -434,7 +434,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 
 - Generación de slug (unicidad, formato).
 - Transición `pending` → `issued` en primera visita; `pending` → `failed` al umbral de fallos.
-- Validación documento por país (`country_identity_config`).
+- Validación documento por país (`country_identity_config.normalize` + regex); unitarios de `digits` / `alnum` / `raw`.
 - Parser CSV participantes (roles múltiples, sede única inferida).
 - Resolución de campos de plantilla → payload de render.
 

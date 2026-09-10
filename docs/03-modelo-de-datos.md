@@ -61,18 +61,42 @@ Define tipos de documento válidos por código ISO de país.
 | country_code | CHAR(2) | ISO 3166-1 alpha-2 (`CO`, `MX`, `AR`…) |
 | doc_type_code | VARCHAR(10) | `CC`, `CE`, `TI`, `DNI`, `PASSPORT`… |
 | doc_type_label | VARCHAR(100) | Etiqueta UI: "Cédula de ciudadanía" |
-| validation_regex | VARCHAR(255) | NULL = solo longitud mínima |
+| normalize | VARCHAR(10) | Estrategia de `doc_number`: `digits` \| `alnum` \| `raw`. **NOT NULL.** Ver §3.2. |
+| validation_regex | VARCHAR(255) | NULL = no hay regex (solo el resultado de normalizar no vacío) |
 | display_order | INT | Orden en selectores |
+
+**Constraints:** UNIQUE `(country_code, doc_type_code)`. Seed inválido (p. ej. `normalize` ausente o distinto de los tres valores) → **falla el seed**, no hay default silencioso a `digits`.
 
 **Colombia (seed inicial):**
 
-| country_code | doc_type_code | doc_type_label |
-|--------------|---------------|----------------|
-| CO | CC | Cédula de ciudadanía |
-| CO | CE | Cédula de extranjería |
-| CO | TI | Tarjeta de identidad |
+| country_code | doc_type_code | doc_type_label | normalize |
+|--------------|---------------|----------------|-----------|
+| CO | CC | Cédula de ciudadanía | `digits` |
+| CO | CE | Cédula de extranjería | `digits` |
+| CO | TI | Tarjeta de identidad | `digits` |
 
-Otros países se añaden por **datos de configuración**, no cambios de código.
+Otros países (o un `PASSPORT` alfanumérico en CO) se añaden por **YAML + seed + redeploy**, no por `if (country === 'CO')` en código. Anexo: [`anexos/seed/country-identity-co.yaml`](./anexos/seed/country-identity-co.yaml).
+
+### 3.2. Normalización de `doc_number` (decisión cerrada)
+
+Misma función al **guardar** (alta, CSV, pregenerados) y al **buscar**. Vive en `packages/shared` (`normalize.ts`) y recibe la estrategia de la fila `(country_code, doc_type_code)`, **nunca** el código de país como rama.
+
+1. `trim`.
+2. Según `normalize`:
+   - **`digits`:** quitar espacios, puntos, comas y guiones; dejar **solo dígitos** (`0-9`).
+   - **`alnum`:** quitar espacios, puntos, comas y guiones; dejar `[A-Za-z0-9]`; persistir en **mayúsculas** (pasaporte, CURP, etc.).
+   - **`raw`:** solo `trim` (conserva puntuación interna y mayúsculas/minúsculas). Escape hatch; preferir `digits`/`alnum` en LATAM.
+3. Si el valor queda vacío → error de validación (antes del regex).
+4. Aplicar `validation_regex` **sobre el valor ya normalizado** (si no es NULL).
+5. Persistir solo la forma normalizada. El token `document` del PDF puede formatearse para mostrar; la BD guarda lo normalizado.
+
+Tipo de documento ausente del catálogo para ese país → **400** (no adivinar estrategia).
+
+```text
+entrada "12.345.678-9" + digits  → "123456789"
+entrada "ab-12 34"     + alnum   → "AB1234"
+entrada "  AB-12  "    + raw     → "AB-12"
+```
 
 ---
 
@@ -153,11 +177,7 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 - Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo email (no otro participante).
 - Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
 - Búsqueda pública por email: comparar contra el valor normalizado.
-- **Normalización de `doc_number` (decisión cerrada):** al guardar (alta, CSV, pregenerados) y al buscar:
-  1. Quitar espacios, puntos, comas y guiones.
-  2. Para tipos numéricos de Colombia (`CC`, `CE`, `TI`, … según seed): dejar **solo dígitos**.
-  3. Aplicar `validation_regex` del país **sobre el valor ya normalizado**.
-  4. Persistir solo la forma normalizada (la UI puede mostrar lo que el usuario escribió en el PDF vía token `document` formateado si se desea; el valor en BD es el normalizado).
+- **Normalización de `doc_number`:** ver [§3.2](#32-normalización-de-doc_number-decisión-cerrada). La estrategia sale de `country_identity_config.normalize` (`digits` \| `alnum` \| `raw`), no de un `if` por país.
 - **País en búsqueda por documento:** siempre obligatorio en el formulario cuando se busca por documento (forma parte del índice `(event_id, country_code, doc_type_code, doc_number)`). En AC3 el país también es obligatorio en el alta. En osm.lat, si solo se busca por email, el país no aplica.
 
 > **Nota:** los **roles** no van aquí; van en `certificates`. La **sede** no forma parte de la clave del certificado: una persona es asistente/ponente/… del **evento**; si hubo varias sedes, se elige una sede “de contexto” (o ninguna) para el texto del PDF.
@@ -665,4 +685,6 @@ CREATE INDEX idx_badge_classes_type ON badge_classes(type, is_active);
 CREATE UNIQUE INDEX idx_badge_classes_event_role
   ON badge_classes(event_id, role_code) WHERE type = 'event_role';
 CREATE INDEX idx_events_year_status ON events(year, status);
+CREATE UNIQUE INDEX idx_country_identity_country_type
+  ON country_identity_config(country_code, doc_type_code);
 ```

@@ -1,15 +1,25 @@
 # Seed: country_identity_config (Colombia initial)
+# normalize is per document type (digits | alnum | raw), not hardcoded by country.
 country_code: CO
 document_types:
   - code: CC
     label: Cédula de ciudadanía
+    normalize: digits
     validation_regex: "^[0-9]{6,10}$"
     display_order: 1
   - code: CE
     label: Cédula de extranjería
+    normalize: digits
     validation_regex: "^[0-9]{6,10}$"
     display_order: 2
   - code: TI
     label: Tarjeta de identidad
+    normalize: digits
     validation_regex: "^[0-9]{10,11}$"
     display_order: 3
+# Example of a future alphanumeric type (do not seed until the instance needs it):
+# - code: PASSPORT
+#   label: Pasaporte
+#   normalize: alnum
+#   validation_regex: "^[A-Z0-9]{6,9}$"
+#   display_order: 4

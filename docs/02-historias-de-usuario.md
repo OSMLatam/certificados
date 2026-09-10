@@ -113,7 +113,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 5. Varios eventos/años → todos en la misma respuesta.
 6. Si no hay coincidencias: **mensaje genérico** (“No encontramos credenciales con esos datos”); no confirmar si el documento existe en el sistema.
 7. **Rate limiting** en búsqueda (Must, Fase 1). Captcha/Turnstile ante abuso persistente (Should, Fase 3). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga).
-8. Número de documento: normalizar igual que en el alta (quitar puntuación/espacios; CO → solo dígitos) antes de comparar.
+8. Número de documento: normalizar con la **misma** función que el alta (`country_identity_config.normalize`: `digits` \| `alnum` \| `raw`) antes de comparar. Ver [03 §3.2](./03-modelo-de-datos.md).
 
 **Ejemplo de uso:**
 
@@ -376,11 +376,11 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. Colombia: tipos `CC`, `CE`, `TI` + número.
-2. Configuración por país define tipos válidos, etiquetas y `validation_regex` (**seed YAML** en el repo + redeploy; sin pantalla admin en v1.0 — ver [05](./05-personalizacion-multi-instancia.md)).
-3. Búsqueda pública por documento solicita **país + tipo + número**; el número se normaliza antes de buscar ([03](./03-modelo-de-datos.md)).
+1. Colombia: tipos `CC`, `CE`, `TI` + número (`normalize: digits` en el seed).
+2. Configuración por país define tipos válidos, etiquetas, **`normalize`** (`digits` \| `alnum` \| `raw`) y `validation_regex` (**seed YAML** en el repo + redeploy; sin pantalla admin en v1.0 — ver [05](./05-personalizacion-multi-instancia.md)). Añadir un pasaporte alfanumérico = fila YAML, no cambio de código.
+3. Búsqueda pública por documento solicita **país + tipo + número**; el número se normaliza con la estrategia de ese tipo antes de buscar ([03 §3.2](./03-modelo-de-datos.md)).
 4. Correo electrónico sigue siendo identificador alternativo válido.
-5. Al alta/CSV: normalizar `doc_number` y validar regex **después** de normalizar.
+5. Al alta/CSV: normalizar `doc_number` según `normalize` y validar regex **después** de normalizar.
 
 ---
 

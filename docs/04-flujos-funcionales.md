@@ -230,11 +230,12 @@ No se usa plantilla visual ni renderizador; el archivo subido **es** el certific
 flowchart TD
     A[Evento con country_code=CO] --> B[Cargar tipos CC CE TI]
     B --> C[Formulario público muestra select tipo + número]
-    C --> D[Validar regex/config]
-    D --> E[Buscar participant]
+    C --> D[Normalizar según config.normalize]
+    D --> E[Validar regex]
+    E --> F[Buscar participant]
 ```
 
-Para evento en otro país, se cargan tipos desde `country_identity_config` sin despliegue de código nuevo.
+Para evento en otro país, se cargan tipos (y su `normalize`) desde `country_identity_config` sin despliegue de código nuevo.
 
 ---
 
@@ -283,7 +284,7 @@ Badge OSM (u otro) sin certificado:
 | T3 | Participante 2 roles | 2 slugs distintos en búsqueda |
 | T4 | Evento 1 sede (**admin**/CSV) | Formulario admin sin selector sede; sede inferida |
 | T5 | Evento 3 sedes (**admin**/CSV) | Selector de sede visible en alta admin/CSV |
-| T6 | Doc CO CC + número válido | Encuentra certificados (búsqueda **pública**; sin sede) |
+| T6 | Doc CO CC + número con puntos | Encuentra certificados (búsqueda **pública**; `normalize: digits`) |
 | T7 | Certificado pregenerado | Sirve archivo original |
 | T8 | Revocado | Permalink sin documento descargable |
 | T9 | AC3 generado | Incluye NIT en PDF y en `/c/` vía snapshot |

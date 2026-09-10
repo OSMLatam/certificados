@@ -167,19 +167,22 @@ country_code: CO
 document_types:
   - code: CC
     label: Cédula de ciudadanía
+    normalize: digits
     validation_regex: "^[0-9]{6,10}$"
     display_order: 1
   - code: CE
     label: Cédula de extranjería
+    normalize: digits
     validation_regex: "^[0-9]{6,10}$"
     display_order: 2
   - code: TI
     label: Tarjeta de identidad
+    normalize: digits
     validation_regex: "^[0-9]{10,11}$"
     display_order: 3
 ```
 
-Archivo canónico: [`docs/anexos/seed/country-identity-co.yaml`](./anexos/seed/country-identity-co.yaml). Añadir México, Argentina, etc. = nuevo YAML + seed + redeploy.
+Archivo canónico: [`docs/anexos/seed/country-identity-co.yaml`](./anexos/seed/country-identity-co.yaml). `normalize` es **por tipo** (`digits` \| `alnum` \| `raw`), no un `if` de país en código. Añadir México, Argentina o un `PASSPORT` = nuevo YAML + seed + redeploy.
 
 | Recurso | Aislamiento |
 |---------|-------------|

@@ -271,7 +271,7 @@ shared/src/
 │   ├── field-tokens.ts     # catálogo canónico: full_name, certificate_slug, permalink_qr, legal.nit, …
 │   └── instance.ts         # InstanceId enum
 ├── lib/
-│   └── normalize.ts        # email trim+lower; doc_number (strip + dígitos CO)
+│   └── normalize.ts        # email trim+lower; doc_number via config.normalize (digits|alnum|raw)
 └── csv/
     └── parse-participants.ts
 ```
@@ -539,7 +539,7 @@ model Certificate { id, slug /* nanoid 12 */, status /* pending|issued|failed|re
 model StoredFile { id, storageKey, mimeType, checksumSha256, ... }
 model AdminUser { id, osmId, osmUsername, role, isActive, lastLoginAt, ... }
 model AdminSession { id, adminUserId, data Json, expiresAt, ... }
-model CountryIdentityConfig { ... }
+model CountryIdentityConfig { countryCode, docTypeCode, normalize /* digits|alnum|raw */, validationRegex?, ... }
 model AuditLog { ... }
 model PermalinkAccessLog { ... }
 ```

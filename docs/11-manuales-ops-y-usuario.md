@@ -28,7 +28,7 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 2. **Variables de entorno** — referencia a [`.env.example`](../.env.example) en la raíz del repo; secretos (dónde viven, rotación).
 3. **OAuth OSM** — registrar app, `OSM_OAUTH_*`; en osm.lat F3 registrar **dos** redirect URI (admin + público HU-10.5); scopes solo identidad / `read_prefs`.
 4. **Bootstrap admin** — `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`; primer login.
-5. **Migraciones y seed** — Prisma migrate, `country_identity` + roles.
+5. **Migraciones y seed** — Prisma migrate, `country_identity` (`normalize` por tipo) + roles.
 6. **Storage MinIO** — bucket, acceso, que los PDF `issued` no se regeneran.
 7. **Backups** — `pg_dump` + sync MinIO **pareados**, off-host; frecuencia; retención.
 8. **Restore** — procedimiento; verificación de que BD y objetos coinciden; no regenerar PDF a ciegas.
