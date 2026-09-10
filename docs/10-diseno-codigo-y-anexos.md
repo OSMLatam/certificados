@@ -168,12 +168,13 @@ GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no cr
   → CertificatesService.resolvePublic(slug, { isCrawler })
        → si failed && !isCrawler: 200 { status: "failed" }  # no Puppeteer
        → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
-            → PdfService.render(...)
-            → StorageService.put(pdf)
-            → update { stored_file_id, legal_snapshot?, issued_at, status=issued, issue_attempts }
-            → si PDF falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
+            → si generated: PdfService.render(...) → StorageService.put(pdf)
+            → si pregenerated: archivo ya en storage (no Puppeteer)
+            → si INSTANCE=ac3: copiar instance_legal → legal_snapshot
+            → update { stored_file_id?, legal_snapshot?, issued_at, status=issued, issue_attempts }
+            → si PDF (generated) falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
                  queda pending; incrementa issue_attempts; HTTP 503
-            → si PDF falla y attempts alcanza MAX: status=failed; HTTP 503 (ese request);
+            → si PDF (generated) falla y attempts alcanza MAX: status=failed; HTTP 503 (ese request);
                  visitas siguientes: 200 failed, sin render
        → si pending && isCrawler: devolver metadata/OG sin emitir
        → si issued: leer stored_file metadata

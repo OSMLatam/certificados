@@ -60,7 +60,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | PDF | A4 landscape @ 150 DPI; tipografías abiertas embebidas |
 | CSV import | Atómico (solo CSV); error → 0 escrituras |
 | Sesión admin | Cookie + tabla `admin_sessions` (Postgres; sin Redis en F1/F2) |
-| Legal AC3 | Tabla `instance_legal` + bootstrap ENV; snapshot al emitir |
+| Legal AC3 | Tabla `instance_legal` + bootstrap ENV; `legal_snapshot` al `issued` (generated y pregenerated) |
 | Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending o failed); crawlers no emiten; `failed` no relanza Chromium |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 | Formato Open Badges | **2.0 hosted** en v1.0; OBv3 + firma = post-v1.0 ([06](./06-open-badges.md)) |

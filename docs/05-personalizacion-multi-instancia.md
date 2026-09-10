@@ -107,7 +107,7 @@ Bootstrap opcional al deploy: `LEGAL_ENTITY_NAME`, `LEGAL_NIT`, `LEGAL_REPRESENT
 | Uso | Cómo |
 |-----|------|
 | PDF | Capas `legal.*` en `layout` |
-| Verify `/c/` | Muestra `legal_snapshot` del certificado (AC3) |
+| Verify `/c/` | `issued`: muestra `legal_snapshot` del certificado (AC3). `pending`/`failed`: sin bloque legal estructurado. |
 | Open Badges Issuer | `name` / `description` del issuer |
 
 osm.lat: sin fila / sin capas `legal.*`.

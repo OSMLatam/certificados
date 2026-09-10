@@ -47,9 +47,9 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
 | **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
 | **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). Sin emisión forzada/masiva en v1.0. |
-| **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al emitir PDF (`issued`, `generated`): copia a `certificates.legal_snapshot` e incrusta en PDF. Cambios posteriores solo afectan emisiones nuevas. |
+| **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al pasar a `issued` (AC3, **ambos** modos): copia a `certificates.legal_snapshot`. En `generated` además se incrusta en el PDF. Cambios posteriores solo afectan emisiones nuevas. `/c/` de un `issued` **no** lee config vigente. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
-| **Pregenerados AC3** | Legal ya va en la imagen subida; no se aplica snapshot. |
+| **Pregenerados AC3** | El archivo no se re-renderiza (legal visual ya va en el upload). Igual se escribe `legal_snapshot` al `issued` para `/c/` y verify. |
 | **Slug permalink** | `nanoid` alfabeto `[A-Za-z0-9_-]`, **12 caracteres**; columna `VARCHAR(16)` (margen). |
 | **PDF** | A4 **landscape** @ **150 DPI** (canvas 1754×1240 px) en v1.0; tipografías abiertas embebidas; Puppeteer HTML→PDF. El campo `layout.canvas.orientation` existe por forward-compat; el editor **no** ofrece retrato en v1.0. |
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
@@ -64,7 +64,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; `PDF_MAX_ISSUE_ATTEMPTS=5`; PDF `issued` siempre desde MinIO (sin regenerar). |
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
-| **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
+| **Verify `/c/` legal AC3** | `issued`: muestra `legal_snapshot` del certificado, no config actual. `pending`/`failed`: sin bloque legal estructurado. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
 | **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
 | **Vínculo cert↔badge** | Solo FK `badge_assertions.certificate_id` (sin FK inversa en `certificates`). |
@@ -84,7 +84,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **CSV** | Delimitador fijo **`;`**. UTF-8. Sin detección ni parámetro por import. |
 | **Catálogos roles / tipos doc** | Solo **seed YAML** en el repo + `prisma/seed` (redeploy). Sin pantalla admin en v1.0. |
 | **Sede (venue)** | Import/alta escriben `certificates.venue_id` (y opcionalmente espejo en participante). Token `venue_name`: lee certificado → fallback `participants.venue_id`. |
-| **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` / `legal_snapshot` en `generated`). **Sin** flag `endorsed` por evento. |
+| **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` en plantillas `generated`; `legal_snapshot` en `/c/` de **ambos** modos). **Sin** flag `endorsed` por evento. |
 | **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. |
 | **Soft-delete restore** | Solo SQL: `UPDATE events SET deleted_at = NULL WHERE id = …`. Sin API/UI. Documentado en [11](./11-manuales-ops-y-usuario.md). |
 | **Supresión datos titular** | Fuera de v1.0 → [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
@@ -203,7 +203,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
 | F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
-| F2.7 | `legal_snapshot` en certificado al generar PDF |
+| F2.7 | `legal_snapshot` al pasar a `issued` (AC3: `generated` y `pregenerated`) |
 | F2.8 | Segundo perfil de despliegue (docker compose / ENV `INSTANCE=ac3`) |
 | F2.9 | Open Graph en `/c/` y `/b/` |
 | F2.10 | Botón redirect backpack (Badgr / Open Badge Passport URL template) |
@@ -237,7 +237,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 ### 3.4. Prompt sugerido para IA (Fase 2)
 
-> Sobre el código de Fase 1, implementa Fase 2 según `docs/09-plan-de-implementacion.md` sección 3, `docs/06-open-badges.md` y `docs/08-datos-legales-ac3-plantilla.md`. Emisión Open Badges = **2.0 hosted**. Añade legal_snapshot. No implementes osm_activity ni jobs OSM. Incluye tests unitarios e integración (§11).
+> Sobre el código de Fase 1, implementa Fase 2 según `docs/09-plan-de-implementacion.md` sección 3, `docs/06-open-badges.md` y `docs/08-datos-legales-ac3-plantilla.md`. Emisión Open Badges = **2.0 hosted**. Añade `legal_snapshot` al `issued` en AC3 (ambos modos; pregenerado sin reescribir el archivo). No implementes osm_activity ni jobs OSM. Incluye tests unitarios e integración (§11).
 
 ---
 
@@ -461,11 +461,11 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 
 **Unitarios:**
 
-- Copia `instance_legal` → `legal_snapshot` al emitir.
+- Copia `instance_legal` → `legal_snapshot` al pasar a `issued` (también `pregenerated`; el binario no cambia).
 - Creación `badge_assertion` **pending** al alta certificado; pasa a **issued** con el certificado.
 - Revocación en cascada certificado → badge `event_role`.
 
-**Integración (T13, T15 + AC3):**
+**Integración (T13, T15, T21 + AC3):**
 
 | Test | Verifica |
 |------|----------|
@@ -474,7 +474,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Revocar certificado | `/c/` y `/b/` en estado revocado |
 | Revocar badge OSM | `/b/` revoked; certificados intactos |
 | Alta tras revoke mismo rol | Nuevo slug; UNIQUE parcial OK |
-| Instancia AC3 | PDF contiene NIT del snapshot; config nueva no altera PDF viejo |
+| Instancia AC3 | PDF `generated` contiene NIT del snapshot; `/c/` de pregenerado muestra snapshot; config nueva no altera PDF ni página viejos |
 | `GET /api/v1/verify/c/{slug}` | JSON `{ valid: true/false }` |
 | Open Graph | Meta tags presentes en HTML de `/c/` y `/b/` |
 

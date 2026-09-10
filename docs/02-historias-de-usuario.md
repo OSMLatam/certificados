@@ -156,7 +156,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. La página del permalink muestra: nombre, evento, rol, fecha, emisor (instancia).
 2. Indicador claro: **válido** / **pendiente** / **no generado** (`failed`) / **revocado** / **no encontrado**.
-3. Instancia AC3 muestra datos institucionales (NIT, razón social) en la página `/c/` vía `legal_snapshot` (todos los eventos de esa instancia).
+3. Instancia AC3 muestra datos institucionales (NIT, razón social) en la página `/c/` vía `legal_snapshot` de **todos** los certificados `issued` de esa instancia (`generated` y `pregenerated`). El archivo pregenerado no se reescribe. En `pending`/`failed` no hay bloque legal estructurado (aún no hay snapshot; no se usa `instance_legal` vigente).
 4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`). En `failed`: `{ valid: false, reason: "failed" }`.
 
 ---
@@ -195,6 +195,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 1. Las plantillas AC3 incluyen capas `legal.*` en el editor visual (ver HU-3.1 y [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md)).
 2. Los **valores** (NIT, razón social, etc.) vienen de **config de instancia** (HU-8.2), no se reescriben por evento ni por participante.
 3. osm.lat no ofrece capas `legal.*`.
+4. Un certificado **pregenerado** AC3 lleva el legal en el archivo subido; la página `/c/` muestra el mismo NIT/razón social vía `legal_snapshot` tomado al `issued` (sin re-render).
 
 **Nota técnica:** no hay subsistema “legal” aparte; es render de capas de plantilla + config AC3.
 
@@ -573,7 +574,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Valores también legibles al arranque desde ENV (`LEGAL_*`) como bootstrap opcional si la fila está vacía.
 3. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
 4. osm.lat: pantalla/`instance_legal` ausentes; capas `legal.*` no disponibles.
-5. Página `/c/` usa `legal_snapshot` del certificado; Issuer Open Badges lee `instance_legal` vigente (nuevas emisiones).
+5. Página `/c/` de un certificado **`issued`** usa `legal_snapshot` (ambos modos); no lee `instance_legal` vigente. Issuer Open Badges lee `instance_legal` vigente (nuevas emisiones).
 
 Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [03 §7.2](./03-modelo-de-datos.md).
 

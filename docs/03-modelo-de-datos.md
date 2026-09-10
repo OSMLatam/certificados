@@ -277,7 +277,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | issued_at | TIMESTAMPTZ | Primera emisión / activación |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| legal_snapshot | JSONB | NULL; copia de `instance_legal` al generar PDF (solo AC3, modo `generated`) |
+| legal_snapshot | JSONB | NULL; copia de `instance_legal` al pasar a `issued` (solo AC3; **ambos** modos). En `generated` también se incrusta en el PDF. |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
@@ -297,7 +297,7 @@ https://certificados.osm.lat/c/{slug}
 https://certificados.ac3.org.co/c/{slug}
 ```
 
-**`legal_snapshot`:** al pasar a `issued` en modo `generated` (instancia AC3), se persisten los valores vigentes de `instance_legal` (y se incrustan en el PDF). El PDF almacenado es inmutable. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
+**`legal_snapshot`:** al pasar a `issued` en instancia AC3 (**`generated` y `pregenerated`**), se persisten los valores vigentes de `instance_legal`. En `generated` además se incrustan en el PDF. En `pregenerated` el archivo subido no se toca; el snapshot alimenta `/c/` y verify. osm.lat: NULL. Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
 ---
 
@@ -562,7 +562,7 @@ Singleton lógico: **como máximo una fila** por despliegue. Fuente de verdad ed
 | updated_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | |
 
-**Render:** capas `legal.*` leen esta tabla (no el ENV en caliente). **Snapshot** al emitir: copia JSON a `certificates.legal_snapshot`. **osm.lat:** tabla vacía / no usada; el editor no ofrece capas `legal.*`.
+**Render:** capas `legal.*` leen esta tabla (no el ENV en caliente). **Snapshot** al pasar a `issued` (AC3, ambos modos): copia JSON a `certificates.legal_snapshot`. **osm.lat:** tabla vacía / no usada; el editor no ofrece capas `legal.*`.
 
 ---
 

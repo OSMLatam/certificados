@@ -69,7 +69,7 @@ sequenceDiagram
     else Válido
         alt mode = pregenerated
             alt Primera visita (pending → issued)
-                W->>DB: issued_at=now (archivo ya en storage)
+                W->>DB: issued_at=now; AC3: legal_snapshot (archivo intacto)
             end
             W->>DB: Obtener stored_file
             W-->>U: Servir imagen/PDF almacenado
@@ -101,7 +101,7 @@ sequenceDiagram
 2. La SPA `/c/` y la búsqueda llaman **siempre** a metadata antes de `/file`.
 3. **`/file` en `pending` o `failed` → HTTP 409** (no emite). En `issued`, sirve el archivo almacenado (no re-renderiza).
 4. El **slug no cambia** nunca.
-5. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
+5. En AC3, al pasar a `issued` se escribe `legal_snapshot` en **ambos** modos. Solo `generated` incrusta esos valores en el PDF; el pregenerado no se reescribe.
 6. Soft-delete del evento **no** invalida permalinks ya emitidos.
 7. Metadatos Open Graph (Fase 2): crawlers reciben preview **sin** emitir. API verify JSON en Fase 2.
 8. **Contrato rutas:** ver [10 §4.2](./10-diseno-codigo-y-anexos.md).
@@ -217,9 +217,10 @@ flowchart TD
     G --> H[Generar slug permalink + stored_file]
     H --> I[Participante recibe /c/slug]
     I --> J[Primera visita: pending → issued; sirve archivo subido]
+    J --> K[AC3: copia instance_legal → legal_snapshot; archivo intacto]
 ```
 
-No se usa plantilla visual ni renderizador; el archivo subido **es** el certificado. Estado inicial **`pending`** (igual que generated); al pasar a `issued` solo se fija `issued_at` y se sirve el archivo ya almacenado (sin Puppeteer). La **plantilla CSV** del panel solo estructura metadatos (`filename`, nombre, email, rol, …).
+No se usa plantilla visual ni renderizador; el archivo subido **es** el certificado. Estado inicial **`pending`** (igual que generated); al pasar a `issued` se fija `issued_at` y se sirve el archivo ya almacenado (sin Puppeteer). En AC3 se escribe `legal_snapshot` en ese mismo paso (página `/c/` / verify); el binario no cambia. La **plantilla CSV** del panel solo estructura metadatos (`filename`, nombre, email, rol, …).
 
 ---
 
@@ -285,7 +286,7 @@ Badge OSM (u otro) sin certificado:
 | T6 | Doc CO CC + número válido | Encuentra certificados (búsqueda **pública**; sin sede) |
 | T7 | Certificado pregenerado | Sirve archivo original |
 | T8 | Revocado | Permalink sin documento descargable |
-| T9 | AC3 generado | Incluye NIT en PDF |
+| T9 | AC3 generado | Incluye NIT en PDF y en `/c/` vía snapshot |
 | T10 | osm.lat generado | Sin NIT |
 | T11 | CSV 2 filas mismo doc distinto rol | 2 certificates |
 | T12 | Instancias separadas | Slug en AC3 no existe en osm.lat |
@@ -304,6 +305,7 @@ Badge OSM (u otro) sin certificado:
 | T14 | Import CSV osm_id | 3 | Assertions emitidas idempotentes |
 | T15 | Revocar certificado | 2 | Badge evento revocado |
 | T16 | Badge OSM sin certificado | 3 | Solo `/b/`, sin `/c/` |
+| T21 | AC3 pregenerado → issued | 2 | `/c/` y verify muestran `legal_snapshot`; el binario **no** cambia; config nueva no altera la página |
 
 ---
 
