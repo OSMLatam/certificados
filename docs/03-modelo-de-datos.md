@@ -99,6 +99,8 @@ Otros países se añaden por **datos de configuración**, no cambios de código.
 
 **Orden de creación:** el evento nace **sin** `default_template_id` (nullable). Tras crear la primera `certificate_template` del evento, el sistema la asigna como default si aún es NULL. Evita FK circular evento↔plantilla en el insert inicial.
 
+**Activar (`draft` → `active`) — precondición (cerrada):** si `pregenerated_only = false`, exige `default_template_id IS NOT NULL`; si no, **400**. Un `POST` que cree el evento ya `active` con `pregenerated_only=false` también es **400** (aún no hay plantilla). Detalle: [07 §2](./07-estados-y-ciclo-de-vida.md).
+
 **Regla UX:** si `venues` count = 1, la sede se infiere en consulta pública.  
 **Soft-delete:** excluir de listados admin y de **búsqueda pública** si `deleted_at` no es NULL. Los permalinks `/c/{slug}` y `/b/{slug}` **siguen resolviendo**. **Restore (v1.0):** solo SQL — `UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<uuid>';` (sin API/UI). Ver [11](./11-manuales-ops-y-usuario.md).
 
@@ -208,7 +210,7 @@ Diseño visual para certificados generados.
 - **Un** mecanismo de default: `role_code IS NULL` = plantilla default.
 - `events.default_template_id` **apunta** a esa fila (se setea al crear la primera plantilla del evento si aún es NULL, o al marcar otra como default).
 - `UNIQUE (event_id, role_code)` — como máximo una default (`NULL`) y una plantilla por rol. (En PostgreSQL usar índice único parcial / `NULL`s distintos según convención Prisma: preferir coacción `role_code` vacío vs NULL documentada en schema, o unique `(event_id, coalesce(role_code,''))`.)
-- Resolución al **crear** certificado `pending` modo `generated`: si existe plantilla con `role_code` = rol del certificado → esa; si no → la default (`role_code` NULL). Se persiste en `certificates.template_id` en ese momento.
+- Resolución al **crear** certificado `pending` modo `generated`: si existe plantilla con `role_code` = rol del certificado → esa; si no → la default (`role_code` NULL). Se persiste en `certificates.template_id` en ese momento. **Si no hay override ni default → rechazar el alta** (400; en CSV atómico falla el lote). No se crea un `pending` que no pueda emitir.
 - Cambios posteriores al layout/default **no** alteran `template_id` de certificados `pending`/`issued` ya creados; nuevas altas sí usan la resolución actual.
 
 **`layout` (generado por editor visual, no editado a mano):**
@@ -268,7 +270,10 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | template_id | UUID FK | NULL si pregenerado; en `generated` se fija al crear `pending` (ver §4.5) |
 | stored_file_id | UUID FK | Archivo servido: pregenerado subido o PDF generado (inmutable tras `issued`) |
 | activity_title | TEXT | Override por rol (ej. charla); si NULL, usar `participants.activity_title` |
-| status | ENUM | `pending`, `issued`, `revoked` |
+| status | ENUM | `pending`, `issued`, `failed`, `revoked` |
+| issue_attempts | INT | Default 0; intentos de render en `generated`. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md). |
+| last_issue_error | TEXT | NULL; código corto del último fallo (`PDF_TIMEOUT`, …). |
+| last_issue_attempt_at | TIMESTAMPTZ | NULL |
 | issued_at | TIMESTAMPTZ | Primera emisión / activación |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
@@ -278,7 +283,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 
 **Constraints:**
 
-- UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
+- UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Incluye `pending`, `issued` y **`failed`**. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
 - UNIQUE `slug`.
 
 **Sede (decisión cerrada):** al alta individual o CSV, `venue_code` → se escribe en **`certificates.venue_id`** (y, si se desea consistencia, también en `participants.venue_id`). Token `venue_name`: leer `certificates.venue_id` → si NULL, fallback `participants.venue_id` → si NULL, vacío.
@@ -639,6 +644,7 @@ cert-carlos-ponente.pdf;Carlos López;carlos@mail.com;CO;CE;987654321;ponente
 ```sql
 CREATE UNIQUE INDEX idx_certificates_slug ON certificates(slug);
 CREATE INDEX idx_certificates_event ON certificates(event_id);
+CREATE INDEX idx_certificates_event_status ON certificates(event_id, status);
 CREATE UNIQUE INDEX idx_certificates_participant_role_active
   ON certificates(participant_id, role_code) WHERE status <> 'revoked';
 CREATE UNIQUE INDEX idx_participants_event_email ON participants(event_id, email);

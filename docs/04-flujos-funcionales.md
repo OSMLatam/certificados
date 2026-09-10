@@ -74,14 +74,22 @@ sequenceDiagram
             W->>DB: Obtener stored_file
             W-->>U: Servir imagen/PDF almacenado
         else mode = generated
-            alt Primera emisión (pending → issued)
+            alt Estado failed
+                W-->>U: Página “no se pudo generar” (sin Puppeteer)
+            else Primera emisión (pending → issued)
                 W->>R: Renderizar layout + datos (+ legal_snapshot AC3)
-                R-->>W: PDF/imagen
-                W->>DB: Guardar stored_file (inmutable)
+                alt Render OK
+                    R-->>W: PDF/imagen
+                    W->>DB: Guardar stored_file (inmutable)
+                    W-->>U: Documento + página verificable
+                else Alcanza PDF_MAX_ISSUE_ATTEMPTS
+                    W->>DB: status=failed
+                    W-->>U: Página “no se pudo generar”
+                end
             else Ya issued
                 W->>DB: Obtener stored_file cacheado
+                W-->>U: Documento + página verificable
             end
-            W-->>U: Documento + página verificable
         end
         W->>DB: INSERT permalink_access_log
     end
@@ -89,9 +97,9 @@ sequenceDiagram
 
 ### Reglas
 
-1. **Único disparador de emisión:** `GET /api/v1/public/certificates/{slug}` (metadata) si el cliente **no** es crawler/preview. Pasa `pending` → `issued`, fija `issued_at`. En modo `generated` **genera y almacena** el PDF; en `pregenerated` solo activa el estado.
+1. **Único disparador de emisión:** `GET /api/v1/public/certificates/{slug}` (metadata) si el cliente **no** es crawler/preview **y** el certificado está `pending`. Pasa `pending` → `issued`, fija `issued_at`. En modo `generated` **genera y almacena** el PDF; en `pregenerated` solo activa el estado. Si está `failed`, metadata **no** emite.
 2. La SPA `/c/` y la búsqueda llaman **siempre** a metadata antes de `/file`.
-3. **`/file` en `pending` → HTTP 409** (no emite). En `issued`, sirve el archivo almacenado (no re-renderiza).
+3. **`/file` en `pending` o `failed` → HTTP 409** (no emite). En `issued`, sirve el archivo almacenado (no re-renderiza).
 4. El **slug no cambia** nunca.
 5. En AC3, el PDF `generated` incluye `legal_snapshot` del momento de emisión.
 6. Soft-delete del evento **no** invalida permalinks ya emitidos.
@@ -281,6 +289,10 @@ Badge OSM (u otro) sin certificado:
 | T10 | osm.lat generado | Sin NIT |
 | T11 | CSV 2 filas mismo doc distinto rol | 2 certificates |
 | T12 | Instancias separadas | Slug en AC3 no existe en osm.lat |
+| T17 | Activar `generated` sin `default_template_id` | **400**; el evento sigue `draft` |
+| T18 | Alta `generated` sin plantilla resoluble | **400**; no se crea `pending` (CSV: lote 0 filas) |
+| T19 | Render falla `PDF_MAX_ISSUE_ATTEMPTS` veces | Pasa a `failed`; metadata posterior **no** lanza Puppeteer; `/file` **409** |
+| T20 | `POST …/retry-issue` sobre `failed` | Vuelve a `pending` (`issue_attempts=0`); la siguiente visita humana emite |
 
 ---
 
@@ -288,7 +300,7 @@ Badge OSM (u otro) sin certificado:
 
 | # | Caso | Fase | Esperado |
 |---|------|------|----------|
-| T13 | Alta certificado → badge pending; cert issued → badge issued | 2 | Assertion creada en pending al alta; `/b/` público solo tras issued; visitar `/b/` pending **no** emite |
+| T13 | Alta certificado → badge pending; cert issued → badge issued | 2 | Assertion creada en pending al alta; `/b/` público solo tras issued; visitar `/b/` pending **no** emite; cert `failed` deja el badge en `pending` |
 | T14 | Import CSV osm_id | 3 | Assertions emitidas idempotentes |
 | T15 | Revocar certificado | 2 | Badge evento revocado |
 | T16 | Badge OSM sin certificado | 3 | Solo `/b/`, sin `/c/` |
@@ -362,7 +374,8 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 |--------|------|------|-----|
 | GET | `/c/{slug}` | 1 | Página HTML verify (SPA) |
 | GET | `/api/v1/public/certificates/{slug}` | 1 | Metadata + lazy issue (no crawler) |
-| GET | `/api/v1/public/certificates/{slug}/file` | 1 | Stream PDF; **409 si pending** |
+| GET | `/api/v1/public/certificates/{slug}/file` | 1 | Stream PDF; **409 si pending o failed** |
+| POST | `/api/v1/admin/certificates/{id}/retry-issue` | 1 | `failed` → `pending`; no emite |
 | POST | `/api/v1/public/search` | 1 | Búsqueda por correo/doc (solo certificados) |
 | GET | `/api/v1/admin/auth/osm/start` | 1 | Inicio OAuth OSM |
 | GET | `/api/v1/admin/auth/osm/callback` | 1 | Callback OAuth → sesión |

@@ -158,7 +158,7 @@ certificados/
 | API routes | kebab o recurso plural | `/api/v1/admin/events` |
 | DTOs | Suffix `Dto` | `CreateEventDto` |
 | Servicios | Suffix `Service` | `CertificatesService` |
-| Estados / enums BD | inglés | `pending`, `issued`, `generated`, `pregenerated` |
+| Estados / enums BD | inglés | `pending`, `issued`, `failed`, `revoked`, `generated`, `pregenerated` |
 | Commits | Conventional Commits | `feat(certificates): emit on first visit` |
 
 ### 4.2. Flujo típico — emisión certificado
@@ -166,20 +166,25 @@ certificados/
 ```text
 GET /api/v1/public/certificates/:slug          # metadata + lazy issue (si no crawler)
   → CertificatesService.resolvePublic(slug, { isCrawler })
+       → si failed && !isCrawler: 200 { status: "failed" }  # no Puppeteer
        → si pending && !isCrawler: transitionToIssued()  # lock por certificate_id
             → PdfService.render(...)
             → StorageService.put(pdf)
-            → update { stored_file_id, legal_snapshot?, issued_at, status=issued }
-            → si PDF falla: queda pending; HTTP 503; reintento en siguiente visita
+            → update { stored_file_id, legal_snapshot?, issued_at, status=issued, issue_attempts }
+            → si PDF falla y attempts < PDF_MAX_ISSUE_ATTEMPTS:
+                 queda pending; incrementa issue_attempts; HTTP 503
+            → si PDF falla y attempts alcanza MAX: status=failed; HTTP 503 (ese request);
+                 visitas siguientes: 200 failed, sin render
        → si pending && isCrawler: devolver metadata/OG sin emitir
        → si issued: leer stored_file metadata
 GET /api/v1/public/certificates/:slug/file     # binario PDF/imagen
-  → si pending: HTTP 409 (no emite; el cliente debe llamar metadata primero)
+  → si pending o failed: HTTP 409 (no emite; el cliente debe llamar metadata primero)
   → si issued: stream desde MinIO (Content-Disposition: inline | attachment según ?download=1)
   → si revoked: 404 o 410 según OpenAPI
 
 SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
   → llama API metadata; si issued, enlace/iframe a /file
+  → si failed: indicador “no se pudo generar” (sin pedir /file)
   → búsqueda: mismo orden (metadata → luego /file si aplica)
 ```
 
@@ -189,7 +194,7 @@ SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
 |------------|------|-----------------|
 | HTML verify | `/c/{slug}` (web) | Página humana; llama metadata; no regenera PDF |
 | Metadata JSON | `GET /api/v1/public/certificates/{slug}` | **Único** disparador de lazy issue (excepto crawlers) |
-| Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream desde storage; **409 si pending** |
+| Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream desde storage; **409 si pending o failed** |
 | Descarga forzada | mismo `/file?download=1` | `Content-Disposition: attachment` |
 | Crawler / OG | misma metadata | Respuesta sin `transitionToIssued` |
 
@@ -198,8 +203,9 @@ SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
 Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppeteer:
 
 1. `SELECT … FOR UPDATE` (o advisory lock por `certificate_id`) dentro de la transición.
-2. El segundo request espera el lock; si ya está `issued`, sirve el archivo.
+2. El segundo request espera el lock; si ya está `issued`, sirve el archivo; si pasó a `failed`, no relanza Chromium.
 3. `PDF_CONCURRENCY` limita Chromium **globales** de la instancia; el lock es **por certificado**.
+4. Un certificado `failed` **nunca** entra a `transitionToIssued` hasta `POST …/retry-issue`.
 
 ### 4.3. Formato de errores API
 
@@ -233,7 +239,7 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 | `/about` | 1 | `AboutPage` (atribución software — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | `/c/:slug` | 1 | `CertificatePublicPage` |
 | `/admin/login` | 1 | `AdminLoginPage` (botón OAuth OSM; sin form password) |
-| `/admin` | 1 | `AdminDashboardPage` (**F1:** conteos básicos eventos/participantes/certificados pending\|issued; **F2+:** + badges, legal, revocaciones — HU-7.2) |
+| `/admin` | 1 | `AdminDashboardPage` (**F1:** conteos básicos eventos/participantes/certificados pending\|issued\|failed; **F2+:** + badges, legal, revocaciones — HU-7.2) |
 | `/admin/users` | 1 | `AdminUsersPage` (solo rol `admin`; HU-7.4) |
 | `/admin/events` | 1 | `EventsListPage` |
 | `/admin/events/:id` | 1 | `EventDetailPage` (participantes, plantillas) |
@@ -285,7 +291,7 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX` | 1 |
-| PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS` | 1 |
+| PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS` | 1 |
 | Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
 | Legal AC3 | Tabla `instance_legal` + bootstrap `LEGAL_*` opcional | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
@@ -423,7 +429,8 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 |-------|----------|
 | PDF `issued` | **Inmutable**: servir desde MinIO; **nunca** regenerar en visita pública |
 | Primera emisión | Cola o semáforo: máx. **`PDF_CONCURRENCY=1`** (default) procesos Chromium simultáneos por instancia |
-| Timeout PDF | `PDF_TIMEOUT_MS` (ej. 30s); fallo → 503 + reintento admin, no saturar |
+| Timeout PDF | `PDF_TIMEOUT_MS` (ej. 30s); fallo transitorio → 503 + `issue_attempts++`; al alcanzar `PDF_MAX_ISSUE_ATTEMPTS` (default 5) → `failed` (sin más Chromium hasta `retry-issue`) |
+| Dead-letter | Certificados `failed` visibles en ficha del evento; `POST /api/v1/admin/certificates/{id}/retry-issue` |
 | Preview admin | Misma cola/semáforo; no lanzar N Chromium en paralelo desde el editor |
 | Jobs masivos | Solo vía BullMQ (admin o cron); chunks pequeños; backoff |
 | Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; sesiones en Postgres (`admin_sessions`); límites PDF en-proceso |
@@ -435,10 +442,10 @@ Al escribir código de Fase 1 en adelante:
 
 1. Todo endpoint público nuevo → decidir bucket de throttle y documentarlo en OpenAPI.
 2. Ninguna ruta pública debe disparar Puppeteer si el PDF ya está en storage.
-3. **Solo** metadata (no crawler) llama a `transitionToIssued`; `/file` en `pending` → **409**.
+3. **Solo** metadata (no crawler) llama a `transitionToIssued` y **solo** si `pending`; `/file` en `pending`/`failed` → **409**; `failed` no lanza Puppeteer.
 4. Ningún listado masivo sin sesión admin.
 5. Incluir `robots.txt` en el artefacto `web` (o nginx).
-6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending → **409**; UA preview no emite (ver [09 §11](./09-plan-de-implementacion.md)).
+6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium (ver [09 §11](./09-plan-de-implementacion.md)).
 
 ---
 
@@ -502,6 +509,7 @@ paths:
   /admin/events/{id}/participants/import/template: GET  # CSV plantilla
   /admin/events/{id}/templates: GET, POST, PATCH
   /admin/events/{id}/certificates: GET, POST
+  /admin/certificates/{id}/retry-issue: POST  # failed → pending (F1)
   /admin/certificates/{id}/pregenerated: POST   # multipart file (1:1)
   /admin/events/{id}/pregenerated/import: POST  # sheet + ZIP
   /admin/events/{id}/pregenerated/import/template: GET  # CSV plantilla
@@ -526,7 +534,7 @@ model Event { id, name, year, startDate, endDate, countryCode, allowedRoles Json
 model Venue { ... }
 model Participant { id, eventId, email /* unique per event, normalized */, ... }
 model CertificateTemplate { id, eventId, roleCode?, layout Json, backgroundFileId /* StoredFile */, ... }
-model Certificate { id, slug /* nanoid 12 */, status, mode, legalSnapshot Json?, storedFileId, ... }
+model Certificate { id, slug /* nanoid 12 */, status /* pending|issued|failed|revoked */, mode, issueAttempts, lastIssueError?, lastIssueAttemptAt?, legalSnapshot Json?, storedFileId, ... }
 model StoredFile { id, storageKey, mimeType, checksumSha256, ... }
 model AdminUser { id, osmId, osmUsername, role, isActive, lastLoginAt, ... }
 model AdminSession { id, adminUserId, data Json, expiresAt, ... }

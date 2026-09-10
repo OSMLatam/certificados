@@ -35,6 +35,7 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 | Eventos, sedes, participantes, plantillas, CSV, pregenerados | Sí | Sí (hereda) |
 | Soft-delete evento | Solo si es **creador** del evento | Sí |
 | Revocar certificado / badge | Sí | Sí |
+| Reintentar emisión (`failed` → `pending`) | Sí | Sí |
 | Badges actividad OSM (osm.lat) | Sí | Sí |
 | Enviar email con link de certificado | Sí | Sí |
 | Config legal AC3 (pantalla instancia) | No | Sí |
@@ -44,7 +45,7 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 **Soft-delete:** el evento deja de listarse (`deleted_at`); **restore solo vía SQL** (`UPDATE … SET deleted_at = NULL`) — sin endpoint ni pantalla (poca frecuencia). Los permalinks `/c/{slug}` y `/b/{slug}` **siguen sirviendo**. **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
 
-**Emisión de certificados:** solo **lazy** vía metadata `GET /api/v1/public/certificates/{slug}` (no crawlers); `/file` en `pending` → 409. No hay emisión forzada/masiva en v1.0.
+**Emisión de certificados:** solo **lazy** vía metadata `GET /api/v1/public/certificates/{slug}` (no crawlers); `/file` en `pending` o `failed` → 409. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin relanzar Chromium). No hay emisión forzada/masiva en v1.0. Ver [07](./07-estados-y-ciclo-de-vida.md).
 
 ### Privacidad pública (reglas fijas v1.0)
 
@@ -154,9 +155,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 **Criterios de aceptación:**
 
 1. La página del permalink muestra: nombre, evento, rol, fecha, emisor (instancia).
-2. Indicador claro: **válido** / **revocado** / **no encontrado**.
+2. Indicador claro: **válido** / **pendiente** / **no generado** (`failed`) / **revocado** / **no encontrado**.
 3. Instancia AC3 muestra datos institucionales (NIT, razón social) en la página `/c/` vía `legal_snapshot` (todos los eventos de esa instancia).
-4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`).
+4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`). En `failed`: `{ valid: false, reason: "failed" }`.
 
 ---
 
@@ -234,7 +235,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. Plantilla **default** del evento: fila con `role_code` NULL; `events.default_template_id` apunta a ella.
 2. Override opcional: como máximo **una** plantilla por `role_code` (`UNIQUE (event_id, role_code)`).
-3. Al crear certificado `pending` (`generated`), se resuelve y **fija** `certificates.template_id` (override del rol si existe; si no, default). Cambiar plantillas después no mueve los `pending` ya creados.
+3. Al crear certificado `pending` (`generated`), se resuelve y **fija** `certificates.template_id` (override del rol si existe; si no, default). **Sin override ni default → 400** (no se crea el certificado). Cambiar plantillas después no mueve los `pending`/`failed` ya creados; sí se puede corregir el layout de esa plantilla y reintentar.
 4. Editor visual compartido para todas las plantillas.
 
 ---
@@ -318,6 +319,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 1. Flag en evento: `pregenerated_only`.
 2. No exige plantilla visual; solo upload de archivos + metadatos mínimos.
+3. `draft` → `active` **sí** se permite sin `default_template_id` (excepción a la precondición de HU-5.1).
 
 ---
 
@@ -339,6 +341,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Eventos `draft` no aparecen en búsqueda pública. Eventos `active` sí, **incluso si la fecha del evento ya pasó**.
 3. Permalinks `/c/{slug}` y `/b/{slug}` **sí resuelven** (y pueden emitir) aunque el evento esté o haya estado siempre en `draft` — útil para probar antes de publicar. Soft-delete / desactivar: misma política de permalinks vivos.
 4. Un evento puede tener cero, una o muchas sedes.
+5. **Precondición de activación (Must):** un evento con `pregenerated_only = false` **no** pasa a `active` (ni se crea ya `active`) sin `default_template_id`. HTTP 400. Flujo: crear en `draft` → plantilla default → publicar. Ver [07 §2](./07-estados-y-ciclo-de-vida.md).
 
 ---
 
@@ -416,8 +419,8 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 1. Datos mínimos según instancia (ver tabla al inicio): osm.lat → nombre + email; AC3 → nombre + email + identificación. Email único por evento (rechazar duplicado).
 2. Selección múltiple de roles.
 3. Campo actividad/charla opcional (ponente, tallerista).
-4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado.
-5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)).
+4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado. En modo `generated`, si no hay plantilla de rol ni default → **400** (no se crea).
+5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)). Si el certificado queda `failed`, el badge sigue `pending`.
 6. Opcional: enviar email con **solo el enlace** `/c/{slug}` (From dedicado de la instancia; ver manual de operación). **Implementación: Fase 3** (SMTP); en Fases 1–2 el editor copia/comparte el permalink manualmente.
 
 **Estados y flujo:** ver documento [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md).
@@ -440,7 +443,7 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Columnas mínimas según instancia: siempre `full_name`, `email`, `role`; AC3 además país + tipo + número de documento.
 3. Múltiples filas con mismo email (y evento) y distinto rol → múltiples certificados (misma persona).
 4. **Email duplicado** (mismo evento + mismo email + mismo rol, o email ya en BD con datos conflictivos) → **rechazar**. Cada persona tiene su propio email.
-5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol).
+5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol). **Fila `generated` sin plantilla de rol ni default del evento:** error de validación (y, por atomicidad, falla el lote).
 6. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta como CSV.
 
 ---
@@ -481,8 +484,9 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 
 **Criterios de aceptación:**
 
-1. **Dashboard (editor y admin):** contadores — eventos activos, certificados emitidos, consultas a permalinks (ampliable en F2/F3).
+1. **Dashboard (editor y admin):** contadores — eventos activos, certificados emitidos, **`failed`**, consultas a permalinks (ampliable en F2/F3).
 2. **Audit log (solo admin):** quién, cuándo, qué acción, sobre qué entidad (incl. asignación de roles).
+3. **Emisión fallida (Must F1, ficha del evento — no el dashboard):** listar certificados `failed` y `pending` con `issue_attempts > 0` (`last_issue_error`, intentos). `POST /api/v1/admin/certificates/{id}/retry-issue` (editor y admin): `failed` → `pending`, `issue_attempts = 0`; no emite en el POST. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md).
 
 ---
 
@@ -503,8 +507,8 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Permalink `/c/` muestra revocación (sin descarga del PDF válido). API verify: `{ valid: false, reason: "revoked" }`.
 3. Si hay badge de evento vinculado, pasa a `revoked` en cascada.
 4. **Revocación directa de badge:** `POST /api/v1/admin/badges/{id}/revoke` (motivo opcional). Para `event_role`, preferir revocar el certificado (cascada). Para `osm_activity`, este endpoint es el camino normal.
-5. **Corrección de datos (decisión cerrada):** no hay PATCH de certificado `issued` ni regeneración del PDF. Procedimiento = **revocar + alta nueva** (nuevo slug). El UNIQUE `(participant_id, role_code)` es **parcial**: solo entre filas con `status <> 'revoked'`, para permitir la nueva emisión tras revocar.
-6. **Mientras `pending` (también en Fase 1):** sí se puede corregir metadatos del participante/certificado o borrar el pending y volver a dar de alta; aún no hay revocación en F1.
+5. **Corrección de datos (decisión cerrada):** no hay PATCH de certificado `issued` ni regeneración del PDF. Procedimiento = **revocar + alta nueva** (nuevo slug). El UNIQUE `(participant_id, role_code)` es **parcial:** solo entre filas con `status <> 'revoked'` (incluye `failed`), para permitir la nueva emisión tras revocar.
+6. **Mientras `pending` o `failed` (también en Fase 1):** sí se puede corregir metadatos del participante/certificado o borrar y volver a dar de alta; aún no hay revocación en F1. Desde `failed`, el camino de render es `retry-issue` (tras arreglar plantilla/fondo) o borrar+alta.
 7. RBAC: editor y admin (matriz).
 
 ---

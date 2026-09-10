@@ -33,7 +33,7 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 7. **Backups** — `pg_dump` + sync MinIO **pareados**, off-host; frecuencia; retención.
 8. **Restore** — procedimiento; verificación de que BD y objetos coinciden; no regenerar PDF a ciegas.
 9. **Health** — `/health`, `/ready`; qué mirar tras deploy.
-10. **Rate limits / PDF** — `THROTTLE_*`, `PDF_CONCURRENCY`; síntomas de saturación.
+10. **Rate limits / PDF** — `THROTTLE_*`, `PDF_CONCURRENCY`, `PDF_MAX_ISSUE_ATTEMPTS`; síntomas de saturación y certificados `failed`.
 11. **SMTP (F3)** — obligatorio en osm.lat para códigos de vínculo HU-10.5; también envío de enlace `/c/`. From dedicado, reputación, cola prudente.
 12. **Redis / BullMQ (F3)** — solo osm.lat jobs.
 13. **Upgrade** — `docker compose pull && up -d`; orden migrate.
@@ -54,25 +54,26 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 
 1. **Roles** — qué puede editor vs admin (RBAC).
 2. **Login** — “Iniciar sesión con OSM”; pantalla sin acceso.
-3. **Crear evento** — `draft` / `active`; qué pasa al desactivar (`active`→`draft`: sale de búsqueda, permalinks vivos).
+3. **Crear evento** — `draft` / `active`; evento `generated` se crea en `draft` y **no** se activa sin plantilla default; qué pasa al desactivar (`active`→`draft`: sale de búsqueda, permalinks vivos).
 4. **Sedes** — 0 / 1 / N; inferencia; sede = texto en certificado, no identidad.
 5. **Plantilla visual** — fondo, capas, preview; A4 @ 150 DPI; fuentes abiertas.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
 7. **Pregenerados** — 1:1 y sheet+ZIP; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
-9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (metadata; crawlers no emiten; `/file` pending → 409).
+9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (metadata; crawlers no emiten; `/file` pending/failed → 409; `failed` = “no se pudo generar”).
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).
-11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending` sí se puede corregir antes de la 1ª visita.
-12. **Legal AC3 (F2)** — pantalla admin; capas `legal.*`.
-13. **Badges OSM (F3, osm.lat)** — BadgeClass, import awardees, job (visión de editor).
-14. **Soft-delete** — ocultar evento vs revocar credencial. **Restore** (solo ops):
+11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending`/`failed` sí se puede corregir; `retry-issue` desde `failed` (F1).
+12. **Emisión fallida (F1)** — listado en ficha del evento; umbral `PDF_MAX_ISSUE_ATTEMPTS`; no relanzar Chromium en `failed`.
+13. **Legal AC3 (F2)** — pantalla admin; capas `legal.*`.
+14. **Badges OSM (F3, osm.lat)** — BadgeClass, import awardees, job (visión de editor).
+15. **Soft-delete** — ocultar evento vs revocar credencial. **Restore** (solo ops):
 
 ```sql
 UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<event-uuid>';
 ```
 
 Sin pantalla ni API de restore en v1.0.
-15. **Datos del titular** — consentimiento en plataforma de registro externa; solicitudes de supresión/corrección en v1.0 = procedimiento ops manual / post-v1.0 ([01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)).
+16. **Datos del titular** — consentimiento en plataforma de registro externa; solicitudes de supresión/corrección en v1.0 = procedimiento ops manual / post-v1.0 ([01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)).
 
 ### 3.2. No incluir
 

@@ -29,7 +29,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | [04 — Flujos funcionales](./04-flujos-funcionales.md) | Permalinks, búsqueda, emisión |
 | [05 — Multi-instancia](./05-personalizacion-multi-instancia.md) | Config osm.lat / AC3, despliegue, **atribución del software (§10)** |
 | [06 — Open Badges](./06-open-badges.md) | Issuer, event_role, osm_activity |
-| [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md) | pending / issued / revoked |
+| [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md) | pending / issued / failed / revoked |
 | [08 — Datos legales AC3](./08-datos-legales-ac3-plantilla.md) | Config instancia + capas `legal.*` |
 | [09 — Plan de implementación](./09-plan-de-implementacion.md) | Stack, 3 fases, prompts IA, pruebas (§11) |
 | [10 — Diseño de código](./10-diseno-codigo-y-anexos.md) | Monorepo, módulos Nest, ENV, health, **seguridad/abuso/carga (§10)**, CSV/seeds |
@@ -61,7 +61,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | CSV import | Atómico (solo CSV); error → 0 escrituras |
 | Sesión admin | Cookie + tabla `admin_sessions` (Postgres; sin Redis en F1/F2) |
 | Legal AC3 | Tabla `instance_legal` + bootstrap ENV; snapshot al emitir |
-| Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending); crawlers no emiten |
+| Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending o failed); crawlers no emiten; `failed` no relanza Chromium |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 | Formato Open Badges | **2.0 hosted** en v1.0; OBv3 + firma = post-v1.0 ([06](./06-open-badges.md)) |
 

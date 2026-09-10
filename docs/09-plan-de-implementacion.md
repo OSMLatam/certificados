@@ -42,11 +42,11 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 
 | Tema | Decisión |
 |------|----------|
-| **Estado del evento** | `draft` \| `active`. Evento pasado sigue `active` (certificados visibles en búsqueda y permalink). `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). |
+| **Estado del evento** | `draft` \| `active`. Evento pasado sigue `active` (certificados visibles en búsqueda y permalink). `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). **`draft` → `active`** de un evento `generated` (`pregenerated_only=false`) **exige** `default_template_id`; si no, 400. El evento `generated` no se crea ya `active`. |
 | **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
-| **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
-| **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Sin emisión forzada/masiva en v1.0. |
+| **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
+| **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). Sin emisión forzada/masiva en v1.0. |
 | **Datos legales AC3** | Tabla `instance_legal` (singleton) + pantalla admin; ENV `LEGAL_*` solo bootstrap. Al emitir PDF (`issued`, `generated`): copia a `certificates.legal_snapshot` e incrusta en PDF. Cambios posteriores solo afectan emisiones nuevas. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | Legal ya va en la imagen subida; no se aplica snapshot. |
@@ -57,12 +57,12 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Email participante** | Obligatorio; **UNIQUE `(event_id, email)`** normalizado (`trim`+`lower`); duplicado → rechazar. Misma persona + otro rol = OK. |
 | **Documento** | Al guardar y buscar: quitar espacios/puntos/comas/guiones; CO → solo dígitos; validar regex **después**. País obligatorio en búsqueda por documento. Detalle: [03](./03-modelo-de-datos.md). |
 | **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
-| **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending` → 409** (no emite). |
-| **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF → `pending` + 503. |
+| **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending`/`failed` → 409** (no emite). |
+| **Emisión concurrente** | Lock por `certificate_id` en `transitionToIssued`; fallo PDF transitorio → `pending` + 503; al umbral → `failed`. |
 | **Crawlers / Open Graph** | Detectar UA de preview (LinkedIn, WhatsApp, Slack, …): metadata/OG **sin** emitir (`PREVIEW_BOT_UA_REGEX`). |
 | **Búsqueda pública** | Solo email **o** (país + tipo + número de documento). Rate limit: **10 req/min/IP**. Documento normalizado al comparar. |
 | **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
-| **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; PDF `issued` siempre desde MinIO (sin regenerar). |
+| **Carga PDF** | `PDF_CONCURRENCY=1` por defecto; `PDF_MAX_ISSUE_ATTEMPTS=5`; PDF `issued` siempre desde MinIO (sin regenerar). |
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
 | **Verify `/c/` legal AC3** | Muestra datos de `legal_snapshot` del certificado, no config actual. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
@@ -70,7 +70,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Vínculo cert↔badge** | Solo FK `badge_assertions.certificate_id` (sin FK inversa en `certificates`). |
 | **Open Badges (formato)** | **v2.0 hosted** (JSON-LD; verificación por URL de assertion). No OBv3 ni `proof` en v1.0 — [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). Detalle: [06](./06-open-badges.md). |
 | **Revocación** | F2 Must: `POST …/certificates/{id}/revoke` y `POST …/badges/{id}/revoke`. Motivo opcional. Cascada cert → badge evento. |
-| **Corrección de emitidos** | **Revocar + alta nueva** (nuevo slug). Sin PATCH/regenerar PDF `issued`. UNIQUE parcial excluye `revoked`. En `pending` sí se puede editar/reemplazar (F1+). |
+| **Corrección de emitidos** | **Revocar + alta nueva** (nuevo slug). Sin PATCH/regenerar PDF `issued`. UNIQUE parcial excluye `revoked` (incluye `failed`). En `pending`/`failed` sí se puede editar/reemplazar (F1+); `retry-issue` desde `failed`. |
 | **Plantilla fondo** | `certificate_templates.background_file_id` → `stored_files`. |
 | **Soft-delete evento** | Sale de listados y búsqueda; permalinks `/c/` y `/b/` **siguen vivos**. |
 | **OSM — vínculo email (HU-10.5)** | **Must F3 osm.lat.** OAuth público (mismo client, redirect distinto) + cookie `cert_mapper_session` + `mapper_sessions` + `osm_email_link_codes` (TTL 20 min) + SMTP. Vista `/me` solo con sesión. `osm_profiles.email` + `linked_at` (1:1); sin `participant_id`. |
@@ -132,7 +132,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.5 | Plantillas: upload fondo + editor Konva; tokens canónicos `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink_qr` |
 | F1.6 | Generación PDF (Puppeteer) + almacenamiento MinIO; **PDF inmutable** al pasar a `issued` |
 | F1.7 | Certificados `generated`/`pregenerated`; import sheet+ZIP (lote ≤ **100 MB**, `;`) + plantilla CSV |
-| F1.8 | Estados `pending` → `issued` vía metadata (no crawler); `/file` pending → 409 |
+| F1.8 | Estados `pending` → `issued` vía metadata (no crawler); `pending`/`failed` → `/file` 409; umbral de fallos → `failed` + `retry-issue` |
 | F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock) |
 | F1.10 | Búsqueda pública por email o documento |
 | F1.11 | Multi-rol: un certificado por rol |
@@ -170,12 +170,13 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 ### 2.4. Criterio de aceptación de fase
 
 ```text
-1. Admin crea evento active, plantilla, carga 3 participantes (2 roles en uno).
+1. Admin crea evento **draft**, plantilla default, lo activa, carga 3 participantes (2 roles en uno). Activar sin plantilla → 400.
 2. Participante busca por cédula → ve todos sus certificados (eventos pasados incluidos).
 3. Abre /c/{slug} → pending→issued, descarga PDF correcto.
 4. Sube certificado pregenerado → permalink sirve archivo fijo.
 5. Evento draft no aparece en búsqueda; permalinks `/c/` en draft **sí** resuelven.
 6. Exceso de búsquedas o de hits a /c/ desde la misma IP → 429; segunda visita a /c/ issued no lanza Puppeteer.
+7. Tras N fallos de PDF el certificado queda `failed`; metadata posterior no lanza Puppeteer; admin `retry-issue` vuelve a `pending`.
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
@@ -354,10 +355,10 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-3.2 | Preview plantilla | **2** | Should |
 | HU-4.1 | Pregenerados + carga masiva (hoja + ZIP) + plantilla CSV | **1** | Plantilla descargable; sin helper de escritorio; status `pending` hasta 1ª visita |
 | HU-4.2 | Evento pregenerated_only | **1** | Should |
-| HU-5.1 – 5.4 | Eventos, sedes, ID | **1** | Soft-delete: oculta listados/búsqueda; permalinks siguen vivos |
+| HU-5.1 – 5.4 | Eventos, sedes, ID | **1** | Soft-delete: oculta listados/búsqueda; permalinks siguen vivos. **Activar `generated` exige plantilla default.** Ficha del evento: listado `failed` + `retry-issue` (F1). |
 | HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia; **envío email enlace = F3** (SMTP) |
 | HU-7.1 | Login OAuth OSM | **1** | |
-| HU-7.2 | Dashboard | **2** + **3** | F2: conteos; F3: jobs; audit solo admin |
+| HU-7.2 | Dashboard | **2** + **3** | F2: conteos; F3: jobs; audit solo admin. **Listado `failed` + retry-issue es F1 (ficha evento, HU-5.1), no espera a este dashboard.** |
 | HU-7.3 | Revocación | **2** | **Must**; endpoints + corrección revoke+nueva |
 | HU-7.4 | Gestión usuarios panel | **1** | |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
@@ -386,7 +387,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | 1 | Stack definido (NestJS, Prisma, React, Puppeteer, Konva, MinIO) | ✓ |
 | 2 | Hosting producción definido (servidores osm.lat + AC3) | ✓ |
 | 3 | Modelo de datos coherente (`instance_legal`; UNIQUE email; FK badge unidireccional) | ✓ |
-| 4 | Estados certificado/badge documentados (`/b/` pending no emite) | ✓ |
+| 4 | Estados certificado/badge documentados (`failed` dead-letter; `/b/` pending no emite) | ✓ |
 | 5 | Tres fases con entregables y criterios de aceptación | ✓ |
 | 6 | Matriz HU → fase sin huecos | ✓ |
 | 7 | API por fase en flujos (§15) | ✓ |
@@ -432,19 +433,22 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 **Unitarios (ejemplos):**
 
 - Generación de slug (unicidad, formato).
-- Transición `pending` → `issued` en primera visita.
+- Transición `pending` → `issued` en primera visita; `pending` → `failed` al umbral de fallos.
 - Validación documento por país (`country_identity_config`).
 - Parser CSV participantes (roles múltiples, sede única inferida).
 - Resolución de campos de plantilla → payload de render.
 
-**Integración (ejemplos — mapean a T1–T12 en [04-flujos §10](./04-flujos-funcionales.md)):**
+**Integración (ejemplos — mapean a T1–T12 y T17–T20 en [04-flujos §10](./04-flujos-funcionales.md)):**
 
 | Test | Verifica |
 |------|----------|
 | OAuth OSM callback → sesión | Admin/editor con rol; sin rol ⇒ 403 en APIs |
 | CRUD evento + participante + certificado | Alta multi-rol |
 | `GET /c/{slug}` / metadata primera visita (humano) | Emisión + PDF almacenado |
-| `GET …/file` mientras `pending` | **409**; no emite |
+| `GET …/file` mientras `pending` o `failed` | **409**; no emite |
+| Activar evento `generated` sin plantilla default | **400** |
+| Render falla `PDF_MAX_ISSUE_ATTEMPTS` veces | `failed`; metadata posterior sin Puppeteer |
+| `POST …/retry-issue` | `failed` → `pending`; siguiente visita emite |
 | Metadata con UA preview | 200 sin emitir |
 | `GET /c/{slug}` segunda visita | Mismo archivo (inmutable) |
 | `POST /public/search` | Búsqueda por documento; evento draft excluido |
