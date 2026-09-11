@@ -143,7 +143,7 @@ Detalle de implementación: [10 §10](./10-diseno-codigo-y-anexos.md#10-segurida
 | Regla | Aplicación |
 |-------|------------|
 | Rate limit búsqueda | 10 req/min/IP → 429 |
-| Rate limit permalinks `/c/`, `/b/`, PDF | 60 req/min/IP → 429 |
+| Rate limit permalinks `/c/`, `/b/`, PDF, `GET …/verify/c|b/{slug}` | 60 req/min/IP → 429 + `Retry-After`. **Sin** lote. |
 | Turnstile (captcha) | Fase 3 en búsqueda, si hace falta |
 | Sin sitemap de slugs | Evitar descubrimiento masivo |
 | `robots.txt` + señales anti-IA | Reducir scrapers / entrenamiento; verify humano y backpacks OK |

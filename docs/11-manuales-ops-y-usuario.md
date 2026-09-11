@@ -91,7 +91,7 @@ Sin pantalla ni API de restore en v1.0.
 Texto corto en la UI (no un PDF largo):
 
 1. Cómo buscar (email o documento); el formulario se puede usar con teclado.
-2. Qué es el permalink y que se puede compartir. La validez se comprueba **en este sitio** (mirar el dominio). En un certificado emitido aparece el **SHA-256** del archivo para contrastar la descarga. La rúbrica del PDF no es firma digital.
+2. Qué es el permalink y que se puede compartir. La validez se comprueba **en este sitio** (mirar el dominio), de **uno en uno**. En un certificado emitido aparece el **SHA-256** del archivo para contrastar la descarga. La rúbrica del PDF no es firma digital.
 3. Si aparece “revocado” / “no encontrado”.
 4. (osm.lat) Cómo ver badges OSM por `osm_id` (F3).
 5. Enlace discreto al crédito de software / `/about`.

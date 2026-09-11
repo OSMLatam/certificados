@@ -64,7 +64,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Put MinIO → luego DB** | Nunca `issued` sin objeto. Clave `certs/{id}/{sha256}`. Huérfano si UPDATE falla: compensación delete + GC ops 24 h. [10 §4.2.2](./10-diseno-codigo-y-anexos.md). |
 | **Crawlers / Open Graph** | Detectar UA de preview (LinkedIn, WhatsApp, Slack, …): metadata/OG **sin** emitir (`PREVIEW_BOT_UA_REGEX`). |
 | **Búsqueda pública** | Solo email **o** (país + tipo + número de documento). Rate limit: **10 req/min/IP**. Documento normalizado al comparar. |
-| **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF y (Fase 2+) `/b/`. |
+| **Permalinks públicos** | Rate limit: **60 req/min/IP** en `/c/`, descarga PDF, (Fase 2+) `/b/` y `GET /api/v1/verify/c|b/{slug}`. **Sin** verify en lote en v1.0. |
 | **Carga PDF** | `PDF_CONCURRENCY=1` por defecto **y** de diseño ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada): 50–200 certs/evento). `PDF_MAX_ISSUE_ATTEMPTS=5`; PDF `issued` siempre desde MinIO (sin regenerar). |
 | **Bots / scrapers** | `robots.txt` + sin sitemap de slugs; Turnstile en búsqueda en Fase 3; crawlers OG no emiten (fila anterior). Ver [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga). |
 | **Trust proxy** | `TRUST_PROXY=0` dev; `1` detrás de un Caddy/nginx. Throttler usa IP del hop de confianza. |

@@ -94,7 +94,7 @@ flowchart LR
 
 (Contrato: identificador estable = `osm_id`, no username. La ruta `/osm/users/{osm_id}` puede ser página mínima o redirect al perfil OSM actual.)
 
-**Verificación en v1.0:** (1) hosted — `GET /badges/assertions/{uuid}.json` mientras el badge esté `issued`; (2) páginas `/c/` y `/b/`; (3) API `GET /api/v1/verify/c/{slug}` (incluye `checksum_sha256` del PDF) y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado. El hash del PDF no sustituye un `proof` OB 3.0.
+**Verificación en v1.0:** (1) hosted — `GET /badges/assertions/{uuid}.json` mientras el badge esté `issued`; (2) páginas `/c/` y `/b/`; (3) API `GET /api/v1/verify/c/{slug}` (incluye `checksum_sha256` del PDF) y `/b/{slug}` (**Fase 2**). **Un slug por request** (sin lote; 60/min). Visitar `/b/` en `pending` **no** emite el certificado. El hash del PDF no sustituye un `proof` OB 3.0.
 
 ---
 

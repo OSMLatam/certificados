@@ -160,6 +160,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`). En `failed`: `{ valid: false, reason: "failed" }`.
 5. Certificado **`issued`:** `/c/` y metadata (F1) y `GET /api/v1/verify/c/{slug}` (F2) muestran `checksum_sha256` (hex, 64) e `issued_at`. El hash **no** va pintado en el PDF. Texto de la página: la validez se comprueba en el sitio oficial; el hash sirve para contrastar el archivo descargado. No se afirma “firma digital” ni “infalsificable” ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)).
 6. `pending`/`failed`/`revoked`: sin hash de un PDF válido (o `null` en API). `revoked`: `valid: false`.
+7. **Sin verificación en lote en v1.0:** un slug por request. Mismo rate limit que `/c/` (60/min/IP, `429` + `Retry-After`). No hay `POST /verify/batch` ni API key de empleador. Un humano abre permalinks de uno en uno; un script de ~200 debe respetar `Retry-After` (varios minutos). Listar slugs ajenos sigue prohibido (HU-1.2b). Post-v1.0: [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 ---
 

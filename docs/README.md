@@ -70,6 +70,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Ops | Backup → migrate → `/ready`; rollback = restore. Alertas por correo (`OPS_ALERT_EMAIL`); **sin** Prometheus ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)) |
 | Volumen | 50–200 certs/evento, pocos eventos/año; `PDF_CONCURRENCY=1`; backups diarios ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)) |
 | Accesibilidad | WCAG 2.2 AA en HTML público y formularios admin (HU-1.6). shadcn no basta. Lienzo Konva y PDF/UA = excepción / post-v1.0 |
+| Verify en lote | **No** en v1.0. Un slug por request; 60/min + `Retry-After` |
 | Emisión storage | Put MinIO → luego UPDATE `issued`; CSV↔ZIP biyectivo; slug retry 5× |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 | Formato Open Badges | **2.0 hosted** en v1.0 (deuda de durabilidad); destino = **OB 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)) |

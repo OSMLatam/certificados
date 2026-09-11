@@ -562,6 +562,7 @@ Usar `@nestjs/throttler` (o equivalente) en **todos** los endpoints públicos co
 - **IP cliente:** ver §10.1.4 (`TRUST_PROXY`). Sin esto el rate limit no distingue usuarios reales detrás del proxy.
 - **Cloudflare Turnstile** en búsqueda: **Fase 3** (o antes si hay abuso real); no sustituye el rate limit.
 - **No** exponer APIs públicas de listado por evento, año o sede (HU-1.2b).
+- **Sin verify en lote (decisión cerrada):** no existe `POST …/verify/batch` ni cupo aparte para “empleador”. `GET /api/v1/verify/c|b/{slug}` comparte el bucket de permalinks (**60/min/IP**). Volumen 50–200: un verificador humano no lo satura; un script debe honrar `Retry-After`. Subir el límite o añadir lote = reevaluar anti-enumeración.
 - Mensaje de búsqueda **genérico** si no hay resultados (no filtrar existencia de documento).
 
 ### 10.4. Bots, scrapers y agentes de IA

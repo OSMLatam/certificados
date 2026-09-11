@@ -423,7 +423,9 @@ Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap d
 
 Consultas a permalinks de **certificado** `/c/` (privacidad: no columna IP; si en el futuro se añade, respetar `LOG_REDACT_IP`). **v1.0:** no registra accesos a `/b/`.
 
-**Retención (decisión cerrada):** purgar filas con `accessed_at` anterior a **90 días** (`PERMALINK_ACCESS_LOG_RETENTION_DAYS`, default 90). Job u ops documentada (cron). Tras `participant_erase`, borrar ya las filas de esos certificados. No es prueba de autenticidad; no se conserva “por si acaso”.
+**Retención (decisión cerrada):** purgar filas con `accessed_at` anterior a **90 días** (`PERMALINK_ACCESS_LOG_RETENTION_DAYS`, default 90). Job u ops documentada (cron). Tras `participant_erase`, borrar ya las filas de esos certificados. No es prueba de autenticidad; no se conserva “por si acaso”. **Sin agregación** a conteos en v1.0 (el dashboard HU-7.2 puede contar filas vivas o omitir histórico).
+
+**Índices:** `(accessed_at)` para el purge; `(certificate_id)` para erase y ficha. Conteos admin de certificados: `certificates(event_id, status)` (§11) — no este log.
 
 | Columna | Tipo |
 |---------|------|
@@ -785,4 +787,6 @@ CREATE UNIQUE INDEX idx_certificates_folio
   ON certificates(folio) WHERE folio IS NOT NULL;
 CREATE UNIQUE INDEX idx_instance_legal_signers_slot
   ON instance_legal_signers(instance_legal_id, slot);
+CREATE INDEX idx_permalink_access_log_accessed ON permalink_access_log(accessed_at);
+CREATE INDEX idx_permalink_access_log_certificate ON permalink_access_log(certificate_id);
 ```
