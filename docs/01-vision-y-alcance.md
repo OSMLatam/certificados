@@ -149,6 +149,7 @@ Incluye:
 - Issuer OB, badges de evento automáticos, badges OSM (**solo osm.lat**).
 - Import CSV de awardees OSM y jobs OSM con reglas y **fuente por métrica** documentadas ([06 §5.1](./06-open-badges.md)).
 - Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
+- **Habeas data v1.0:** aviso `/privacy`, canal ARCO, supresión admin (HU-8.3, HU-8.4). Sin portal de auto-baja. Credenciales `issued` se conservan para verificar **hasta** ARCO o borrado ops; log de `/c/` **90 días**.
 - Open Graph LinkedIn.
 - API de verificación JSON `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (Fase 2), además de las páginas humanas.
 - Autenticidad v1.0: permalink oficial + **SHA-256 público** del PDF ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). OB 3.0 / PAdES = post-v1.0.
@@ -177,9 +178,9 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Emisión forzada/masiva de certificados | v1.0 = solo lazy | [07](./07-estados-y-ciclo-de-vida.md) |
 | Helper local para prellenar `filename` | Leer carpeta y completar la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
 | Newsletter / Listmonk | Lista con alta explícita; no reutilizar emails de certificados a ciegas | Manual ops |
-| Retención de PDFs en storage | Política de X años (configurable) | — |
+| Retención de PDFs en storage | v1.0: `issued` se conserva para verificar hasta ARCO/ops; caducidad automática por años = post-v1.0 | [02 HU-8.4](./02-historias-de-usuario.md) |
+| Portal de auto-baja del titular | v1.0 = aviso + ARCO **ops/admin** (HU-8.3, HU-8.4). Autoservicio público = post-v1.0 | [02](./02-historias-de-usuario.md), [11](./11-manuales-ops-y-usuario.md) |
 | Traducciones (i18n) | v1.0 = español; cadenas ya externalizadas — añadir locale | — |
-| Supresión / corrección de datos del titular | Procedimiento ops o flujo producto (habeas data); v1.0 = fuera | Manual ops |
 | Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
 | Otros OAuth (no OSM) para panel | v1.0 = solo OAuth OSM | [02](./02-historias-de-usuario.md) HU-7.1 |
 

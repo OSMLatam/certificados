@@ -164,6 +164,8 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 | doc_type_code | VARCHAR(10) | Obligatorio en AC3; opcional en osm.lat |
 | doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat; almacenar **normalizado** (ver abajo) |
 | activity_title | TEXT | Charla/taller (opcional); si el certificado define override, gana el de `certificates` |
+| erased_at | TIMESTAMPTZ | NULL; set al `erase` ARCO (HU-8.4) |
+| erased_by | UUID FK | NULL; `admin_users.id` |
 | created_at | TIMESTAMPTZ | |
 
 **Reglas por instancia:**
@@ -177,7 +179,8 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 - **UNIQUE** `(event_id, email)` — alta individual, CSV o pregenerados: si el email ya existe en el evento → **rechazar** (error de validación; en CSV atómico → falla todo el lote).
 - Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo email (no otro participante).
 - Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
-- Búsqueda pública por email: comparar contra el valor normalizado.
+- Búsqueda pública: **excluir** `erased_at IS NOT NULL`. El email original queda libre (el UNIQUE usa el email anonimizado).
+- **Supresión ARCO:** [HU-8.4](./02-historias-de-usuario.md#hu-84--supresión-y-rectificación-arco-ops).
 - **Normalización de `doc_number`:** ver [§3.2](#32-normalización-de-doc_number-decisión-cerrada). La estrategia sale de `country_identity_config.normalize` (`digits` \| `alnum` \| `raw`), no de un `if` por país.
 - **País en búsqueda por documento:** siempre obligatorio en el formulario cuando se busca por documento (forma parte del índice `(event_id, country_code, doc_type_code, doc_number)`). En AC3 el país también es obligatorio en el alta. En osm.lat, si solo se busca por email, el país no aplica.
 
@@ -376,7 +379,9 @@ Acciones administrativas.
 
 ### 5.3. `permalink_access_log`
 
-Consultas a permalinks de **certificado** `/c/` (privacidad: no columna IP; si en el futuro se añade, respetar `LOG_REDACT_IP`). **v1.0:** no registra accesos a `/b/` (el dashboard cuenta consultas a `/c/`; ampliar a badges = evolución menor).
+Consultas a permalinks de **certificado** `/c/` (privacidad: no columna IP; si en el futuro se añade, respetar `LOG_REDACT_IP`). **v1.0:** no registra accesos a `/b/`.
+
+**Retención (decisión cerrada):** purgar filas con `accessed_at` anterior a **90 días** (`PERMALINK_ACCESS_LOG_RETENTION_DAYS`, default 90). Job u ops documentada (cron). Tras `participant_erase`, borrar ya las filas de esos certificados. No es prueba de autenticidad; no se conserva “por si acaso”.
 
 | Columna | Tipo |
 |---------|------|

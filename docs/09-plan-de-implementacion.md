@@ -149,6 +149,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
 | F1.16 | Anti-abuso y carga: rate limit + `TRUST_PROXY`, `robots.txt`, semáforo PDF, Puppeteer no-root/sin fetch remoto, zip-slip/bomb, magic bytes — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
+| F1.17 | Página `/privacy` (HU-8.3) + enlaces footer/búsqueda/`/c/`; placeholder de aviso; `PRIVACY_CONTACT_EMAIL` |
 
 ### 2.2. Historias de usuario incluidas
 
@@ -168,8 +169,9 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-7.1 | Login OAuth OSM |
 | HU-7.4 | Gestión usuarios panel (asignar roles) |
 | HU-8.1 | Branding vía ENV (`SITE_*`) + atribución software (`SOFTWARE_*`, `/about`, health) — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia) |
+| HU-8.3 | Aviso `/privacy` |
 
-**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard avanzado.
+**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard avanzado, **erase ARCO** (HU-8.4, F2).
 
 ### 2.3. Tablas Prisma (Fase 1)
 
@@ -186,6 +188,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 6. Exceso de búsquedas o de hits a /c/ desde la misma IP → 429; segunda visita a /c/ issued no lanza Puppeteer.
 7. Tras N fallos de PDF el certificado queda `failed`; metadata posterior no lanza Puppeteer; admin `retry-issue` vuelve a `pending`.
 8. `/c/` de un `issued` muestra `checksum_sha256` e `issued_at`; coinciden con `stored_files` y con la descarga.
+9. `/privacy` responde 200; footer y búsqueda enlazan; el texto no dice que el sistema “no trata datos”.
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
@@ -219,6 +222,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.11 | HU-3.2 preview con datos de ejemplo |
 | F2.12 | HU-2.2 plantilla distinta por rol (override opcional) |
 | F2.13 | Tests unitarios + integración badges, legal_snapshot, revocación (ver §11) |
+| F2.14 | HU-8.4: `POST …/participants/{id}/erase` (solo admin) + audit `participant_erase` |
 
 ### 3.2. Historias de usuario incluidas
 
@@ -230,6 +234,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-7.2 | Dashboard básico (conteos eventos/certificados/badges) |
 | HU-7.3 | Revocación |
 | HU-8.2 | Config legal AC3 |
+| HU-8.4 | Supresión ARCO (admin erase) |
 | HU-9.1 – HU-9.3 | Badges de evento + issuer |
 
 **Fuera de Fase 2:** badges `osm_activity`, jobs OSM, import awardees, vinculación email/OSM.
@@ -372,6 +377,8 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-7.4 | Gestión usuarios panel | **1** | |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | HU-8.2 | Legal AC3 config | **2** | |
+| HU-8.3 | Aviso de privacidad | **1** | `/privacy` |
+| HU-8.4 | Supresión ARCO | **2** | Admin `erase`; con revocación |
 | HU-9.1 – 9.3 | Badges evento + issuer | **2** | BadgeClass: UNIQUE evento+rol; code inmutable; clase por URL aunque draft |
 | HU-10.1 – 10.4, 10.6 | Badges OSM | **3** | Catálogo [06 §5.1](./06-open-badges.md) |
 | HU-10.3 | Job reglas OSM | **3** | Should |
@@ -481,6 +488,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 - Disclaimer: seed con default; PATCH no altera `issued` (snapshot).
 - Creación `badge_assertion` **pending** al alta certificado; pasa a **issued** con el certificado.
 - Revocación en cascada certificado → badge `event_role`.
+- `participant_erase`: anonimiza, revoca, borra PDF y log de esos slugs; el email original queda libre.
 
 **Integración (T13, T15, T21 + AC3):**
 

@@ -88,6 +88,7 @@ https://certificados.ac3.org.co/c/{slug}
 | Colores primarios | Verdes OSM | Colores AC3 |
 | Texto footer (organización) | Comunidad LATAM | Texto legal AC3 |
 | Crédito de software | Igual en ambas (ver [§10](#10-atribución-del-software-multi-instancia)) | Idem |
+| Aviso de datos | Footer → `/privacy` (HU-8.3) | Idem (texto Ley 1581 a cargo del operador) |
 
 ### 3.2. Datos legales AC3 (tabla `instance_legal` — no plantilla)
 
@@ -244,7 +245,7 @@ Separar siempre **emisor** (quién acredita) de **software** (qué lo genera). E
 | Capa | Quién “habla” | Atribución al software |
 |------|---------------|------------------------|
 | PDF del certificado, datos legales, Issuer / Assertion OB | La instancia (osm.lat / AC3) | **No** |
-| UI pública (búsqueda, footer, `/about`, pie de `/c/` y `/b/`) | Instancia + crédito discreto | **Sí** |
+| UI pública (búsqueda, footer, `/about`, `/privacy`, pie de `/c/` y `/b/`) | Instancia + crédito discreto | **Sí** |
 | Metadatos técnicos (`/health`, OpenAPI) | Máquina | **Sí**, sin ensuciar el JSON de la credencial |
 
 ### 10.2. Nombre y enlace

@@ -72,7 +72,7 @@ stateDiagram-v2
 | `pending` | Existe; metadata no-crawler puede emitir | **409** en `/file` hasta `issued` | Sí |
 | `issued` | Activo | Sí | Sí |
 | `failed` | Página “no se pudo generar”; metadata **no** lanza Puppeteer | **409** en `/file` | Sí, marcado no generado |
-| `revoked` | Muestra revocación | No (o solo metadatos) | Sí, marcado revocado |
+| `revoked` | Muestra revocación | No (o solo metadatos) | Sí, marcado revocado — **salvo** `data_erasure` (HU-8.4): fuera de búsqueda |
 
 ### Política de emisión (definida)
 

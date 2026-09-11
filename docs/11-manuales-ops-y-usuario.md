@@ -4,7 +4,7 @@
 **Fecha:** 2026-08-02  
 **Estado:** Esbozo de contenidos. Redacción completa = entregable de fase (ops en F3; editor desde F1 piloto).
 
-Los emails y datos de participantes **no** se recogen con consentimiento en este sistema: llegan desde otra plataforma de registro del evento. Estos manuales no sustituyen esa autorización externa.
+Los emails y datos de participantes suelen llegar desde **otra plataforma de registro**. Eso **no** exime a la instancia de tratar los datos que almacena y publica. v1.0: aviso `/privacy` + ARCO por ops/admin (HU-8.3, HU-8.4). Estos manuales no sustituyen el texto legal que debe redactar el operador (sobre todo AC3 / Ley 1581).
 
 ---
 
@@ -37,12 +37,15 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 11. **SMTP (F3)** — obligatorio en osm.lat para códigos de vínculo HU-10.5; también envío de enlace `/c/`. From dedicado, reputación, cola prudente.
 12. **Redis / BullMQ (F3)** — solo osm.lat jobs.
 13. **Upgrade** — `docker compose pull && up -d`; orden migrate.
-14. **Instancia AC3** — diferencias (`INSTANCE=ac3`, legal, sin `osm_activity`).
+14. **Instancia AC3** — diferencias (`INSTANCE=ac3`, legal, sin `osm_activity`). Aviso `/privacy` con texto **real** (no placeholder) antes de cargar titulares.
 15. **HU-10.5 /me (osm.lat)** — OAuth mapper, vínculo email, que no es acceso al panel admin.
+16. **ARCO / habeas data** — `PRIVACY_CONTACT_EMAIL`; verificar identidad del solicitante; rectificación = revoke+alta o edición `pending`; supresión = `POST …/participants/{id}/erase` (solo admin). Purgar `permalink_access_log` > 90 días.
+17. **Aviso de privacidad** — archivo `PRIVACY_NOTICE_FILE` (placeholder en [anexos/privacy-notice.placeholder.md](./anexos/privacy-notice.placeholder.md)); sustituir por instancia.
+
 ### 2.2. Fuera de este runbook
 
 - Diseño de plantillas y carga CSV → manual del editor.
-- Política legal de otra plataforma de registro → no aplica aquí.
+- Redacción jurídica definitiva del aviso (abogado/operador); el repo solo exige que la página exista y no mienta sobre el tratamiento.
 
 ---
 
@@ -73,11 +76,11 @@ UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<event-uuid>
 ```
 
 Sin pantalla ni API de restore en v1.0.
-16. **Datos del titular** — consentimiento en plataforma de registro externa; solicitudes de supresión/corrección en v1.0 = procedimiento ops manual / post-v1.0 ([01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)).
+16. **Datos del titular** — ARCO: el titular escribe a `PRIVACY_CONTACT_EMAIL`; el **admin** ejecuta HU-8.4. No hay botón de auto-baja. Rectificar emitido = revocar + alta nueva.
 
 ### 3.2. No incluir
 
-- Texto de consentimiento de emails (otra plataforma).
+- Texto de consentimiento **de la otra plataforma** de registro (sí enlazar `/privacy` de esta instancia).
 - Detalle de clientes/queries por métrica OSM (ops / desarrollo; ver [06 §5.1](./06-open-badges.md)).
 
 ---
@@ -91,6 +94,7 @@ Texto corto en la UI (no un PDF largo):
 3. Si aparece “revocado” / “no encontrado”.
 4. (osm.lat) Cómo ver badges OSM por `osm_id` (F3).
 5. Enlace discreto al crédito de software / `/about`.
+6. Enlace a `/privacy` (tratamiento de datos) y cómo pedir corrección o supresión (correo, no auto-baja).
 
 ---
 
@@ -101,7 +105,7 @@ Texto corto en la UI (no un PDF largo):
 | Reglas de negocio | 01–08 | Resume / “cómo hacerlo en la UI” |
 | Fases y tests | 09 | No duplicar |
 | ENV, módulos, seguridad | 10 | Ops cita 10 + `.env.example` |
-| Consentimiento registro | Otra plataforma | Explicitar “no aplica aquí” |
+| Consentimiento registro del evento | Otra plataforma | El aviso `/privacy` de **esta** instancia sí aplica |
 
 ---
 

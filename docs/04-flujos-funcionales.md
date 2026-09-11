@@ -134,6 +134,8 @@ flowchart TD
 | Ver permalink `/c/` o `/b/` si lo conozco | API pública de listados masivos |
 | Admin autenticado: listar por evento | Scraping / barrido de slugs sin rate limit |
 
+Tras **supresión ARCO** (`erased_at`): la búsqueda por el email/documento antiguos **no** devuelve filas. `/c/` del slug sigue resolviendo como revocado, sin PII.
+
 ### Abuso, bots y carga del servidor
 
 Detalle de implementación: [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga).
@@ -310,6 +312,7 @@ Badge OSM (u otro) sin certificado:
 | T34 | Preview plantilla AC3 | `legal.issue_city` y `legal.disclaimer` = config; `legal.folio` y `legal.issue_date` = “—”; no incrementa `last_folio` ni escribe `issued_at` |
 | T35 | AC3: emitir, luego PATCH del disclaimer | El `issued` conserva el texto del snapshot; el preview usa el nuevo |
 | T36 | Certificado `issued`: `/c/` y metadata | Incluyen `checksum_sha256` (64 hex) e `issued_at`; coinciden con `stored_files`; el PDF no contiene el hash como capa |
+| T37 | `POST …/participants/{id}/erase` (admin) | PII anonimizada; certs `revoked` + PDF borrado; búsqueda por email viejo vacía; `/c/` sin nombre/doc; `audit_log` `participant_erase` |
 
 ---
 
@@ -406,6 +409,7 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/api/v1/verify/c/{slug}` | 2 | `{ valid, status, issued_at, checksum_sha256, permalink }` |
 | GET | `/api/v1/verify/b/{slug}` | 2 | Verificación máquina badge |
 | POST | `/api/v1/admin/certificates/{id}/revoke` | 2 | Revocar certificado (+ badge evento) |
+| POST | `/api/v1/admin/participants/{id}/erase` | 2 | Supresión ARCO (solo `admin`; HU-8.4) |
 | POST | `/api/v1/admin/badges/{id}/revoke` | 2 | Revocar assertion (OSM o directa) |
 | POST | `/api/v1/public/search` | 2 | Ampliado: incluye badges `event_role` |
 | POST | `/api/v1/public/badges/osm` | 3 | Búsqueda por osm_id / username |

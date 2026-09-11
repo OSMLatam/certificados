@@ -54,6 +54,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2; F1: `/c/` + metadata con `checksum_sha256` |
 | Autenticidad | Permalink oficial + SHA-256 público; OB 2.0 hosted = deuda; destino badges = OB 3.0; sin PAdES en v1.0 ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)) |
+| Habeas data | Aviso `/privacy` + ARCO ops/admin (`erase`); sin auto-baja; log `/c/` 90 días; `issued` se conserva hasta ARCO |
 | Corrección emitido | Revocar + alta nueva (sin editar PDF issued) |
 | Soft-delete / draft | Oculta búsqueda; permalinks y clases OB por URL siguen vivos |
 | Email participante | Obligatorio; **único por evento** (rechazar duplicado); normalizado |

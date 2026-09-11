@@ -66,7 +66,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 
 **Email:** obligatorio y **único por evento** (una persona = un email). Alta/CSV/pregenerados: email ya existente en el evento → **rechazar** (salvo nuevo rol de la misma persona). Normalizar `trim` + `lower` al guardar. Ver [03 §4.3](./03-modelo-de-datos.md).
 
-Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emails y datos de participantes llegan desde otra plataforma de registro (evento), donde ya se informa el uso. Este producto solo almacena y emite credenciales; no recoge el consentimiento inicial.
+**Tratamiento de datos (decisión cerrada, v1.0):** el alta suele venir de **otra plataforma de registro** (el consentimiento inicial no se captura aquí). Este sistema **sí trata** los datos que almacena y publica (nombre, email, documento, PDF, permalink). Cada instancia es responsable de su despliegue. v1.0 = aviso público + canal ARCO + acción admin de supresión; **no** hay portal de auto-baja del titular. Detalle: [HU-8.3](#hu-83--aviso-de-privacidad), [HU-8.4](#hu-84--supresión-y-rectificación-arco-ops), [11](./11-manuales-ops-y-usuario.md).
 
 ---
 
@@ -583,6 +583,54 @@ Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [
 
 ---
 
+### HU-8.3 — Aviso de privacidad
+
+**Como** titular o verificador,  
+**quiero** leer en este sitio quién trata mis datos y cómo ejercer derechos,  
+**para** no depender solo del formulario de registro del evento.
+
+| Campo | Valor |
+|-------|-------|
+| Prioridad | Must |
+| Instancia | Ambas (AC3: Ley 1581; osm.lat: el mismo patrón, texto del operador) |
+
+**Criterios de aceptación:**
+
+1. Página pública **`/privacy`** con el aviso de la instancia (markdown/HTML **por despliegue**, no redactado en el código). Enlace en footer, búsqueda y pie de `/c/` (y `/b/` en F2).
+2. El aviso indica al menos: responsable (nombre de la instancia), datos que se tratan, finalidad (emitir y verificar credenciales), que el permalink es público si se conoce el slug, canal ARCO (`PRIVACY_CONTACT_EMAIL`), y enlace a esta página.
+3. El repositorio trae un **placeholder**; producción debe sustituirlo. Checklist de deploy AC3: texto real antes de datos de titulares.
+4. No se afirma que “este sistema no trata datos” ni que el consentimiento “no aplica”.
+
+---
+
+### HU-8.4 — Supresión y rectificación ARCO (ops)
+
+**Como** admin de la instancia,  
+**quiero** un procedimiento y una acción de panel para rectificar o suprimir datos de un participante,  
+**para** atender habeas data sin portal público de auto-baja (abusable).
+
+| Campo | Valor |
+|-------|-------|
+| Prioridad | Must |
+
+**Criterios de aceptación:**
+
+1. **Rectificación** de un certificado `issued`: sigue siendo **revocar + alta nueva** (HU-7.3). En `pending`/`failed`: el editor corrige metadatos.
+2. **Supresión:** `POST /api/v1/admin/participants/{id}/erase` — solo rol **`admin`**. No hay formulario público. Canal de solicitud: correo `PRIVACY_CONTACT_EMAIL` (runbook: verificar identidad).
+3. Efectos de `erase` (atómico a nivel de ese participante):
+   - `erased_at` / `erased_by` en `participants`; `full_name` → `Titular suprimido`; `email` → `erased-{id}@erased.invalid` (libera el correo original para un alta futura); documento NULL.
+   - Todos sus certificados: `revoked` si no lo estaban; `revoke_reason` = `data_erasure`; **borrar** el objeto MinIO y dejar `/file` sin binario; `/c/` muestra revocado **sin** nombre ni documento.
+   - Badges `event_role` vinculados: `revoked`.
+   - Fuera de búsqueda pública por el email/documento anteriores.
+   - Borrar filas de `permalink_access_log` de esos certificados.
+   - `audit_log`: acción `participant_erase` (Must aunque el dashboard HU-7.2 sea Should).
+4. El slug **no** se recicla.
+5. Runbook: pasos de identidad, plazos de respuesta del operador, y que osm.lat usa el mismo endpoint.
+
+Portal de auto-baja del titular = [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10). **Fase 2** (el endpoint usa revocación). `/privacy` es **Fase 1**.
+
+---
+
 ## Épica 9 — Open Badges de evento
 
 ### HU-9.1 — Badge automático al emitir certificado
@@ -805,6 +853,8 @@ Ver [06-open-badges.md](./06-open-badges.md).
 | HU-7.4 | Gestión usuarios panel | Must |
 | HU-8.1 | Branding | Must |
 | HU-8.2 | Legal AC3 | Must |
+| HU-8.3 | Aviso de privacidad | Must |
+| HU-8.4 | Supresión ARCO (admin) | Must |
 | HU-9.1 | Badge auto por certificado | Must |
 | HU-9.2 | Página `/b/{slug}` | Must |
 | HU-9.3 | Issuer + BadgeClass | Must |

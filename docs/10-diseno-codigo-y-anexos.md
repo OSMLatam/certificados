@@ -259,6 +259,7 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 | `/` | 1 | `PublicSearchPage` (+ texto corto de ayuda) |
 | `/help` | 1 | `PublicHelpPage` (opcional; puede ser ancla en `/`) |
 | `/about` | 1 | `AboutPage` (atribución software — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
+| `/privacy` | 1 | `PrivacyNoticePage` (HU-8.3; markdown por despliegue) |
 | `/c/:slug` | 1 | `CertificatePublicPage` |
 | `/admin/login` | 1 | `AdminLoginPage` (botón OAuth OSM; sin form password) |
 | `/admin` | 1 | `AdminDashboardPage` (**F1:** conteos básicos eventos/participantes/certificados pending\|issued\|failed; **F2+:** + badges, legal, revocaciones — HU-7.2) |
@@ -311,6 +312,7 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Auth | `SESSION_*` (`SESSION_COOKIE_NAME=cert_session`), store en Postgres (`admin_sessions`), `OSM_OAUTH_*`, `SEED_ADMIN_OSM_*` | 1 |
 | Auth mapper (osm.lat) | `MAPPER_SESSION_COOKIE_NAME=cert_mapper_session`, `OSM_OAUTH_PUBLIC_REDIRECT_URI`, tablas `mapper_sessions` / `osm_email_link_codes` | 3 |
 | Branding | `SITE_NAME`, `SITE_LOGO_URL`, `SITE_FOOTER_TEXT` | 1 |
+| Privacidad | `PRIVACY_NOTICE_FILE`, `PRIVACY_CONTACT_EMAIL`, `PERMALINK_ACCESS_LOG_RETENTION_DAYS` | 1 |
 | Software (atribución) | `SOFTWARE_NAME`, `SOFTWARE_REPO_URL`, `SOFTWARE_CREDIT_ENABLED`, `SOFTWARE_CREDIT_TEXT` | 1 |
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX`, `TRUST_PROXY` | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS`, `PUPPETEER_NO_SANDBOX` | 1 |
@@ -572,6 +574,7 @@ Al escribir código de Fase 1 en adelante:
 8. Puppeteer: no-root; sin fetch remoto; `TRUST_PROXY` correcto en prod ([§10.1](#101-defaults-de-seguridad)).
 9. `/c/` y metadata de un `issued`: exponer `checksum_sha256` e `issued_at`. No pintar el hash dentro del PDF ([§10.2](#102-modelo-de-autenticidad-decisión-cerrada)).
 10. Copy de `/c/` y ayuda: no decir “firma digital” ni “infalsificable” por la rúbrica dibujada.
+11. `/privacy` en F1; no afirmar que el sistema no trata datos. `erase` solo `admin` (F2).
 
 ---
 
@@ -597,6 +600,7 @@ Las pantallas de import ofrecen **Descargar plantilla**: sirven estos CSV (o equ
 |---------|-----------|
 | [seed/roles.yaml](./anexos/seed/roles.yaml) | Catálogo roles participación |
 | [seed/country-identity-co.yaml](./anexos/seed/country-identity-co.yaml) | CC, CE, TI Colombia |
+| [privacy-notice.placeholder.md](./anexos/privacy-notice.placeholder.md) | Aviso `/privacy` (sustituir por instancia) |
 
 `prisma/seed.ts` lee YAML de `docs/anexos/seed/` e inserta en `country_identity_config` y **`roles`**.
 
@@ -645,7 +649,7 @@ paths:
   /public/certificates/{slug}/file: GET         # PDF/imagen stream
 ```
 
-Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`.  
+Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`, `POST /admin/participants/{id}/erase`.  
 Fase 3+: `/public/badges/osm`, `/public/auth/osm/*`, `/public/me`, `/public/me/link-email`, `/admin/badges/import`, `/admin/badges/import/template`.
 
 ---
