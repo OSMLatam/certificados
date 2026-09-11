@@ -213,6 +213,8 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Verificación en lote (empleador / HR) | v1.0 = un slug por request + 60/min. Sin `verify/batch`. | [02 HU-1.3](./02-historias-de-usuario.md), [10 §10.3](./10-diseno-codigo-y-anexos.md#103-rate-limiting-y-anti-abuso-fase-1) |
 | GC automático de objetos MinIO huérfanos | v1.0 = runbook a mano (>24 h sin fila `stored_files`). PDF `issued`/`revoked` **no** se borra por GC. | [10 §4.2.2](./10-diseno-codigo-y-anexos.md) |
 | UI admin de países / roles | v1.0 = YAML + seed + redeploy | [05 §5](./05-personalizacion-multi-instancia.md) |
+| Webhooks SMTP / parser de rebotes | v1.0 = reenviar enlace a mano; bounce = logs del proveedor | [02 HU-6.1](./02-historias-de-usuario.md) |
+| Baking Open Badges (PNG con assertion) | v1.0 = hosted JSON + `/b/` + backpack; PNG es solo imagen | [06 §9–10](./06-open-badges.md) |
 
 ---
 

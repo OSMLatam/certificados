@@ -155,7 +155,7 @@ stateDiagram-v2
 |--------|----------------------|------------|
 | `pending` | Página “aún no emitido” o **404** (configurable UI); **no** dispara emisión del certificado | No exportable |
 | `issued` | Verificación + backpack | Sí |
-| `revoked` | Estado revocado | `revoked: true` |
+| `revoked` | Estado revocado | `revoked: true` (HTTP **200**, no 404) |
 
 **Regla cerrada:** la emisión del certificado (y del badge vinculado) ocurre **solo** en `GET /api/v1/public/certificates/{slug}` (metadata, no crawler) y **solo** si el certificado está `pending` (no `failed`). Visitar `/b/{slug}` o `GET …/file` en `pending`/`failed` **nunca** llama a `transitionToIssued`.
 

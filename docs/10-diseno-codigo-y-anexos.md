@@ -689,8 +689,8 @@ paths:
   /public/certificates/{slug}/file: GET         # PDF/imagen stream
 ```
 
-Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`, `POST /admin/participants/{id}/erase`.  
-Fase 3+: `/public/badges/osm`, `/public/auth/osm/*`, `/public/me`, `/public/me/link-email`, `/admin/badges/import`, `/admin/badges/import/template`.
+Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `/badges/revocations.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`, `POST /admin/participants/{id}/erase`.  
+Fase 3+: `/public/badges/osm`, `/public/auth/osm/*`, `/public/me`, `/public/me/link-email`, `/admin/badges/import`, `/admin/badges/import/template`, `POST /admin/certificates/{id}/send-link`.
 
 ---
 

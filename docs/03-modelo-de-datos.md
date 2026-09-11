@@ -419,6 +419,7 @@ Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap d
 |----------|--------|---------------|------------|
 | `badge_awardees_import` | CSV awardees **aceptado** | `badge_class` | `row_count`, `filename` |
 | `osm_job_run` | Job OSM termina (éxito o fallo) | `badge_class` | `source=job`, `ok`, conteos |
+| `certificate_link_email` | `POST …/send-link` aceptado | `certificate` | |
 
 ### 5.3. `permalink_access_log`
 
@@ -572,7 +573,7 @@ Códigos de un solo uso para verificar posesión del email.
 | issued_at | TIMESTAMPTZ | |
 | revoked_at | TIMESTAMPTZ | NULL |
 | revoke_reason | TEXT | NULL |
-| assertion_json | JSONB | Cache JSON-LD |
+| assertion_json | JSONB | Cache JSON-LD **opcional**. NULL = generar al vuelo. Invalidar al revocar / cambio de clase o issuer / migración OB 3. |
 | created_at | TIMESTAMPTZ | |
 
 **Constraints:**

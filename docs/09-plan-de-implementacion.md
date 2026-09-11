@@ -97,7 +97,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. CSV↔ZIP biyectivo ([03 §10](./03-modelo-de-datos.md)). |
 | **Soft-delete restore** | Solo SQL: `UPDATE events SET deleted_at = NULL WHERE id = …`. Sin API/UI. Documentado en [11](./11-manuales-ops-y-usuario.md). |
 | **Supresión datos titular** | **v1.0 Must F2:** `POST …/participants/{id}/erase` (HU-8.4). Portal de auto-baja = [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
-| **Correo (canónico)** | (1) `participants.email` = identidad, UNIQUE por evento; **no** se envía mail en F1/F2 (el editor copia el permalink). (2) `PRIVACY_CONTACT_EMAIL` = canal ARCO humano, no SMTP. (3) `OPS_ALERT_EMAIL` = digest ops, opcional F1 si hay `SMTP_*`. (4) **SMTP F3:** códigos HU-10.5 (Must osm.lat) + envío de enlace `/c/` (mismo servidor). Reenvío/rebotes = pendiente o post-v1.0. |
+| **Correo (canónico)** | (1) `participants.email` = identidad, UNIQUE por evento; **no** se envía mail en F1/F2 (el editor copia el permalink). (2) `PRIVACY_CONTACT_EMAIL` = canal ARCO humano, no SMTP. (3) `OPS_ALERT_EMAIL` = digest ops, opcional F1 si hay `SMTP_*`. (4) **SMTP F3:** códigos HU-10.5 (Must osm.lat) + `POST …/certificates/{id}/send-link` (reenviar = mismo POST; 1/15 min por cert, 50/h instancia). **Sin** parser de rebotes; bounce = logs del proveedor + corrección manual. |
 | **Hosting código** | GitHub (repo `certificados`) |
 | **Hosting producción** | **Servidor comunitario osm.lat** + **servidor institucional AC3** (`ac3.org.co`); Docker Compose en cada uno, datos aislados |
 
@@ -220,7 +220,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | # | Entregable |
 |---|------------|
 | F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions`, `instance_legal`, `instance_legal_signers` |
-| F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
+| F2.2 | Issuer OB + endpoints JSON-LD + `revocationList` (`GET /badges/revocations.json`) + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD; misma AA que `/c/` (HU-1.6) |
 | F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva; audit `certificate_revoke` / `badge_revoke` |
@@ -284,7 +284,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F3.5 | Búsqueda **pública** badges OSM por `osm_id` / username |
 | F3.6 | HU-10.5 vinculación OSM ↔ email (**Must**): OAuth público + códigos + `/me` + SMTP |
 | F3.7 | Turnstile en formularios públicos |
-| F3.8 | SMTP: envío de **enlace** `/c/` (From dedicado; cola prudente) — mismo SMTP que F3.6 |
+| F3.8 | SMTP: `POST …/certificates/{id}/send-link` (reenviar = mismo; tope 1/15 min/cert, 50/h); From dedicado; **sin** parser de rebotes |
 | F3.9 | Filas de audit de jobs OSM (`osm_job_run`, `admin_user_id` NULL) + import awardees; dashboard HU-7.2 (métricas) |
 | F3.10 | Seed BadgeClass OSM según catálogo [06 §5.1](./06-open-badges.md) |
 | F3.11 | Tests integración OSM (mocks + opcional live) |
@@ -309,6 +309,7 @@ Todas las HU **Should** restantes quedan cubiertas en Fases 2–3. Lo listado en
 4. Búsqueda pública por osm_id/username lista badges de actividad (sin certificados de terceros).
 5. Turnstile activo en búsqueda (rate limit ya desde Fase 1).
 6. Matriz HU v1.0 completa (sin ítems de evolución futura).
+7. `POST …/send-link` encola el permalink; un segundo POST antes de 15 min → 429; no hay endpoint de rebotes.
 ```
 
 ### 4.4. Prompt sugerido para IA (Fase 3)
@@ -506,6 +507,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 - Disclaimer: seed con default; PATCH no altera `issued` (snapshot).
 - Creación `badge_assertion` **pending** al alta certificado; pasa a **issued** con el certificado.
 - Revocación en cascada certificado → badge `event_role`.
+- `assertion_json` se anula al revocar; GET vuelve a generar.
 - `participant_erase`: anonimiza, revoca, borra PDF y log de esos slugs; el email original queda libre.
 
 **Integración (T13, T15, T21 + AC3):**
@@ -513,8 +515,8 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Test | Verifica |
 |------|----------|
 | `GET /b/{slug}` | JSON-LD válido, evidence apunta a `/c/` |
-| `GET /badges/issuer.json` | Issuer por instancia |
-| Revocar certificado | `/c/` y `/b/` en estado revocado; fila `audit_log` `certificate_revoke` |
+| `GET /badges/issuer.json` | Issuer por instancia; `revocationList` apunta a `/badges/revocations.json` |
+| Revocar certificado | `/c/` y `/b/` en estado revocado; fila `audit_log` `certificate_revoke`; assertion JSON **200** + `revoked: true`; uuid en `revocations.json` |
 | Revocar badge OSM | `/b/` revoked; certificados intactos |
 | Alta tras revoke mismo rol | Nuevo slug; UNIQUE parcial OK |
 | Instancia AC3 | PDF `generated` contiene NIT del snapshot; `/c/` de pregenerado muestra snapshot; config nueva no altera PDF ni página viejos |

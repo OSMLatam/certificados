@@ -411,6 +411,7 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | CRUD | `/api/v1/admin/...` | 1 | Panel administración |
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |
+| GET | `/badges/revocations.json` | 2 | Assertions revocadas (`revocationList`) |
 | GET | `/badges/assertions/{uuid}.json` | 2 | Assertion OB |
 | GET | `/api/v1/verify/c/{slug}` | 2 | `{ valid, status, issued_at, checksum_sha256, permalink }` |
 | GET | `/api/v1/verify/b/{slug}` | 2 | Verificación máquina badge |
@@ -426,5 +427,6 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/api/v1/public/me` | 3 | Vista unificada (requiere sesión + vínculo) |
 | POST | `/api/v1/admin/badges/import` | 3 | Import awardees CSV |
 | POST | `/api/v1/admin/badges/sync/{class_id}` | 3 | Job reglas OSM |
+| POST | `/api/v1/admin/certificates/{id}/send-link` | 3 | Email permalink `/c/`; reenviar = mismo POST |
 
 Stack: ver [09-plan-de-implementacion.md](./09-plan-de-implementacion.md). Producción en servidor comunitario osm.lat y servidor institucional AC3 (`certificados.ac3.org.co`).

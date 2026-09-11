@@ -73,7 +73,8 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Verify en lote | **No** en v1.0. Un slug por request; 60/min + `Retry-After` |
 | Emisión storage | Put MinIO → luego UPDATE `issued`; CSV↔ZIP biyectivo; slug retry 5× |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
-| Formato Open Badges | **2.0 hosted** en v1.0 (deuda de durabilidad); destino = **OB 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)) |
+| Formato Open Badges | **2.0 hosted**; `revocationList`; sin baking PNG; `assertion_json` se invalida al revocar ([06](./06-open-badges.md)) |
+| SMTP enlace | F3 `send-link` (reenviar = mismo); **sin** parser de rebotes |
 
 ---
 

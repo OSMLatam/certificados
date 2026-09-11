@@ -26,7 +26,7 @@ Se **montará** Open Badges 3.0 (credencial verificable + Data Integrity `proof`
 | Emisión v1.0 | Solo **2.0 hosted** (Badgr / Open Badge Passport). |
 | `badge_issuers.public_key` | Columna ya existe; **NULL** en v1.0. No reutilizarla para otro esquema. |
 | IDs | URLs estables de issuer, BadgeClass y assertion (`PUBLIC_BASE_URL`). OB 3.0 reutilizará los mismos identificadores donde el estándar lo permita. |
-| `assertion_json` cache | Si se persiste el JSON 2.0, documentar **invalidación** al migrar (no asumir que el blob es eterno). |
+| `assertion_json` cache | Opcional. **Canónico = columnas.** GET de la assertion **regenera** si el cache es NULL o está marcado stale. Invalidar (NULL) al **revocar**, al PATCH de BadgeClass/issuer, y **antes** de migrar a OB 3.0. No servir un blob 2.0 eterno. |
 | Hash del PDF | `checksum_sha256` en `/c/` y verify es prueba del **archivo del certificado**, no un `proof` OB. No inventar un JWT/PAdES propio como “el” badge firmado. |
 | Dual-emit 2.0+3.0 | No en v1.0. La migración (convivir o cortar 2.0) se decide al implementar OB 3.0. |
 | PAdES del PDF | Distinto del `proof` del badge. Fuera de v1.0 ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). |
@@ -209,7 +209,8 @@ Códigos ejemplo: `osm-changesets-100`, `osm-account-5y`, `osm-traces-1000`.
 | `GET /b/{slug}` | Página pública badge + JSON-LD + backpack |
 | `GET /badges/issuer.json` | Issuer OB |
 | `GET /badges/classes/{id}.json` | BadgeClass |
-| `GET /badges/assertions/{uuid}.json` | Assertion JSON-LD |
+| `GET /badges/assertions/{uuid}.json` | Assertion JSON-LD (regenerar si cache stale; revoked → 200 + `revoked: true`) |
+| `GET /badges/revocations.json` | Lista hosted de assertions revocadas (`revocationList` del issuer) |
 | `GET /api/v1/verify/c/{slug}` | Verificación máquina del certificado (Fase 2) |
 | `GET /api/v1/verify/b/{slug}` | Verificación máquina del badge (Fase 2) |
 | `POST /api/v1/admin/badges/import` | Import awardees CSV (osm.lat) |
@@ -278,6 +279,10 @@ sequenceDiagram
 | BadgeClass desactivado | No nuevas emisiones; existentes válidas |
 | Corrección de emitido | Revocar + alta nueva; PDF inmutable |
 
+**Assertion JSON:** `revoked: true` + `revocationReason` si hay. `GET /badges/assertions/{uuid}.json` de un revocado responde **200** con esos campos (no 404: el backpack debe enterarse). Invalidar `assertion_json` al revocar.
+
+**`revocationList` (hosted, F2):** `issuer.json` incluye `revocationList` → `GET /badges/revocations.json`: array de IDs/URLs de assertions `revoked`. Lista plana, sin firma. Suficiente para consumidores que no re-leen cada assertion. **Baking** (incrustar JSON en PNG) **no** está en v1.0: la portabilidad es la URL hosted + botón backpack. PNG “horneado” = [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+
 ---
 
 ## 10. Imagen del badge
@@ -285,7 +290,7 @@ sequenceDiagram
 - **Evento (`event_role`):** al auto-crear BadgeClass desde `allowed_roles`, usar **imagen default de instancia** (logo `SITE_LOGO_URL` / asset embebido) si el admin no subió PNG/SVG. Override opcional en admin por BadgeClass. Puede derivarse después de miniatura del certificado (Should).
 - **Actividad OSM:** iconografía estándar por tipo (changeset, nota, etc.) configurable; seed F3 puede incluir PNGs por familia.
 
-Editor simple: upload de PNG/SVG por BadgeClass. Plantillas reutilizables: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
+Editor simple: upload de PNG/SVG por BadgeClass. **Sin baking** (el PNG no lleva la assertion embebida). Plantillas reutilizables y baking: [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 ---
 

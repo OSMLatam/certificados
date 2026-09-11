@@ -451,7 +451,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 3. Campo actividad/charla opcional (ponente, tallerista).
 4. Por cada rol: se crea un `certificate` en estado **`pending`** con slug `/c/` reservado. En modo `generated`, si no hay plantilla de rol ni default → **400** (no se crea).
 5. Badge `event_role` asociado en **`pending`** hasta que el certificado pase a **`issued`** (ver [07-estados-y-ciclo-de-vida.md](./07-estados-y-ciclo-de-vida.md)). Si el certificado queda `failed`, el badge sigue `pending`.
-6. Opcional: enviar email con **solo el enlace** `/c/{slug}` (From dedicado de la instancia; ver manual de operación). **Implementación: Fase 3** (SMTP); en Fases 1–2 el editor copia/comparte el permalink manualmente.
+6. **Email del enlace (Fase 3):** `POST /api/v1/admin/certificates/{id}/send-link` (editor/admin). Cuerpo: solo permalink `/c/{slug}` + nombre de instancia; From dedicado. **Reenviar = el mismo POST.** Tope: 1 envío por certificado cada **15 min**; **50**/hora por instancia (reputación SMTP). En F1/F2 el editor copia el permalink. **Sin** webhook de rebotes en v1.0: un bounce se ve en logs del proveedor; el editor corrige el email si el cert está `pending`/`failed`, o revoca + alta nueva si `issued`. No se marca el correo como inválido en automático. Códigos `/me` (HU-10.5): pedir uno nuevo invalida el anterior (ya especificado).
 
 **Estados y flujo:** ver documento [07 — Estados y ciclo de vida](./07-estados-y-ciclo-de-vida.md).
 
@@ -739,7 +739,9 @@ Portal de auto-baja del titular = [evolución futura](./01-vision-y-alcance.md#1
 2. BadgeClass `event_role` se **crea/actualiza al guardar** `allowed_roles` del evento (también en `draft`), **una por cada rol** (`UNIQUE (event_id, role_code)`). Upsert idempotente.
 3. **`code`:** se asigna al crear (p. ej. `{event_slug}-{role_code}` o derivado estable del `event_id` + rol). **Inmutable** si se renombra el evento; solo se actualiza `name` / descripción visibles.
 4. Endpoints OB de clase (`GET /badges/classes/{id}.json`) **responden si la clase existe**, aunque el evento esté `draft` (misma idea que permalinks: quien tiene la URL verifica). No hay catálogo público que enumere clases de eventos `draft`.
-5. Imagen del badge configurable por BadgeClass.
+5. Imagen del badge configurable por BadgeClass (PNG/SVG **sin** baking).
+6. `issuer.json` declara `revocationList` → `GET /badges/revocations.json`.
+7. Assertion revocada: JSON **200** con `revoked: true`; se invalida `assertion_json`.
 
 Ver [06-open-badges.md](./06-open-badges.md).
 
