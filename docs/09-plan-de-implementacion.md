@@ -75,7 +75,8 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
 | **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
 | **Vínculo cert↔badge** | Solo FK `badge_assertions.certificate_id` (sin FK inversa en `certificates`). |
-| **Open Badges (formato)** | **v2.0 hosted** (JSON-LD; verificación por URL de assertion). No OBv3 ni `proof` en v1.0 — [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). Detalle: [06](./06-open-badges.md). |
+| **Open Badges (formato)** | **v2.0 hosted** (deuda de durabilidad). Destino = **OB 3.0** + `proof` (post-v1.0; IDs estables, `public_key` reservada). [06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30). |
+| **Autenticidad PDF** | Permalink oficial + `checksum_sha256` público e `issued_at` en `/c/` (F1) y verify (F2). Sin PAdES en v1.0. [10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada). |
 | **Revocación** | F2 Must: `POST …/certificates/{id}/revoke` y `POST …/badges/{id}/revoke`. Motivo opcional. Cascada cert → badge evento. |
 | **Corrección de emitidos** | **Revocar + alta nueva** (nuevo slug). Sin PATCH/regenerar PDF `issued`. UNIQUE parcial excluye `revoked` (incluye `failed`). En `pending`/`failed` sí se puede editar/reemplazar (F1+); `retry-issue` desde `failed`. |
 | **Plantilla fondo** | `certificate_templates.background_file_id` → `stored_files`. |
@@ -140,7 +141,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.6 | Generación PDF (Puppeteer) + almacenamiento MinIO; **PDF inmutable** al pasar a `issued` |
 | F1.7 | Certificados `generated`/`pregenerated`; import sheet+ZIP (lote ≤ **100 MB**, `;`) + plantilla CSV |
 | F1.8 | Estados `pending` → `issued` vía metadata (no crawler); `pending`/`failed` → `/file` 409; umbral de fallos → `failed` + `retry-issue` |
-| F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock) |
+| F1.9 | Permalink público: SPA `/c/{slug}` + API metadata + `/file` (lazy issue con lock). `issued`: `checksum_sha256` e `issued_at` en metadata y en la página. |
 | F1.10 | Búsqueda pública por email o documento |
 | F1.11 | Multi-rol: un certificado por rol |
 | F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI, `normalize: digits`) + roles desde YAML anexos |
@@ -156,7 +157,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-1.1 | Permalink (OG tags en Fase 2) |
 | HU-1.2 | Búsqueda por identidad (solo certificados; badges en F2/F3) |
 | HU-1.2b | Sin listado por evento |
-| HU-1.3 | Verificación en `/c/` (API JSON en Fase 2) |
+| HU-1.3 | Verificación en `/c/` (hash + fecha; API JSON en Fase 2) |
 | HU-1.4 | Datos correctos en PDF |
 | HU-2.1 | Multi-rol |
 | HU-3.1 | Editor visual (versión Konva funcional) |
@@ -184,6 +185,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 5. Evento draft no aparece en búsqueda; permalinks `/c/` en draft **sí** resuelven.
 6. Exceso de búsquedas o de hits a /c/ desde la misma IP → 429; segunda visita a /c/ issued no lanza Puppeteer.
 7. Tras N fallos de PDF el certificado queda `failed`; metadata posterior no lanza Puppeteer; admin `retry-issue` vuelve a `pending`.
+8. `/c/` de un `issued` muestra `checksum_sha256` e `issued_at`; coinciden con `stored_files` y con la descarga.
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
@@ -205,7 +207,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | # | Entregable |
 |---|------------|
 | F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions`, `instance_legal`, `instance_legal_signers` |
-| F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` y `/b/{slug}` |
+| F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
 | F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva |
@@ -353,7 +355,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-1.1 | Permalink | **1** + **2** | F1: `/c/` + descarga; F2: Open Graph |
 | HU-1.2 | Búsqueda por identidad | **1** + **2** + **3** | F1: certificados; F2: +badges evento; F3: +badges OSM vinculados |
 | HU-1.2b | Prohibir listado por evento | **1** | |
-| HU-1.3 | Verificación | **1** + **2** | F1: página `/c/`; F2: página `/b/` + API `GET /api/v1/verify/c|b/{slug}` |
+| HU-1.3 | Verificación | **1** + **2** | F1: `/c/` + SHA-256; F2: `/b/` + API `GET /api/v1/verify/c|b/{slug}` |
 | HU-1.4 | Datos correctos | **1** | |
 | HU-1.5 | Legal AC3 | **2** | Pantalla admin |
 | HU-2.1 | Multi-rol | **1** | |
@@ -490,7 +492,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Revocar badge OSM | `/b/` revoked; certificados intactos |
 | Alta tras revoke mismo rol | Nuevo slug; UNIQUE parcial OK |
 | Instancia AC3 | PDF `generated` contiene NIT del snapshot; `/c/` de pregenerado muestra snapshot; config nueva no altera PDF ni página viejos |
-| `GET /api/v1/verify/c/{slug}` | JSON `{ valid: true/false }` |
+| `GET /api/v1/verify/c/{slug}` | JSON `{ valid, status, issued_at, checksum_sha256, permalink }` |
 | Open Graph | Meta tags presentes en HTML de `/c/` y `/b/` |
 
 #### Fase 3

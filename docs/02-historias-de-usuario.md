@@ -158,6 +158,8 @@ Aviso / consentimiento de datos de contacto: **fuera de este sistema**. Los emai
 2. Indicador claro: **válido** / **pendiente** / **no generado** (`failed`) / **revocado** / **no encontrado**.
 3. Instancia AC3 muestra datos institucionales (NIT, razón social, **folio**, ciudad/fecha de expedición, firmantes, **disclaimer**) en la página `/c/` vía `legal_snapshot` de **todos** los certificados `issued` de esa instancia (`generated` y `pregenerated`). El archivo pregenerado no se reescribe. En `pending`/`failed` no hay bloque legal estructurado (aún no hay snapshot; no se usa `instance_legal` vigente).
 4. API de verificación JSON disponible (`GET /api/v1/verify/c/{slug}` y, en Fase 2+, `/b/{slug}`). En `failed`: `{ valid: false, reason: "failed" }`.
+5. Certificado **`issued`:** `/c/` y metadata (F1) y `GET /api/v1/verify/c/{slug}` (F2) muestran `checksum_sha256` (hex, 64) e `issued_at`. El hash **no** va pintado en el PDF. Texto de la página: la validez se comprueba en el sitio oficial; el hash sirve para contrastar el archivo descargado. No se afirma “firma digital” ni “infalsificable” ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)).
+6. `pending`/`failed`/`revoked`: sin hash de un PDF válido (o `null` en API). `revoked`: `valid: false`.
 
 ---
 

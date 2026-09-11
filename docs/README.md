@@ -52,7 +52,8 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Datos legales AC3 | Config instancia + capas en plantilla |
 | Anti-abuso / carga | Rate limit + `TRUST_PROXY`, PDF sin regenerar, `robots.txt`, Puppeteer no-root, zip-slip/bomb ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)) |
 | Atribución software | Footer/`/about`/health; no en PDF ni JSON-LD OB ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
-| Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2 (además de páginas humanas) |
+| Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2; F1: `/c/` + metadata con `checksum_sha256` |
+| Autenticidad | Permalink oficial + SHA-256 público; OB 2.0 hosted = deuda; destino badges = OB 3.0; sin PAdES en v1.0 ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)) |
 | Corrección emitido | Revocar + alta nueva (sin editar PDF issued) |
 | Soft-delete / draft | Oculta búsqueda; permalinks y clases OB por URL siguen vivos |
 | Email participante | Obligatorio; **único por evento** (rechazar duplicado); normalizado |
@@ -65,7 +66,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending o failed); crawlers no emiten; `failed` no relanza Chromium |
 | Emisión storage | Put MinIO → luego UPDATE `issued`; CSV↔ZIP biyectivo; slug retry 5× |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
-| Formato Open Badges | **2.0 hosted** en v1.0; OBv3 + firma = post-v1.0 ([06](./06-open-badges.md)) |
+| Formato Open Badges | **2.0 hosted** en v1.0 (deuda de durabilidad); destino = **OB 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)) |
 
 ---
 

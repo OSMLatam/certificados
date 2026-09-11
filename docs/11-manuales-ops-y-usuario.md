@@ -60,7 +60,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
 7. **Pregenerados** — 1:1 y sheet+ZIP; CSV↔ZIP 1:1 (falta/sobrante tumba el lote); rol ∈ `allowed_roles`; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
-9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy (metadata; crawlers no emiten; `/file` pending/failed → 409; `failed` = “no se pudo generar”).
+9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy; verificación = sitio oficial + SHA-256 del archivo (no “firma digital” de la rúbrica); `/file` pending/failed → 409.
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).
 11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending`/`failed` sí se puede corregir; `retry-issue` desde `failed` (F1).
 12. **Emisión fallida (F1)** — listado en ficha del evento; umbral `PDF_MAX_ISSUE_ATTEMPTS`; no relanzar Chromium en `failed`.
@@ -87,7 +87,7 @@ Sin pantalla ni API de restore en v1.0.
 Texto corto en la UI (no un PDF largo):
 
 1. Cómo buscar (email o documento).
-2. Qué es el permalink y que se puede compartir.
+2. Qué es el permalink y que se puede compartir. La validez se comprueba **en este sitio** (mirar el dominio). En un certificado emitido aparece el **SHA-256** del archivo para contrastar la descarga. La rúbrica del PDF no es firma digital.
 3. Si aparece “revocado” / “no encontrado”.
 4. (osm.lat) Cómo ver badges OSM por `osm_id` (F3).
 5. Enlace discreto al crédito de software / `/about`.

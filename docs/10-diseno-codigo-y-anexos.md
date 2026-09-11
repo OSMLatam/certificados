@@ -191,7 +191,7 @@ GET /api/v1/public/certificates/:slug/file     # binario PDF/imagen
   → si revoked: 404 o 410 según OpenAPI
 
 SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
-  → llama API metadata; si issued, enlace/iframe a /file
+  → llama API metadata; si issued: hash sha256 + issued_at + enlace/iframe a /file
   → si failed: indicador “no se pudo generar” (sin pedir /file)
   → búsqueda: mismo orden (metadata → luego /file si aplica)
 ```
@@ -200,8 +200,8 @@ SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
 
 | Superficie | Ruta | Responsabilidad |
 |------------|------|-----------------|
-| HTML verify | `/c/{slug}` (web) | Página humana; llama metadata; no regenera PDF |
-| Metadata JSON | `GET /api/v1/public/certificates/{slug}` | **Único** disparador de lazy issue (excepto crawlers) |
+| HTML verify | `/c/{slug}` (web) | Página humana; llama metadata; muestra `checksum_sha256` e `issued_at` si `issued`; no regenera PDF |
+| Metadata JSON | `GET /api/v1/public/certificates/{slug}` | **Único** disparador de lazy issue (excepto crawlers). `issued`: incluye `checksum_sha256`, `issued_at`. |
 | Binario | `GET /api/v1/public/certificates/{slug}/file` | Stream desde storage; **409 si pending o failed** |
 | Descarga forzada | mismo `/file?download=1` | `Content-Disposition: attachment` |
 | Crawler / OG | misma metadata | Respuesta sin `transitionToIssued` |
@@ -476,7 +476,42 @@ No hay cifrado campo-a-campo en v1.0 (índices y búsqueda por documento/email).
 
 Detalle operativo: [11](./11-manuales-ops-y-usuario.md).
 
-### 10.2. Rate limiting y anti-abuso (Fase 1+)
+### 10.2. Modelo de autenticidad (decisión cerrada)
+
+v1.0 **no** firma el PDF (PAdES) ni emite Open Badges 3.0 con `proof`. La verificación es **hosted**: el permalink en `PUBLIC_BASE_URL` es la fuente de verdad. El SHA-256 del archivo **sí** se publica para que un verificador compare su copia con la del servidor. El siguiente paso criptográfico previsto para badges es **Open Badges 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)).
+
+#### Qué garantiza v1.0
+
+- Un humano o máquina que abre `https://{PUBLIC_BASE_URL}/c/{slug}` (o `/b/{slug}`) en el **dominio oficial** ve el estado actual: `issued` / `pending` / `failed` / `revoked`.
+- En `issued`, `/c/` y metadata (F1) y `GET /api/v1/verify/c/{slug}` (F2) exponen `checksum_sha256` (hex minúsculas, 64 chars) e `issued_at`. Quien descargue `/file` puede recalcular SHA-256 y comparar.
+- Una **revocación** posterior se ve en el permalink. Un PDF ya descargado no se borra del disco del usuario.
+
+#### Qué no garantiza v1.0
+
+- Autenticidad **offline** del PDF o de una captura (NIT e imagen de firma son dibujo, no firma criptográfica).
+- Que un QR o enlace compartido apunte al dominio oficial: hay que mirar la barra de direcciones.
+- Que el badge/PDF sigan siendo comprobables si caen hosting o DNS (modelo hosted).
+- Open Badges 3.0 `proof` ni PAdES.
+
+#### Publicación del hash
+
+| Superficie | Fase | Contrato |
+|------------|------|----------|
+| `GET /api/v1/public/certificates/{slug}` | 1 | Si `issued`: incluye `checksum_sha256`, `issued_at`. `pending`/`failed`: esos campos `null`. |
+| Página `/c/{slug}` | 1 | Si `issued`: muestra el hash (monoespaciado, copiable) e `issued_at`. Texto corto: la validez se comprueba en este sitio oficial; el hash permite contrastar el archivo descargado. |
+| `GET /api/v1/verify/c/{slug}` | 2 | `{ valid, status, issued_at, checksum_sha256, permalink }`. `valid` es `true` solo si `issued`. |
+| PDF | — | **No** se pinta el hash en el archivo (el SHA-256 es del binario completo; incrustarlo lo invalidaría). |
+| osm.lat y AC3 | ambas | Mismo contrato. |
+
+`checksum_sha256` es el de `stored_files` del certificado (el objeto servido en `/file`). No se inventa un segundo hash.
+
+#### Amenazas aceptadas en v1.0
+
+PDF clonado a simple vista; QR a un dominio falso; copia local tras revocar; indisponibilidad del servidor. Mitigación de producto: permalink no enumerable (nanoid), rate limit, **decir en `/c/` y ayuda pública qué se garantiza**. No usar en comunicación institucional “documento infalsificable” ni “firma digital” para la imagen de rúbrica.
+
+PAdES del PDF AC3: **no** entra en v1.0; se reevalúa junto al despliegue OB 3.0 (no sustituye el `proof` del badge).
+
+### 10.3. Rate limiting y anti-abuso (Fase 1+)
 
 Usar `@nestjs/throttler` (o equivalente) en **todos** los endpoints públicos costosos. Umbrales por ENV (ajustables por operador).
 
@@ -493,7 +528,7 @@ Usar `@nestjs/throttler` (o equivalente) en **todos** los endpoints públicos co
 - **No** exponer APIs públicas de listado por evento, año o sede (HU-1.2b).
 - Mensaje de búsqueda **genérico** si no hay resultados (no filtrar existencia de documento).
 
-### 10.3. Bots, scrapers y agentes de IA
+### 10.4. Bots, scrapers y agentes de IA
 
 Objetivo: reducir crawling automático y uso como fuente de entrenamiento, **sin** romper verificadores humanos ni backpacks OB.
 
@@ -507,7 +542,7 @@ Objetivo: reducir crawling automático y uso como fuente de entrenamiento, **sin
 
 Los permalinks siguen siendo públicos si se conoce el slug (diseño intencional). La defensa es **no enumerabilidad** + rate limit, no oscuridad del PDF.
 
-### 10.4. Protección de desempeño (Puppeteer / storage)
+### 10.5. Protección de desempeño (Puppeteer / storage)
 
 Puppeteer es el mayor riesgo de carga en el servidor.
 
@@ -523,7 +558,7 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 | Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; sesiones en Postgres (`admin_sessions`); límites PDF en-proceso |
 | Caché HTTP | Permalinks `issued`: `Cache-Control` razonable en estáticos/PDF (CDN o nginx); HTML verify puede ser más corto |
 
-### 10.5. Checklist para implementación (IA / humano)
+### 10.6. Checklist para implementación (IA / humano)
 
 Al escribir código de Fase 1 en adelante:
 
@@ -535,6 +570,8 @@ Al escribir código de Fase 1 en adelante:
 6. Tests: búsqueda y permalinks devuelven **429** tras superar el umbral; `/file` pending/failed → **409**; UA preview no emite; activar `generated` sin plantilla → **400**; `failed` no relanza Chromium; CSV `role` ∉ `allowed_roles` y ZIP no biyectivo → lote 0; entrada ZIP con `..` → rechazo; upload con MIME mentiroso → 400 (ver [09 §11](./09-plan-de-implementacion.md)).
 7. `transitionToIssued` (`generated`): **put MinIO → luego UPDATE** `issued`. Nunca al revés ([§4.2.2](#422-atomicidad-minio--postgres-decisión-cerrada)).
 8. Puppeteer: no-root; sin fetch remoto; `TRUST_PROXY` correcto en prod ([§10.1](#101-defaults-de-seguridad)).
+9. `/c/` y metadata de un `issued`: exponer `checksum_sha256` e `issued_at`. No pintar el hash dentro del PDF ([§10.2](#102-modelo-de-autenticidad-decisión-cerrada)).
+10. Copy de `/c/` y ayuda: no decir “firma digital” ni “infalsificable” por la rúbrica dibujada.
 
 ---
 

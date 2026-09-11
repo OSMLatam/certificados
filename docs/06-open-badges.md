@@ -15,7 +15,23 @@ Open Badges es un **pilar del sistema**, al mismo nivel que los certificados PDF
 | Certificado | `/c/{slug}` | PDF / imagen | Eventos, diploma, LinkedIn, AC3 legal |
 | Badge | `/b/{slug}` | **Open Badges 2.0** (JSON-LD, verificación *hosted*) | Backpack (Badgr, Open Badge Passport), logros OSM, complemento de evento |
 
-**Decisión cerrada (v1.0):** el sistema emite **Open Badges 2.0** con verificación **hosted** (la URL pública de la assertion es la prueba de validez). No se emite OB 3.0 ni firma criptográfica en v1.0 — eso queda en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) (migración a OBv3 + `proof`).
+**Decisión cerrada (v1.0):** el sistema emite **Open Badges 2.0** con verificación **hosted** (la URL pública de la assertion es la prueba de validez). Eso es **deuda de durabilidad** consciente: si cae el hosting, el badge deja de verificarse. **No** se emite OB 3.0 ni `proof` en v1.0. El destino de autenticidad de los badges es **Open Badges 3.0** (§1.1); el diseño de Fase 2 no debe cerrar esa puerta.
+
+### 1.1. Camino a Open Badges 3.0 (decisión cerrada)
+
+Se **montará** Open Badges 3.0 (credencial verificable + Data Integrity `proof`) como evolución de autenticidad de badges. No es un “tal vez”: es el siguiente paso criptográfico, **fuera del código de las fases v1.0** pero **dentro del diseño**.
+
+| Pieza | Contrato ahora |
+|-------|----------------|
+| Emisión v1.0 | Solo **2.0 hosted** (Badgr / Open Badge Passport). |
+| `badge_issuers.public_key` | Columna ya existe; **NULL** en v1.0. No reutilizarla para otro esquema. |
+| IDs | URLs estables de issuer, BadgeClass y assertion (`PUBLIC_BASE_URL`). OB 3.0 reutilizará los mismos identificadores donde el estándar lo permita. |
+| `assertion_json` cache | Si se persiste el JSON 2.0, documentar **invalidación** al migrar (no asumir que el blob es eterno). |
+| Hash del PDF | `checksum_sha256` en `/c/` y verify es prueba del **archivo del certificado**, no un `proof` OB. No inventar un JWT/PAdES propio como “el” badge firmado. |
+| Dual-emit 2.0+3.0 | No en v1.0. La migración (convivir o cortar 2.0) se decide al implementar OB 3.0. |
+| PAdES del PDF | Distinto del `proof` del badge. Fuera de v1.0 ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). |
+
+Catálogo post-v1.0: [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 Un certificado de evento **genera automáticamente** un badge vinculado (BadgeClass del rol se materializa al definir `allowed_roles`, incluso en `draft`; `UNIQUE (event_id, role_code)`; ver HU-9.3).  
 Un badge de actividad OSM **puede existir sin certificado**.
@@ -78,7 +94,7 @@ flowchart LR
 
 (Contrato: identificador estable = `osm_id`, no username. La ruta `/osm/users/{osm_id}` puede ser página mínima o redirect al perfil OSM actual.)
 
-**Verificación en v1.0:** (1) hosted — `GET /badges/assertions/{uuid}.json` debe seguir sirviendo la assertion mientras el badge esté `issued`; (2) páginas humanas `/c/{slug}` y `/b/{slug}`; (3) API máquina `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado.
+**Verificación en v1.0:** (1) hosted — `GET /badges/assertions/{uuid}.json` mientras el badge esté `issued`; (2) páginas `/c/` y `/b/`; (3) API `GET /api/v1/verify/c/{slug}` (incluye `checksum_sha256` del PDF) y `/b/{slug}` (**Fase 2**). Visitar `/b/` en `pending` **no** emite el certificado. El hash del PDF no sustituye un `proof` OB 3.0.
 
 ---
 
@@ -291,7 +307,8 @@ Capacidades OB post-v1.0 (migración a **Open Badges 3.0** + firma/`proof`, webh
 
 - [Open Badges](https://openbadges.org/)
 - [OB v2 IMS](https://www.imsglobal.org/sites/default/files/Badges/OBv2p0Final/index.html) (formato de emisión v1.0)
-- [OB v3.0](https://www.imsglobal.org/spec/ob/v3p0/) (evolución futura)
+- [OB v3.0](https://www.imsglobal.org/spec/ob/v3p0/) (destino de autenticidad de badges; no se emite en v1.0 — §1.1)
+- [Modelo de autenticidad v1.0](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)
 - [Visión y alcance — evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10)
 - [Modelo de datos](./03-modelo-de-datos.md)
 - [Historias de usuario — Épica 9 y 10](./02-historias-de-usuario.md)

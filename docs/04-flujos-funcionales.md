@@ -309,6 +309,7 @@ Badge OSM (u otro) sin certificado:
 | T33 | AC3: `event_date` del evento ≠ día del `transitionToIssued` | PDF y `/c/` muestran ambas fechas; `legal.issue_date` = `issued_at` en `America/Bogota` |
 | T34 | Preview plantilla AC3 | `legal.issue_city` y `legal.disclaimer` = config; `legal.folio` y `legal.issue_date` = “—”; no incrementa `last_folio` ni escribe `issued_at` |
 | T35 | AC3: emitir, luego PATCH del disclaimer | El `issued` conserva el texto del snapshot; el preview usa el nuevo |
+| T36 | Certificado `issued`: `/c/` y metadata | Incluyen `checksum_sha256` (64 hex) e `issued_at`; coinciden con `stored_files`; el PDF no contiene el hash como capa |
 
 ---
 
@@ -402,7 +403,7 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |
 | GET | `/badges/assertions/{uuid}.json` | 2 | Assertion OB |
-| GET | `/api/v1/verify/c/{slug}` | 2 | Verificación máquina certificado `{ valid, status, … }` |
+| GET | `/api/v1/verify/c/{slug}` | 2 | `{ valid, status, issued_at, checksum_sha256, permalink }` |
 | GET | `/api/v1/verify/b/{slug}` | 2 | Verificación máquina badge |
 | POST | `/api/v1/admin/certificates/{id}/revoke` | 2 | Revocar certificado (+ badge evento) |
 | POST | `/api/v1/admin/badges/{id}/revoke` | 2 | Revocar assertion (OSM o directa) |

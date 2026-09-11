@@ -75,7 +75,7 @@ Incluye tests unitarios e integración (docs/09 §11). Genera apps/api/openapi.y
 ```text
 Sobre el código de Fase 1, implementa Fase 2 según docs/09-plan-de-implementacion.md sección 3, docs/06-open-badges.md y docs/08-datos-legales-ac3-plantilla.md.
 
-Añade: badge event_role automático, /b/, issuer JSON-LD, revocación certificado↔badge, legal_snapshot al pasar a issued (generated y pregenerated AC3; el pregenerado no se reescribe), folio consecutivo global AC3, config LEGAL_* y capas legal.* en editor, perfil de despliegue INSTANCE=ac3, Open Graph, API verify JSON.
+Añade: badge event_role automático, /b/, issuer JSON-LD, revocación certificado↔badge, legal_snapshot al pasar a issued (generated y pregenerated AC3; el pregenerado no se reescribe), folio consecutivo global AC3, config LEGAL_* y capas legal.* en editor, perfil de despliegue INSTANCE=ac3, Open Graph, API verify JSON (checksum_sha256, issued_at). Open Badges = 2.0 hosted; no implementar OB 3.0 proof.
 
 No implementes: osm_activity, import awardees OSM, jobs OSM.
 

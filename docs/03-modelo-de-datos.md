@@ -335,7 +335,7 @@ Archivos binarios (pregenerados o renders cacheados).
 | storage_key | VARCHAR(500) | |
 | mime_type | VARCHAR(100) | `image/png`, `application/pdf` |
 | byte_size | BIGINT | |
-| checksum_sha256 | CHAR(64) | Integridad; también clave de idempotencia del put (ver [10 §4.2.2](./10-diseno-codigo-y-anexos.md)) |
+| checksum_sha256 | CHAR(64) | Integridad del objeto servido; clave de idempotencia del put ([10 §4.2.2](./10-diseno-codigo-y-anexos.md)). **Público** en `/c/`, metadata y verify si el certificado está `issued` ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). |
 | uploaded_by | UUID FK admin | |
 | created_at | TIMESTAMPTZ | |
 
@@ -419,7 +419,7 @@ Un registro por instancia (o derivado de config ENV).
 | url | VARCHAR(255) | URL instancia |
 | description | TEXT | |
 | image_storage_key | VARCHAR(500) | Logo issuer |
-| public_key | TEXT | NULL en v1.0 (OB 2.0 hosted no la usa); OBv3 + firma en [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10) |
+| public_key | TEXT | NULL en v1.0. Reservada para **Open Badges 3.0** `proof` ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)). No usar para otro esquema. |
 | created_at | TIMESTAMPTZ | |
 
 ### 6.2. `badge_classes`

@@ -151,6 +151,7 @@ Incluye:
 - Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
 - Open Graph LinkedIn.
 - API de verificación JSON `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (Fase 2), además de las páginas humanas.
+- Autenticidad v1.0: permalink oficial + **SHA-256 público** del PDF ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). OB 3.0 / PAdES = post-v1.0.
 - Imagen de badge: upload PNG/SVG por BadgeClass (sin biblioteca de plantillas).
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
 
@@ -164,7 +165,8 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 
 | Capacidad | Notas | Detalle en |
 |-----------|-------|------------|
-| Migración a Open Badges 3.0 + firma (`proof`) | v1.0 emite **OB 2.0 hosted**; `public_key` NULL hasta entonces | [06](./06-open-badges.md), [03](./03-modelo-de-datos.md) |
+| Migración a Open Badges 3.0 + `proof` | v1.0 = **2.0 hosted** (deuda de durabilidad). Destino de autenticidad de badges = OB 3.0. IDs estables + `public_key` reservada. [06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30) | [06](./06-open-badges.md), [10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada) |
+| Firma PAdES del PDF | No en v1.0; reevaluar con OB 3.0. Las rúbricas de plantilla no son firma criptográfica. | [10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada) |
 | API pública para terceros emisores de listas | Integraciones externas de elegibles | — |
 | Webhook de criterios externos | Tercer modo además de CSV (M1) y job (M2) | [06](./06-open-badges.md) |
 | Plantillas reutilizables de imagen badge | Biblioteca en admin; v1.0 = upload por BadgeClass | [06](./06-open-badges.md) |
