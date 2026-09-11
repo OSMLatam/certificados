@@ -206,6 +206,8 @@ SPA GET /c/:slug  → CertificatePublicPage (HTML verify)
 | Descarga forzada | mismo `/file?download=1` | `Content-Disposition: attachment` |
 | Crawler / OG | misma metadata | Respuesta sin `transitionToIssued` |
 
+No hay superficie admin de “emitir pendientes”, ZIP de PDFs del evento ni impresión. [07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada).
+
 ### 4.2.1. Emisión concurrente (cerrado)
 
 Dos `GET` simultáneos a un certificado `pending` **no** deben lanzar dos Puppeteer:
@@ -264,6 +266,7 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 | `/admin/login` | 1 | `AdminLoginPage` (botón OAuth OSM; sin form password) |
 | `/admin` | 1 | `AdminDashboardPage` (**F1:** conteos básicos eventos/participantes/certificados pending\|issued\|failed; **F2+:** + badges, legal, revocaciones — HU-7.2) |
 | `/admin/users` | 1 | `AdminUsersPage` (solo rol `admin`; HU-7.4) |
+| `/admin/audit` | 1 | `AdminAuditLogPage` (solo rol `admin`; HU-7.5) |
 | `/admin/events` | 1 | `EventsListPage` |
 | `/admin/events/:id` | 1 | `EventDetailPage` (participantes, plantillas) |
 | `/admin/events/:id/template` | 1 | `TemplateEditorPage` (Konva) |
@@ -362,7 +365,7 @@ Respuesta ejemplo:
 ### Logging
 
 - **NestJS** `Logger` estructurado (JSON en producción).
-- **`audit_log`:** acciones admin (crear evento, revocar, import CSV).
+- **`audit_log`:** acciones sensibles del catálogo ([03 §5.2](./03-modelo-de-datos.md#52-audit_log)); lectura solo admin (HU-7.5).
 - **`permalink_access_log`:** accesos a `/c/` (sin IP completa si `LOG_REDACT_IP=true`).
 - **No** loguear documentos completos ni contraseñas.
 
@@ -631,6 +634,7 @@ paths:
   /admin/auth/me:           GET
   /admin/users:             GET           # admin only
   /admin/users/{id}:        PATCH         # role, is_active; admin only
+  /admin/audit-log:         GET           # admin only; HU-7.5
   /admin/events:            GET, POST
   /admin/events/{id}:       GET, PATCH, DELETE
   /admin/events/{id}/venues: GET, POST

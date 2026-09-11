@@ -45,7 +45,7 @@ Un participante puede tener **varios** de estos roles en el **mismo evento**; ca
 
 **Soft-delete:** el evento deja de listarse (`deleted_at`); **restore solo vía SQL** (`UPDATE … SET deleted_at = NULL`) — sin endpoint ni pantalla (poca frecuencia). Los permalinks `/c/{slug}` y `/b/{slug}` **siguen sirviendo**. **Evolución futura:** borrado de eventos `active` antiguos solo tras confirmación de un segundo editor.
 
-**Emisión de certificados:** solo **lazy** vía metadata `GET /api/v1/public/certificates/{slug}` (no crawlers); `/file` en `pending` o `failed` → 409. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin relanzar Chromium). No hay emisión forzada/masiva en v1.0. Ver [07](./07-estados-y-ciclo-de-vida.md).
+**Emisión de certificados:** solo **lazy** vía metadata `GET /api/v1/public/certificates/{slug}` (no crawlers); `/file` en `pending` o `failed` → 409. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin relanzar Chromium). **Decisión cerrada:** no hay emisión forzada, ZIP de PDFs del evento ni impresión desde el panel. Papel el mismo día = pregenerados fuera del sistema. Ver [07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada).
 
 ### Privacidad pública (reglas fijas v1.0)
 
@@ -306,6 +306,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 5. **Carga masiva:** hoja **CSV** (delimitador fijo `;`, UTF-8) + ZIP de archivos; validación de **todo el lote** antes de escribir; si hay error, no se importa nada (informe de fallos). Límite del lote **100 MB**. Imports **incrementales** al mismo evento; rechazar duplicados ya existentes (mismo email + rol) y emails conflictivos. **v1.0 no importa ODS nativo**. **CSV ↔ ZIP biyectivo:** falta de archivo, archivo sobrante, basename con `/` o `..`, o `role` ∉ `allowed_roles` → falla el lote (ver [03 §10](./03-modelo-de-datos.md)).
 6. **Plantilla descargable** desde el panel (CSV UTF-8 `;`): encabezados + filas de ejemplo; el editor la completa (`filename` = basename que debe coincidir 1:1 con el ZIP) y la sube con los archivos. Sin helper de escritorio en v1.0.
 7. La edición masiva de metadatos se hace en LibreOffice/Excel (export CSV); el panel solo ofrece la plantilla, valida e importa.
+8. Import sheet+ZIP **aceptado** escribe `audit_log` `pregenerated_import` (lote rechazado: 0 filas de audit).
 
 ---
 
@@ -449,6 +450,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 4. **Email duplicado** (mismo evento + mismo email + mismo rol, o email ya en BD con datos conflictivos) → **rechazar**. Cada persona tiene su propio email.
 5. **Validación atómica del archivo:** validar **todas** las filas antes de escribir; si hay cualquier error → **no se importa ninguna** fila; devolver informe de fallos. Si el lote es válido completo → escribir todo. Imports **incrementales** posteriores al mismo evento (altas nuevas); rechazar filas que dupliquen certificado ya existente (mismo email + rol). **Fila `generated` sin plantilla de rol ni default del evento:** error de validación (y, por atomicidad, falla el lote). **`role` ∉ `allowed_roles`:** error de fila; falla el lote.
 6. Botón **Descargar plantilla** (CSV con columnas de la instancia + filas de ejemplo); el editor la completa en Excel/LibreOffice y la reimporta como CSV.
+7. Lote CSV **aceptado** escribe `audit_log` `participant_csv_import` (lote rechazado: 0 filas de audit).
 
 ---
 
@@ -476,10 +478,10 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 
 ---
 
-### HU-7.2 — Dashboard y auditoría
+### HU-7.2 — Dashboard
 
 **Como** editor o admin,  
-**quiero** ver métricas de uso; y como admin el log de acciones,  
+**quiero** ver métricas de uso,  
 **para** supervisar la instancia.
 
 | Campo | Valor |
@@ -489,8 +491,8 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 **Criterios de aceptación:**
 
 1. **Dashboard (editor y admin):** contadores — eventos activos, certificados emitidos, **`failed`**, consultas a permalinks (ampliable en F2/F3).
-2. **Audit log (solo admin):** quién, cuándo, qué acción, sobre qué entidad (incl. asignación de roles).
-3. **Emisión fallida (Must F1, ficha del evento — no el dashboard):** listar certificados `failed` y `pending` con `issue_attempts > 0` (`last_issue_error`, intentos). `POST /api/v1/admin/certificates/{id}/retry-issue` (editor y admin): `failed` → `pending`, `issue_attempts = 0`; no emite en el POST. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md).
+2. **Emisión fallida (Must F1, ficha del evento — no este dashboard):** listar certificados `failed` y `pending` con `issue_attempts > 0`. `retry-issue`. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md).
+3. El **audit log** no vive aquí: [HU-7.5](#hu-75--audit-log-de-acciones-sensibles) (Must).
 
 ---
 
@@ -514,6 +516,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 5. **Corrección de datos (decisión cerrada):** no hay PATCH de certificado `issued` ni regeneración del PDF. Procedimiento = **revocar + alta nueva** (nuevo slug). El UNIQUE `(participant_id, role_code)` es **parcial:** solo entre filas con `status <> 'revoked'` (incluye `failed`), para permitir la nueva emisión tras revocar.
 6. **Mientras `pending` o `failed` (también en Fase 1):** sí se puede corregir metadatos del participante/certificado o borrar y volver a dar de alta; aún no hay revocación en F1. Desde `failed`, el camino de render es `retry-issue` (tras arreglar plantilla/fondo) o borrar+alta.
 7. RBAC: editor y admin (matriz).
+8. Escribe `audit_log` `certificate_revoke` / `badge_revoke` ([03 §5.2](./03-modelo-de-datos.md)).
 
 ---
 
@@ -535,6 +538,29 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 4. Activar/desactivar usuario (`is_active`); desactivado ⇒ 403 en APIs admin aunque tenga rol.
 5. No se crean usuarios “a mano” con password; el alta en BD ocurre al primer OAuth exitoso.
 6. Un admin no puede desactivarse ni quitarse el rol a sí mismo si es el último `admin` activo (evitar lockout).
+7. PATCH de `role` o `is_active` escribe `audit_log` (`user_role_change` / `user_activation_change`). El bootstrap del primer OAuth (seed ENV) **no** genera fila.
+
+---
+
+### HU-7.5 — Audit log de acciones sensibles
+
+**Como** admin,  
+**quiero** un registro persistente de quién cambió roles, importó lotes o (en F2) revocó y suprimió,  
+**para** gobernar la instancia —sobre todo AC3— aunque el dashboard de métricas (HU-7.2) sea Should.
+
+| Campo | Valor |
+|-------|-------|
+| Prioridad | Must |
+| Fase | 1 |
+
+**Criterios de aceptación:**
+
+1. Cada acción del catálogo cerrado ([03 §5.2](./03-modelo-de-datos.md#52-audit_log)) escribe **una** fila en `audit_log` en la **misma transacción** que el efecto. Fallo al auditar → **500** y rollback: el cambio no se aplica.
+2. **Solo rol `admin`:** `GET /api/v1/admin/audit-log` paginado (quién, cuándo, `action`, entidad, `metadata`; filtros `action`, `from`, `to`). Editor → **403**. Sin CSV público ni API anónima.
+3. Pantalla `/admin/audit` **F1** (tabla simple). F2 añade filas de revocar / erase / legal; F3, jobs e import awardees.
+4. `metadata` **sin** `doc_number` completo, contraseñas ni CSV crudo. IP = la del **admin** (panel, tras `TRUST_PROXY`), no del titular; no aplica `LOG_REDACT_IP` de permalinks.
+5. **Sin purga automática** en v1.0 (a diferencia de `permalink_access_log`, 90 días). Conservación = backups de BD.
+6. Jobs F3 pueden escribir con `admin_user_id` NULL y `metadata.source=job`.
 
 ---
 
@@ -578,6 +604,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 3. **Posición** en el PDF no se configura aquí; es en el editor visual (HU-3.1).
 4. osm.lat: pantalla/`instance_legal` ausentes; capas `legal.*` no disponibles.
 5. Página `/c/` de un certificado **`issued`** usa `legal_snapshot` (ambos modos); no lee `instance_legal` vigente. Issuer Open Badges lee `instance_legal` vigente (nuevas emisiones).
+6. PATCH escribe `audit_log` `instance_legal_patch`.
 
 Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [03 §7.2](./03-modelo-de-datos.md).
 
@@ -623,7 +650,7 @@ Ver [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md) y [
    - Badges `event_role` vinculados: `revoked`.
    - Fuera de búsqueda pública por el email/documento anteriores.
    - Borrar filas de `permalink_access_log` de esos certificados.
-   - `audit_log`: acción `participant_erase` (Must aunque el dashboard HU-7.2 sea Should).
+   - `audit_log`: acción `participant_erase` ([HU-7.5](#hu-75--audit-log-de-acciones-sensibles)).
 4. El slug **no** se recicla.
 5. Runbook: pasos de identidad, plazos de respuesta del operador, y que osm.lat usa el mismo endpoint.
 
@@ -848,9 +875,10 @@ Ver [06-open-badges.md](./06-open-badges.md).
 | HU-6.1 | Alta individual | Must |
 | HU-6.2 | CSV | Must |
 | HU-7.1 | Login OAuth OSM | Must |
-| HU-7.2 | Dashboard/logs | Should |
+| HU-7.2 | Dashboard (métricas) | Should |
 | HU-7.3 | Revocación | Must |
 | HU-7.4 | Gestión usuarios panel | Must |
+| HU-7.5 | Audit log acciones sensibles | Must |
 | HU-8.1 | Branding | Must |
 | HU-8.2 | Legal AC3 | Must |
 | HU-8.3 | Aviso de privacidad | Must |

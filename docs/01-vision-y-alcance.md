@@ -150,11 +150,13 @@ Incluye:
 - Import CSV de awardees OSM y jobs OSM con reglas y **fuente por métrica** documentadas ([06 §5.1](./06-open-badges.md)).
 - Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
 - **Habeas data v1.0:** aviso `/privacy`, canal ARCO, supresión admin (HU-8.3, HU-8.4). Sin portal de auto-baja. Credenciales `issued` se conservan para verificar **hasta** ARCO o borrado ops; log de `/c/` **90 días**.
+- **Audit log** de acciones sensibles (roles, imports, revocar, erase): Must; lectura y escrituras F1; F2/F3 amplían el catálogo ([03 §5.2](./03-modelo-de-datos.md)). Dashboard de métricas = Should.
 - Open Graph LinkedIn.
 - API de verificación JSON `GET /api/v1/verify/c/{slug}` y `/b/{slug}` (Fase 2), además de las páginas humanas.
 - Autenticidad v1.0: permalink oficial + **SHA-256 público** del PDF ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). OB 3.0 / PAdES = post-v1.0.
 - Imagen de badge: upload PNG/SVG por BadgeClass (sin biblioteca de plantillas).
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
+- **Emisión solo lazy** ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)): **no** hay botón de emitir pendientes, ZIP de PDFs ni impresión para entrega presencial el mismo día. Papel el día del evento = archivos **pregenerados** (fuera de este sistema).
 
 **No confundir** con [§6 Fuera de alcance](#6-fuera-de-alcance): eso no entra ni en v1.0 ni en la evolución prevista.
 
@@ -175,7 +177,7 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Instancia HOT / Tasking Manager | Badges por campañas TM (otro issuer) | — |
 | Privacidad configurable por usuario | Opt-in badges/diplomas públicos | [02](./02-historias-de-usuario.md) |
 | Confirmación 2 editores para borrar eventos antiguos | Anti-compromiso de cuenta | [02](./02-historias-de-usuario.md) RBAC |
-| Emisión forzada/masiva de certificados | v1.0 = solo lazy | [07](./07-estados-y-ciclo-de-vida.md) |
+| Emisión forzada/masiva de certificados | **Decisión cerrada:** v1.0 = solo lazy; sin ZIP de PDFs ni impresión desde el panel. Papel el mismo día = pregenerados. | [07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada) |
 | Helper local para prellenar `filename` | Leer carpeta y completar la hoja; v1.0 = plantilla CSV descargable + Excel | [03 §10](./03-modelo-de-datos.md), [02](./02-historias-de-usuario.md) HU-4.1 |
 | Newsletter / Listmonk | Lista con alta explícita; no reutilizar emails de certificados a ciegas | Manual ops |
 | Retención de PDFs en storage | v1.0: `issued` se conserva para verificar hasta ARCO/ops; caducidad automática por años = post-v1.0 | [02 HU-8.4](./02-historias-de-usuario.md) |

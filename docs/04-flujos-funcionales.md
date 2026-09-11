@@ -264,6 +264,7 @@ Idénticos en lógica. Diferencias en render:
 Editor/Admin POST /api/v1/admin/certificates/{id}/revoke
   → status = revoked, revoked_at = now(), revoke_reason?
   → badge event_role vinculado → revoked
+  → audit_log certificate_revoke (misma transacción)
   → GET /c/{slug} muestra estado revocado (sin PDF)
   → API verify → { valid: false, reason: "revoked" }
 
@@ -313,6 +314,8 @@ Badge OSM (u otro) sin certificado:
 | T35 | AC3: emitir, luego PATCH del disclaimer | El `issued` conserva el texto del snapshot; el preview usa el nuevo |
 | T36 | Certificado `issued`: `/c/` y metadata | Incluyen `checksum_sha256` (64 hex) e `issued_at`; coinciden con `stored_files`; el PDF no contiene el hash como capa |
 | T37 | `POST …/participants/{id}/erase` (admin) | PII anonimizada; certs `revoked` + PDF borrado; búsqueda por email viejo vacía; `/c/` sin nombre/doc; `audit_log` `participant_erase` |
+| T38 | CSV participantes aceptado; editor llama `GET …/audit-log` | Fila `participant_csv_import`; editor recibe **403**; admin ve la fila |
+| T39 | PATCH rol de usuario (admin) | Fila `user_role_change` con `old_role`/`new_role`; si el INSERT de audit falla → **500** y el rol **no** cambia |
 
 ---
 
@@ -370,7 +373,7 @@ flowchart TD
 2. Para cada osm_profile con email + linked_at (vinculados HU-10.5):
 3. Consultar fuente de la métrica ([06 §5.1](./06-open-badges.md))
 4. Si cumple → emitir assertion + evidence_metadata snapshot
-5. Registrar en job log / audit
+5. Registrar `audit_log` `osm_job_run` (`admin_user_id` NULL, `metadata.source=job`)
 ```
 
 ---
@@ -402,6 +405,7 @@ Contrato completo en `apps/api/openapi.yaml` (generado en Fase 1; ampliado en Fa
 | GET | `/api/v1/admin/auth/osm/callback` | 1 | Callback OAuth → sesión |
 | GET | `/api/v1/admin/users` | 1 | Listar usuarios (solo admin) |
 | PATCH | `/api/v1/admin/users/{id}` | 1 | Asignar rol / `is_active` (solo admin) |
+| GET | `/api/v1/admin/audit-log` | 1 | Audit log (solo admin; HU-7.5) |
 | CRUD | `/api/v1/admin/...` | 1 | Panel administración |
 | GET | `/b/{slug}` | 2 | Badge público + JSON-LD |
 | GET | `/badges/issuer.json` | 2 | Issuer OB |

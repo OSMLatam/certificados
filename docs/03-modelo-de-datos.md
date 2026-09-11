@@ -364,18 +364,60 @@ Usuarios del panel autenticados vía **OAuth OpenStreetMap**. Identidad canónic
 
 ### 5.2. `audit_log`
 
-Acciones administrativas.
+Registro persistente de **acciones sensibles** del panel ([HU-7.5](./02-historias-de-usuario.md#hu-75--audit-log-de-acciones-sensibles) Must). Distinto de `permalink_access_log` (consultas públicas a `/c/`).
 
-| Columna | Tipo |
-|---------|------|
-| id | UUID PK |
-| admin_user_id | UUID FK |
-| action | VARCHAR(50) |
-| entity_type | VARCHAR(50) |
-| entity_id | UUID |
-| ip_address | INET |
-| metadata | JSONB |
-| created_at | TIMESTAMPTZ |
+| Columna | Tipo | Notas |
+|---------|------|--------|
+| id | UUID PK | |
+| admin_user_id | UUID FK NULL | NULL solo en jobs F3 (`metadata.source=job`). Acciones de panel: NOT NULL. No borrar `admin_users` (desactivar). |
+| action | VARCHAR(50) NOT NULL | Catálogo cerrado (§5.2.1). Ampliar = migración + esta tabla. |
+| entity_type | VARCHAR(50) NOT NULL | Recurso (`admin_user`, `event`, `certificate`, `participant`, `badge_assertion`, `instance_legal`, `badge_class`). |
+| entity_id | UUID NOT NULL | |
+| ip_address | INET NULL | IP del **admin** (panel, tras `TRUST_PROXY`). No es la del titular. No aplica `LOG_REDACT_IP` de permalinks. |
+| metadata | JSONB NOT NULL | Default `{}`. Sin `doc_number` completo, contraseñas, CSV crudo ni PII de titulares. |
+| created_at | TIMESTAMPTZ NOT NULL | |
+
+**Índices:** `(created_at DESC)`, `(action, created_at DESC)`, `(entity_type, entity_id)`.
+
+**Escritura:** misma transacción que el efecto. Fallo al insertar → 500 y rollback del cambio.
+
+**Retención:** sin purga automática en v1.0. Conservación = backups de BD.
+
+**Lectura:** solo rol `admin`. `GET /api/v1/admin/audit-log` paginado (`page`, `pageSize`; filtros opcionales `action`, `from`, `to`). Editor → 403.
+
+#### 5.2.1. Catálogo de `action` (cerrado)
+
+No hay fila por cada PATCH de título de evento ni por alta individual de participante.
+
+**Fase 1**
+
+| `action` | Cuándo | `entity_type` | `metadata` (mínimo) |
+|----------|--------|---------------|---------------------|
+| `user_role_change` | PATCH `role` de `admin_users` | `admin_user` | `old_role`, `new_role` |
+| `user_activation_change` | PATCH `is_active` | `admin_user` | `old_active`, `new_active` |
+| `event_status_change` | PATCH `status` del evento | `event` | `old_status`, `new_status` |
+| `event_soft_delete` | Soft-delete del evento | `event` | |
+| `participant_csv_import` | CSV participantes **aceptado** | `event` | `row_count`, `filename` (basename) |
+| `pregenerated_import` | Import sheet+ZIP **aceptado** | `event` | `row_count`, `filename` |
+| `certificate_retry_issue` | `POST …/retry-issue` | `certificate` | `previous_attempts` |
+
+Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap del primer OAuth (seed ENV) **no** escribe `user_role_change`.
+
+**Fase 2**
+
+| `action` | Cuándo | `entity_type` | `metadata` (mínimo) |
+|----------|--------|---------------|---------------------|
+| `certificate_revoke` | `POST …/certificates/{id}/revoke` | `certificate` | `revoke_reason` (si hay) |
+| `badge_revoke` | `POST …/badges/{id}/revoke` | `badge_assertion` | `revoke_reason` |
+| `participant_erase` | `POST …/participants/{id}/erase` | `participant` | `certificate_ids` (UUIDs) |
+| `instance_legal_patch` | PATCH `/admin/instance/legal` | `instance_legal` | keys cambiadas (no bytes de firma) |
+
+**Fase 3**
+
+| `action` | Cuándo | `entity_type` | `metadata` |
+|----------|--------|---------------|------------|
+| `badge_awardees_import` | CSV awardees **aceptado** | `badge_class` | `row_count`, `filename` |
+| `osm_job_run` | Job OSM termina (éxito o fallo) | `badge_class` | `source=job`, `ok`, conteos |
 
 ### 5.3. `permalink_access_log`
 

@@ -77,7 +77,7 @@ stateDiagram-v2
 ### Política de emisión (definida)
 
 1. **Alta editor (HU-6.1):** al guardar participante + roles → se crea un `certificate` por rol en estado **`pending`**. El slug se genera en ese momento (permalink reservado). Aplica a modos `generated` y `pregenerated`.
-2. **Activación a `issued` (solo lazy):** únicamente `GET /api/v1/public/certificates/{slug}` (metadata) cuando el cliente **no** es crawler/preview conocido **y** el certificado está `pending`. La SPA `/c/{slug}` y la búsqueda por identidad **siempre** llaman a metadata antes de pedir el binario. **`GET …/file` no emite** — si el certificado sigue `pending` o está `failed`, responde **409 Conflict**. **No** hay emisión forzada/masiva en v1.0.
+2. **Activación a `issued` (solo lazy):** únicamente `GET /api/v1/public/certificates/{slug}` (metadata) cuando el cliente **no** es crawler/preview conocido **y** el certificado está `pending`. La SPA `/c/{slug}` y la búsqueda por identidad **siempre** llaman a metadata antes de pedir el binario. **`GET …/file` no emite** — si el certificado sigue `pending` o está `failed`, responde **409 Conflict**. Sin emisión forzada/masiva: [§3.2](#32-emisión-masiva-e-impresión--decisión-cerrada).
 3. **`issued_at`:** timestamp del paso a `issued` (primera metadata no-crawler **exitosa**). En AC3 es también la **fecha de expedición** del pie legal (`legal.issue_date`; [08 §2.6](./08-datos-legales-ac3-plantilla.md)). Se captura **antes** del render y se persiste el mismo instante; un render fallido no la escribe.
 4. **Modo `generated`:** al pasar a `issued` se renderiza el PDF (Puppeteer), **put a MinIO y después** update en Postgres (nunca `issued` sin objeto; [10 §4.2.2](./10-diseno-codigo-y-anexos.md)), y en AC3 se escribe `legal_snapshot` desde `instance_legal` **y** se incrusta en el PDF. En AC3 el `folio` se **reserva antes del render** ([08 §2.4](./08-datos-legales-ac3-plantilla.md)); `legal.issue_date` usa el `issued_at` capturado para ese intento exitoso ([08 §2.6](./08-datos-legales-ac3-plantilla.md)). Transición con **lock por certificado** (ver [10 §4.2.1](./10-diseno-codigo-y-anexos.md)). **Alta:** si no hay plantilla de rol ni default, **rechazar** (no crear `pending`). Ver §3.1.
 5. **Modo `pregenerated`:** el archivo ya está en storage desde el upload; al pasar a `issued` se fija `issued_at` y, en AC3, se reserva `folio` (si aún era NULL) y se escribe el `legal_snapshot` (sin re-render ni tocar el archivo). Un pregenerado sin archivo es error de import, no de emisión.
@@ -103,6 +103,26 @@ Un `pending` que **siempre** falla el render (fuente rota, fondo corrupto, timeo
 | Badge `event_role` | Mientras el certificado está `failed`, el badge sigue `pending`. No se emite. `/b/` no dispara `transitionToIssued`. |
 
 No hay `failed` → `issued` directo, ni `issued` → `failed`. El titular ve el certificado en búsqueda con estado “no generado”. El verificador en `/c/` ve el mismo indicador (no “válido”).
+
+### 3.2. Emisión masiva e impresión — decisión cerrada
+
+v1.0 **no** incluye generación ni descarga en lote. Confirmado para **ambas** instancias (osm.lat y AC3): no hace falta para el alcance de esta versión.
+
+| Fuera de v1.0 | Por qué |
+|---------------|---------|
+| Botón admin “emitir pendientes del evento” | Relanzaría Puppeteer en ráfaga (`PDF_CONCURRENCY=1`); choca con el contrato lazy. |
+| ZIP / carpeta de PDFs `issued` del evento | No hay endpoint ni job. El rate limit de permalinks (60/min) tampoco es un “descargador de lote”. |
+| Flujo de impresión para entrega presencial el mismo día | El PDF `generated` **no existe** hasta la primera visita humana a metadata. |
+
+**Qué sí hay**
+
+- Compartir permalinks (búsqueda, `/c/{slug}`; email del enlace = F3).
+- **Pregenerados:** el arte ya está en el disco del editor **antes** del import. Si hace falta papel el día del evento, se imprime **fuera** de este sistema y luego se sube el ZIP (HU-4.1). El permalink sigue `pending` hasta la primera visita; eso no impide haber entregado el archivo original.
+- `retry-issue` es uno a uno y **no** emite en el POST.
+
+**Consecuencia AC3:** `legal.issue_date` = `issued_at` de esa primera visita, no el `event_date`. Puede ser días después del taller. Es intencional ([08 §2.6](./08-datos-legales-ac3-plantilla.md)).
+
+Post-v1.0: “emisión forzada/masiva” permanece en [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10).
 
 ### Badge vinculado (Fase 2+)
 
@@ -179,3 +199,4 @@ No hay `pending` habitual: la emisión ocurre cuando el criterio externo confirm
 - [Modelo de datos](./03-modelo-de-datos.md) — columnas `status`, `issue_attempts`
 - [Flujos funcionales](./04-flujos-funcionales.md) — búsqueda y permalink
 - [Diseño de código §4.2](./10-diseno-codigo-y-anexos.md) — contrato metadata / `/file` / crawlers / `failed`
+- [§3.2](#32-emisión-masiva-e-impresión--decisión-cerrada) — sin ZIP de PDFs ni emisión forzada en v1.0

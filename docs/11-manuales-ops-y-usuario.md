@@ -63,7 +63,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
 7. **Pregenerados** — 1:1 y sheet+ZIP; CSV↔ZIP 1:1 (falta/sobrante tumba el lote); rol ∈ `allowed_roles`; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
-9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy; verificación = sitio oficial + SHA-256 del archivo (no “firma digital” de la rúbrica); `/file` pending/failed → 409.
+9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy; **no** hay ZIP de PDFs ni “emitir todos”; si hace falta papel el día del evento, imprimir **pregenerados** fuera y luego subirlos. Verificación = sitio oficial + SHA-256 del archivo (no “firma digital” de la rúbrica); `/file` pending/failed → 409.
 10. **Búsqueda pública** — qué ve el titular (sin listar por evento).
 11. **Revocación (F2)** — endpoints cert/badge; **corrección de emitidos = revocar + alta nueva** (no editar PDF). En `pending`/`failed` sí se puede corregir; `retry-issue` desde `failed` (F1).
 12. **Emisión fallida (F1)** — listado en ficha del evento; umbral `PDF_MAX_ISSUE_ATTEMPTS`; no relanzar Chromium en `failed`.
@@ -77,6 +77,7 @@ UPDATE events SET deleted_at = NULL, updated_at = now() WHERE id = '<event-uuid>
 
 Sin pantalla ni API de restore en v1.0.
 16. **Datos del titular** — ARCO: el titular escribe a `PRIVACY_CONTACT_EMAIL`; el **admin** ejecuta HU-8.4. No hay botón de auto-baja. Rectificar emitido = revocar + alta nueva.
+17. **Audit log (solo admin)** — `/admin/audit`: quién cambió roles, importó CSV/ZIP, reintentó emisión; en F2 también revocaciones, erase y PATCH legal. El editor no lo ve.
 
 ### 3.2. No incluir
 

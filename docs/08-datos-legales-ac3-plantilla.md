@@ -122,7 +122,7 @@ El folio es el número humano (“certificado AC3 n.º 142”). El `slug` sigue 
 | Revocación | Conserva el folio. No se reutiliza. |
 | Preview / plantilla | Token `legal.folio` muestra **“—”**. **No** reserva ni incrementa. |
 | `/c/` y verify | Folio del snapshot (AC3 `issued`). Búsqueda pública v1.0: email/documento. Admin **sí** filtra por folio. |
-| PATCH legal | No acepta `last_folio`. Reset de emergencia = ops SQL. |
+| PATCH legal | No acepta `last_folio`. Reset de emergencia = ops SQL. Escribe `audit_log` `instance_legal_patch` (keys cambiadas; no bytes de firma). |
 
 ### 2.5. Firmantes N (decisión cerrada)
 
@@ -149,7 +149,7 @@ El **representante legal** (`instance_legal.representative` / token `legal.repre
 
 Dos capas distintas. El **cuerpo** del certificado sigue usando `event_date` y `venue_name` (cuándo/dónde fue la actividad). El **pie legal** usa ciudad de la instancia + día en que se **expide** el documento (`issued_at`).
 
-Con emisión lazy, esa fecha puede ser **días o semanas después** del evento: es intencional.
+Con emisión lazy, esa fecha puede ser **días o semanas después** del evento: es intencional. No hay emisión masiva en v1.0 que “cierre” todos los folios el día del taller ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)).
 
 | Pieza | Contrato |
 |-------|----------|

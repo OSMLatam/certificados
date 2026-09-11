@@ -46,7 +46,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
 | **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
-| **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). Sin emisión forzada/masiva en v1.0. |
+| **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). **Decisión cerrada:** sin emisión forzada, ZIP de PDFs ni impresión desde el panel ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)). |
 | **Datos legales AC3** | Tabla `instance_legal` (singleton) + `instance_legal_signers` (N slots 1..8) + pantalla admin; ENV `LEGAL_*` solo bootstrap (firmantes: slot 1). Folio **global**; ciudad de expedición en config; fecha de expedición = `issued_at` (≠ `event_date`); disclaimer de participación (default de seed, snapshot). Al `issued` (AC3, **ambos** modos): `legal_snapshot`. En `generated` se incrusta en el PDF. `/c/` de un `issued` **no** lee config vigente. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
 | **Pregenerados AC3** | El archivo no se re-renderiza (legal visual ya va en el upload). Igual se escribe `legal_snapshot` al `issued` para `/c/` y verify. |
@@ -150,6 +150,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
 | F1.16 | Anti-abuso y carga: rate limit + `TRUST_PROXY`, `robots.txt`, semáforo PDF, Puppeteer no-root/sin fetch remoto, zip-slip/bomb, magic bytes — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
 | F1.17 | Página `/privacy` (HU-8.3) + enlaces footer/búsqueda/`/c/`; placeholder de aviso; `PRIVACY_CONTACT_EMAIL` |
+| F1.18 | HU-7.5: persistir `audit_log` (catálogo F1) + `GET /api/v1/admin/audit-log` + pantalla `/admin/audit` (solo admin) |
 
 ### 2.2. Historias de usuario incluidas
 
@@ -168,10 +169,11 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-6.1, HU-6.2 | Alta individual + CSV + plantilla descargable |
 | HU-7.1 | Login OAuth OSM |
 | HU-7.4 | Gestión usuarios panel (asignar roles) |
+| HU-7.5 | Audit log acciones sensibles (catálogo F1; lectura admin) |
 | HU-8.1 | Branding vía ENV (`SITE_*`) + atribución software (`SOFTWARE_*`, `/about`, health) — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia) |
 | HU-8.3 | Aviso `/privacy` |
 
-**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard avanzado, **erase ARCO** (HU-8.4, F2).
+**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard de métricas (HU-7.2), **erase ARCO** (HU-8.4, F2).
 
 ### 2.3. Tablas Prisma (Fase 1)
 
@@ -189,11 +191,12 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 7. Tras N fallos de PDF el certificado queda `failed`; metadata posterior no lanza Puppeteer; admin `retry-issue` vuelve a `pending`.
 8. `/c/` de un `issued` muestra `checksum_sha256` e `issued_at`; coinciden con `stored_files` y con la descarga.
 9. `/privacy` responde 200; footer y búsqueda enlazan; el texto no dice que el sistema “no trata datos”.
+10. Import CSV aceptado deja fila `participant_csv_import`; `GET /api/v1/admin/audit-log` 200 para admin y 403 para editor.
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
 
-> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
+> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. Persiste `audit_log` (catálogo F1, HU-7.5) en la misma transacción que el efecto; `GET /api/v1/admin/audit-log` solo admin. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
 
 ---
 
@@ -213,7 +216,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
-| F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva |
+| F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva; audit `certificate_revoke` / `badge_revoke` |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
 | F2.7 | `legal_snapshot` al pasar a `issued` (AC3: `generated` y `pregenerated`) |
 | F2.8 | Segundo perfil de despliegue (docker compose / ENV `INSTANCE=ac3`) |
@@ -231,7 +234,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-1.5 | Legal AC3 en certificado |
 | HU-2.2 | Plantilla por rol |
 | HU-3.2 | Preview plantilla |
-| HU-7.2 | Dashboard básico (conteos eventos/certificados/badges) |
+| HU-7.2 | Dashboard básico (conteos eventos/certificados/badges) — Should |
 | HU-7.3 | Revocación |
 | HU-8.2 | Config legal AC3 |
 | HU-8.4 | Supresión ARCO (admin erase) |
@@ -243,7 +246,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 
 ```text
 1. Certificado osm.lat issued → badge /b/{slug} verificable (JSON-LD válido).
-2. Revocar certificado → badge revocado.
+2. Revocar certificado → badge revocado + fila `audit_log` `certificate_revoke`.
 3. Instancia AC3: PDF muestra NIT/rep legal del momento de emisión.
 4. Cambiar NIT en config → certificados viejos sin cambios; uno nuevo con NIT nuevo.
 5. og:tags presentes en /c/ y /b/.
@@ -275,7 +278,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F3.6 | HU-10.5 vinculación OSM ↔ email (**Must**): OAuth público + códigos + `/me` + SMTP |
 | F3.7 | Turnstile en formularios públicos |
 | F3.8 | SMTP: envío de **enlace** `/c/` (From dedicado; cola prudente) — mismo SMTP que F3.6 |
-| F3.9 | Audit log completo (solo rol admin) |
+| F3.9 | Filas de audit de jobs OSM (`osm_job_run`, `admin_user_id` NULL) + import awardees; dashboard HU-7.2 (métricas) |
 | F3.10 | Seed BadgeClass OSM según catálogo [06 §5.1](./06-open-badges.md) |
 | F3.11 | Tests integración OSM (mocks + opcional live) |
 | F3.12 | Manual/README operación según outline [11](./11-manuales-ops-y-usuario.md): backup **BD + MinIO** off-host, SMTP reputación, secrets |
@@ -372,9 +375,10 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-5.1 – 5.4 | Eventos, sedes, ID | **1** | Soft-delete: oculta listados/búsqueda; permalinks siguen vivos. **Activar `generated` exige plantilla default.** Ficha del evento: listado `failed` + `retry-issue` (F1). |
 | HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia; **envío email enlace = F3** (SMTP) |
 | HU-7.1 | Login OAuth OSM | **1** | |
-| HU-7.2 | Dashboard | **2** + **3** | F2: conteos; F3: jobs; audit solo admin. **Listado `failed` + retry-issue es F1 (ficha evento, HU-5.1), no espera a este dashboard.** |
+| HU-7.2 | Dashboard | **2** + **3** | Should. F2: conteos; F3: jobs. **Listado `failed` + retry-issue es F1 (ficha evento, HU-5.1), no espera a este dashboard.** |
 | HU-7.3 | Revocación | **2** | **Must**; endpoints + corrección revoke+nueva |
 | HU-7.4 | Gestión usuarios panel | **1** | |
+| HU-7.5 | Audit log acciones sensibles | **1** + **2** + **3** | Must. F1: tabla + GET + escrituras F1; F2: revoke/erase/legal; F3: jobs/awardees. |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | HU-8.2 | Legal AC3 config | **2** | |
 | HU-8.3 | Aviso de privacidad | **1** | `/privacy` |
@@ -476,6 +480,8 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | ZIP entrada con `..` o path | Rechazo zip-slip; lote **0** |
 | Upload PNG/PDF con MIME mentiroso o JS en PDF | **400** `UPLOAD_*` / catálogo PDF rechazado |
 | Auth guard | Endpoints admin rechazan anónimo |
+| `GET /api/v1/admin/audit-log` | Admin 200; editor **403**; CSV aceptado → fila `participant_csv_import` |
+| PATCH rol si falla INSERT audit | **500**; el rol **no** cambia |
 
 #### Fase 2
 
@@ -496,7 +502,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 |------|----------|
 | `GET /b/{slug}` | JSON-LD válido, evidence apunta a `/c/` |
 | `GET /badges/issuer.json` | Issuer por instancia |
-| Revocar certificado | `/c/` y `/b/` en estado revocado |
+| Revocar certificado | `/c/` y `/b/` en estado revocado; fila `audit_log` `certificate_revoke` |
 | Revocar badge OSM | `/b/` revoked; certificados intactos |
 | Alta tras revoke mismo rol | Nuevo slug; UNIQUE parcial OK |
 | Instancia AC3 | PDF `generated` contiene NIT del snapshot; `/c/` de pregenerado muestra snapshot; config nueva no altera PDF ni página viejos |

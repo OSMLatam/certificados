@@ -55,6 +55,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Verify JSON | `GET /api/v1/verify/c|b/{slug}` en Fase 2; F1: `/c/` + metadata con `checksum_sha256` |
 | Autenticidad | Permalink oficial + SHA-256 público; OB 2.0 hosted = deuda; destino badges = OB 3.0; sin PAdES en v1.0 ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)) |
 | Habeas data | Aviso `/privacy` + ARCO ops/admin (`erase`); sin auto-baja; log `/c/` 90 días; `issued` se conserva hasta ARCO |
+| Audit log | Acciones sensibles Must (HU-7.5); dashboard de métricas Should (HU-7.2). Catálogo [03 §5.2](./03-modelo-de-datos.md#52-audit_log) |
 | Corrección emitido | Revocar + alta nueva (sin editar PDF issued) |
 | Soft-delete / draft | Oculta búsqueda; permalinks y clases OB por URL siguen vivos |
 | Email participante | Obligatorio; **único por evento** (rechazar duplicado); normalizado |
@@ -65,6 +66,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Sesión admin | Cookie + tabla `admin_sessions` (Postgres; sin Redis en F1/F2) |
 | Legal AC3 | Tabla `instance_legal` + firmantes (slots 1..8) + ciudad de expedición + disclaimer; folio global; `issued_at` ≠ fecha evento; `legal_snapshot` al `issued` |
 | Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending o failed); crawlers no emiten; `failed` no relanza Chromium |
+| Emisión masiva | **No** en v1.0 (decisión cerrada). Sin ZIP de PDFs ni botón “emitir pendientes”. Papel el mismo día = pregenerados ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)) |
 | Emisión storage | Put MinIO → luego UPDATE `issued`; CSV↔ZIP biyectivo; slug retry 5× |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 | Formato Open Badges | **2.0 hosted** en v1.0 (deuda de durabilidad); destino = **OB 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)) |
