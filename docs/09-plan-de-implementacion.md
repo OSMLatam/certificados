@@ -30,7 +30,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | Auth admin | **OAuth OSM** + sesiones httpOnly (cookie) | Sin password local; sin JWT en localStorage |
 | Rate limiting | `@nestjs/throttler` | Búsqueda **y** permalinks públicos (Fase 1) |
 | Captcha búsqueda | **Cloudflare Turnstile** (Fase 3) | Anti-abuso adicional; no reemplaza throttle |
-| Email | **Nodemailer** + SMTP | Envío de enlace `/c/`; From dedicado |
+| Email | **Nodemailer** + SMTP | F3: enlace `/c/` + códigos HU-10.5 (Must osm.lat). F1: solo si `OPS_ALERT_EMAIL` |
 | Contenedores | **Docker Compose** (dev/prod) | F1: API+web+Postgres+MinIO; Redis desde F3 |
 | CI | **GitHub Actions** | Lint, test, build imagen Docker |
 | Tests API | **Jest** + **Supertest** | Unitarios + integración HTTP |
@@ -96,7 +96,8 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **AC3 “avalado”** | Todos los eventos de la instancia AC3 usan datos legales (`legal.*` en plantillas `generated`; `legal_snapshot` en `/c/` de **ambos** modos). **Sin** flag `endorsed` por evento. |
 | **ZIP pregenerados** | MIME `application/zip` (+ archivos internos pdf/png/jpg). Límite lote CSV+ZIP: **100 MB**. Uploads sueltos (fondo, 1:1): **10 MB**. CSV↔ZIP biyectivo ([03 §10](./03-modelo-de-datos.md)). |
 | **Soft-delete restore** | Solo SQL: `UPDATE events SET deleted_at = NULL WHERE id = …`. Sin API/UI. Documentado en [11](./11-manuales-ops-y-usuario.md). |
-| **Supresión datos titular** | Fuera de v1.0 → [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
+| **Supresión datos titular** | **v1.0 Must F2:** `POST …/participants/{id}/erase` (HU-8.4). Portal de auto-baja = [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10). |
+| **Correo (canónico)** | (1) `participants.email` = identidad, UNIQUE por evento; **no** se envía mail en F1/F2 (el editor copia el permalink). (2) `PRIVACY_CONTACT_EMAIL` = canal ARCO humano, no SMTP. (3) `OPS_ALERT_EMAIL` = digest ops, opcional F1 si hay `SMTP_*`. (4) **SMTP F3:** códigos HU-10.5 (Must osm.lat) + envío de enlace `/c/` (mismo servidor). Reenvío/rebotes = pendiente o post-v1.0. |
 | **Hosting código** | GitHub (repo `certificados`) |
 | **Hosting producción** | **Servidor comunitario osm.lat** + **servidor institucional AC3** (`ac3.org.co`); Docker Compose en cada uno, datos aislados |
 
@@ -423,6 +424,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | 10 | OpenAPI se genera en código (Fase 1) | Pendiente implementación |
 | 11 | Estrategia de pruebas definida (§11) | ✓ |
 | 12 | Diseño de código y anexos ([10](./10-diseno-codigo-y-anexos.md)) | ✓ |
+| 13 | Revisión por pares incorporada a la spec | ✓ |
 
 **Veredicto:** la documentación está **lista para iniciar Fase 1** con una IA. Cada fase tiene alcance acotado, documentos de entrada, criterios verificables, tests obligatorios y **blueprint de código**.
 

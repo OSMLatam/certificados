@@ -2,7 +2,7 @@
 
 **Versión:** 1.0  
 **Fecha:** 2026-06-06  
-**Estado:** Especificación del producto
+**Estado:** Especificación v1.0 — revisión por pares incorporada; lista para Fase 1.
 
 ---
 
@@ -42,7 +42,7 @@ Cada instancia tiene BD, administradores y branding propios, desplegada en **su 
 5. **Badges de actividad OSM** — logros sin diploma; criterios externos o jobs.
 6. **Múltiples roles por participante** en eventos.
 7. **Certificados pregenerados** — subir PDF/imagen ya producida (eventos archivados).
-8. **Identificación adaptable** por país (CC, CE, TI en Colombia, extensible).
+8. **Identificación adaptable** por país (CC, CE, TI en Colombia; otros países = YAML + seed + redeploy, sin pantalla admin en v1.0).
 9. **Búsqueda por titular** — correo o documento; nunca listar asistentes por evento.
 10. **Editor visual** de plantillas de certificado.
 11. **Multi-instancia** por configuración de despliegue.
@@ -168,7 +168,7 @@ Incluye:
 - Permalinks `/c/` y `/b/`, verificación, revocación.
 - Issuer OB, badges de evento automáticos, badges OSM (**solo osm.lat**).
 - Import CSV de awardees OSM y jobs OSM con reglas y **fuente por métrica** documentadas ([06 §5.1](./06-open-badges.md)).
-- Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email.
+- Identificación según instancia (osm.lat: nombre+email; AC3: +documento), búsqueda por titular, datos legales AC3 vía **pantalla admin**, envío de enlace por email (**Fase 3**; en F1/F2 se copia el permalink).
 - **Habeas data v1.0:** aviso `/privacy`, canal ARCO, supresión admin (HU-8.3, HU-8.4). Sin portal de auto-baja. Credenciales `issued` se conservan para verificar **hasta** ARCO o borrado ops; log de `/c/` **90 días**.
 - **Audit log** de acciones sensibles (roles, imports, revocar, erase): Must; lectura y escrituras F1; F2/F3 amplían el catálogo ([03 §5.2](./03-modelo-de-datos.md)). Dashboard de métricas = Should.
 - Open Graph LinkedIn.
@@ -211,6 +211,8 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Prometheus / métricas scrapeables | v1.0 = `/health` + `/ready` + correo ops. Sin `/metrics`. | [10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada) |
 | PDF/UA y lienzo Konva AA completo | v1.0: HTML AA; PDF no etiquetado; canvas de plantilla = excepción HU-1.6 | [02 HU-1.6](./02-historias-de-usuario.md) |
 | Verificación en lote (empleador / HR) | v1.0 = un slug por request + 60/min. Sin `verify/batch`. | [02 HU-1.3](./02-historias-de-usuario.md), [10 §10.3](./10-diseno-codigo-y-anexos.md#103-rate-limiting-y-anti-abuso-fase-1) |
+| GC automático de objetos MinIO huérfanos | v1.0 = runbook a mano (>24 h sin fila `stored_files`). PDF `issued`/`revoked` **no** se borra por GC. | [10 §4.2.2](./10-diseno-codigo-y-anexos.md) |
+| UI admin de países / roles | v1.0 = YAML + seed + redeploy | [05 §5](./05-personalizacion-multi-instancia.md) |
 
 ---
 

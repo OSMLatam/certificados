@@ -38,7 +38,7 @@ En paralelo, **AC3** —capítulo local de la OpenStreetMap Foundation (OSMF) en
 - [Diseño de código y anexos](./docs/10-diseno-codigo-y-anexos.md)
 - [Manuales — outline](./docs/11-manuales-ops-y-usuario.md)
 
-**Estado:** especificación v1.0 — Fase 1 lista para implementar.
+**Estado:** especificación v1.0 — revisión por pares incorporada; Fase 1 lista para implementar.
 
 Anexos: [`.env.example`](./.env.example), [CSV ejemplo](./docs/anexos/csv/), [seeds YAML](./docs/anexos/seed/).
 
@@ -87,7 +87,7 @@ Incluye tests unitarios e integración de la fase (docs/09 §11). Al terminar, c
 ```text
 Sobre el código de Fase 2, implementa Fase 3 según docs/09-plan-de-implementacion.md sección 4 y épica 10 en docs/02-historias-de-usuario.md.
 
-Añade: osm_profiles, BadgeClass osm_activity, import CSV awardees (`osm_username` → resolver `osm_id`), job BullMQ solo sobre perfiles con email vinculado + fuentes por métrica ([06 §5.1](./docs/06-open-badges.md)), búsqueda por osm_id, vinculación OSM↔email (HU-10.5), Turnstile, SMTP opcional, README operación.
+Añade: osm_profiles, BadgeClass osm_activity, import CSV awardees (`osm_username` → resolver `osm_id`), job BullMQ solo sobre perfiles con email vinculado + fuentes por métrica ([06 §5.1](./docs/06-open-badges.md)), búsqueda por osm_id, vinculación OSM↔email (HU-10.5), Turnstile, SMTP (**Must** osm.lat para códigos `/me`; también envío de enlace `/c/`), README operación.
 
 Emisión OB = **2.0 hosted**; OBv3/`public_key` queda NULL. Mock de APIs OSM en CI; test live opcional.
 

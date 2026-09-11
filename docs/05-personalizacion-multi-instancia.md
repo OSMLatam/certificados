@@ -126,7 +126,7 @@ Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md
 | `STORAGE_BUCKET` | Plantillas y archivos pregenerados |
 | `PUBLIC_BASE_URL` | Base para permalinks y OG tags |
 | `THROTTLE_*` / `PDF_CONCURRENCY` | Anti-abuso y límite de Chromium (hosts compartidos) |
-| `SMTP_*` | Envío de **enlace** `/c/` (From dedicado; ver manual ops) |
+| `SMTP_*` | F3: enlace `/c/` y códigos `/me`. F1: opcional para `OPS_ALERT_EMAIL`. F1/F2 sin SMTP: el editor copia el permalink. |
 | `DEFAULT_COUNTRY_CODE` | País por defecto en formularios admin |
 
 ### 3.4. Open Badges
@@ -138,7 +138,7 @@ Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md
 | Badges `osm_activity` | **Sí** (catálogo F3) | **No** (404 / no desplegado) |
 | Import awardees CSV | Sí | No |
 | Jobs API OSM | Sí | No |
-| SMTP envío link certificado | Sí | Sí |
+| SMTP envío link certificado | F3 | F3 |
 | Config legal web | No | Sí (admin) |
 
 ---
@@ -162,7 +162,7 @@ Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md
 
 El **catálogo** `country_identity_config` y el de **roles** se cargan desde **YAML versionado** en el repo (`docs/anexos/seed/`), aplicado en `prisma/seed.ts` en cada instancia.
 
-**v1.0:** no hay pantalla ni API admin para editar estos catálogos. Añadir un país o rol = editar YAML + redeploy/seed. (No confundir con “hot-reload sin despliegue”.)
+**v1.0:** no hay pantalla ni API admin para editar estos catálogos. Añadir México, Argentina u otro rol = editar YAML + redeploy/seed. “Extensible a LATAM” es ese patrón, no una UI. (No confundir con “hot-reload sin despliegue”.)
 
 Colombia inicial (estructura real del anexo):
 

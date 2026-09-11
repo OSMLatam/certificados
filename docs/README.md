@@ -2,7 +2,7 @@
 
 Especificación **v1.0** del sistema de **certificados de evento** y **Open Badges** (evento + actividad OSM), desplegado en dos instancias independientes.
 
-**Estado:** Especificación v1.0 lista para **revisión por pares** (aún no cerrada para implementación).
+**Estado:** Especificación v1.0 **lista para implementar Fase 1**. Revisión por pares incorporada (2026-09).
 
 **Origen del proyecto:** ver [Historia](../README.md#historia) en el README del repositorio.
 
@@ -58,7 +58,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Audit log | Acciones sensibles Must (HU-7.5); dashboard de métricas Should (HU-7.2). Catálogo [03 §5.2](./03-modelo-de-datos.md#52-audit_log) |
 | Corrección emitido | Revocar + alta nueva (sin editar PDF issued) |
 | Soft-delete / draft | Oculta búsqueda; permalinks y clases OB por URL siguen vivos |
-| Email participante | Obligatorio; **único por evento** (rechazar duplicado); normalizado |
+| Email participante | Obligatorio; **único por evento**; dos correos = dos personas. SMTP de enlace = **F3** |
 | i18n | Español v1; cadenas externalizadas |
 | CSV | Delimitador fijo `;` |
 | PDF | A4 landscape @ 150 DPI; tipografías abiertas embebidas |
@@ -79,10 +79,9 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 
 ## Próximos pasos
 
-1. **Revisión por pares** de esta especificación v1.0.
-2. Tras OK: implementar **Fase 1** según [09-plan-de-implementacion.md](./09-plan-de-implementacion.md).
-3. Validar criterios de aceptación con un evento piloto osm.lat.
-4. Confirmar DNS `certificados.ac3.org.co` en servidor AC3 antes de Fase 2.
+1. Implementar **Fase 1** según [09-plan-de-implementacion.md](./09-plan-de-implementacion.md).
+2. Validar criterios de aceptación con un evento piloto osm.lat.
+3. Confirmar DNS `certificados.ac3.org.co` en servidor AC3 antes de Fase 2.
 
 ---
 

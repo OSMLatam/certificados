@@ -226,7 +226,7 @@ MinIO y PostgreSQL **no** comparten transacción. Contrato para `transitionToIss
 2. **Clave determinista:** `certs/{certificate_id}/{sha256}.pdf` (o `.png`). Un reintento del mismo buffer pisa la misma clave (idempotente).
 3. **Idempotencia:** si el certificado ya está `issued` con el mismo `checksum_sha256`, no hay put ni render. Si el objeto existe y el update a `issued` falló antes, el siguiente `put` es no-op/overwrite y se reintenta solo el update.
 4. **Compensación:** si el `put` OK y el `UPDATE` falla → el certificado **sigue `pending`**; best-effort `delete` de esa clave si ningún `stored_files.storage_key` la referencia. Si el delete también falla, queda un **huérfano**.
-5. **GC de huérfanos (ops, v1.0):** objetos en el prefijo `certs/` sin fila en `stored_files` y con `LastModified` > 24 h. Runbook: listar y borrar a mano (MinIO client). Sin pantalla admin. Un job automático es evolución futura.
+5. **GC de huérfanos (ops, v1.0):** objetos en el prefijo `certs/` **sin** fila en `stored_files` y con `LastModified` > 24 h. Runbook: listar y borrar a mano (MinIO client). Sin pantalla admin. Un job automático es [evolución futura](./01-vision-y-alcance.md#11-evolución-futura-post-v10). Objetos **con** fila (`issued` o `revoked`) **no** se limpian: inmutabilidad + permalink + ARCO.
 6. **Pregenerado (lazy issue):** el archivo ya se subió en el import; `transitionToIssued` reserva folio AC3 si NULL y actualiza Postgres (`issued_at`, snapshot). No hay segundo put.
 
 Invertir el orden (issued sin archivo) está **prohibido**: el titular vería “válido” y `/file` 404.

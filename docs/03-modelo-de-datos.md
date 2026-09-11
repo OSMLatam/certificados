@@ -177,6 +177,7 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 
 - Cada persona en un evento tiene **su propio email**. Un email identifica a **un** participante del evento.
 - **UNIQUE** `(event_id, email)` — alta individual, CSV o pregenerados: si el email ya existe en el evento → **rechazar** (error de validación; en CSV atómico → falla todo el lote).
+- **Dos correos en el mismo evento = dos participantes.** No se unifican por nombre. Si además hay documento, la búsqueda por documento **puede listar ambas** filas (el doc **no** es UNIQUE). Esperado: el editor usa **un** email por persona y evento.
 - Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo email (no otro participante).
 - Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
 - Búsqueda pública: **excluir** `erased_at IS NOT NULL`. El email original queda libre (el UNIQUE usa el email anonimizado).

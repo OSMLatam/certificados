@@ -1,10 +1,12 @@
 # Análisis crítico — Sistema de Certificados y Open Badges (OSMLatam / AC3)
 
+**Estado (2026-09-10):** histórico. Revisión por pares **incorporada** a `docs/` (v1.0 lista para Fase 1). No usar este archivo como lista de trabajo abierta.
+
 **Autor:** Claude (secretario-IA de Leonardo)
 **Fecha:** 2026-09-10
 **Objeto:** Repositorio de especificación `certificados` (v1.0), documentación en `docs/01..11` + anexos.
 **Naturaleza del repo:** solo documentación/especificación; aún no hay código.
-**Propósito de este documento:** revisión por pares constructiva para que el equipo de AC3 refine la definición **antes** de escribir la primera línea de código.
+**Propósito original:** revisión por pares constructiva para que el equipo de AC3 refine la definición **antes** de escribir la primera línea de código.
 
 > Nota de método: cito archivos y secciones concretas (p. ej. `docs/03-modelo-de-datos.md §4.6`). Donde señalo un vacío, es porque no aparece en la especificación leída, no porque lo suponga mal resuelto. Reconozco primero lo que está bien y luego lo que falta.
 
