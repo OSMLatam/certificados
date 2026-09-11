@@ -80,6 +80,7 @@ Cada instancia tiene BD, administradores y branding propios, desplegada en **su 
 2. Seguridad, permalinks no adivinables, auditoría, **anti-abuso** (rate limit, sin enumeración pública) y **protección de carga** en servidores compartidos (PDF acotado, sin regenerar lo ya emitido).
 3. Identificación por país; **UI y mensajes en español** en v1.0 (cadenas externalizadas para traducción futura).
 4. Compatibilidad con backpacks OB (Badgr, Open Badge Passport) vía **Open Badges 2.0 hosted**.
+5. **Accesibilidad:** WCAG 2.2 AA en HTML público y formularios admin (HU-1.6). El lienzo Konva y PDF/UA no son AA completos en v1.0.
 
 ### 5.1. Volumen y desempeño — decisión cerrada
 
@@ -178,6 +179,7 @@ Incluye:
 - **Ops v1.0:** migrate documentado + rollback = backup; alertas por correo (`failed` / `/ready`), **sin** Prometheus ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)).
 - **Emisión solo lazy** ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)): **no** hay botón de emitir pendientes, ZIP de PDFs ni impresión para entrega presencial el mismo día. Papel el día del evento = archivos **pregenerados** (fuera de este sistema).
 - **Volumen v1.0:** 50–200 certificados/evento, pocos eventos/año; `PDF_CONCURRENCY=1`; backups diarios ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)).
+- **Accesibilidad:** WCAG 2.2 AA en páginas públicas y formularios admin (HU-1.6); excepción = editor Konva.
 
 **No confundir** con [§6 Fuera de alcance](#6-fuera-de-alcance): eso no entra ni en v1.0 ni en la evolución prevista.
 
@@ -206,6 +208,7 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Traducciones (i18n) | v1.0 = español; cadenas ya externalizadas — añadir locale | — |
 | Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
 | Prometheus / métricas scrapeables | v1.0 = `/health` + `/ready` + correo ops. Sin `/metrics`. | [10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada) |
+| PDF/UA y lienzo Konva AA completo | v1.0: HTML AA; PDF no etiquetado; canvas de plantilla = excepción HU-1.6 | [02 HU-1.6](./02-historias-de-usuario.md) |
 
 ---
 

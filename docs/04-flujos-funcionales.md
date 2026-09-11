@@ -316,6 +316,8 @@ Badge OSM (u otro) sin certificado:
 | T37 | `POST …/participants/{id}/erase` (admin) | PII anonimizada; certs `revoked` + PDF borrado; búsqueda por email viejo vacía; `/c/` sin nombre/doc; `audit_log` `participant_erase` |
 | T38 | CSV participantes aceptado; editor llama `GET …/audit-log` | Fila `participant_csv_import`; editor recibe **403**; admin ve la fila |
 | T39 | PATCH rol de usuario (admin) | Fila `user_role_change` con `old_role`/`new_role`; si el INSERT de audit falla → **500** y el rol **no** cambia |
+| T40 | Búsqueda pública solo con teclado | Tab a los campos, Enter envía, error de validación anunciado (no solo color) |
+| T41 | axe en `/` y `/c/{slug}` issued | 0 violaciones **serious** / **critical** |
 
 ---
 

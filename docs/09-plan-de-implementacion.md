@@ -25,7 +25,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | Almacenamiento archivos | **S3-compatible** (MinIO en dev y **prod en cada servidor**) | PDFs, pregenerados, firmas |
 | PDF | **Puppeteer** (HTML → PDF) | Mismo HTML que preview web |
 | Frontend | **React 19** + **Vite 6** + **TanStack Query** | Admin + páginas públicas |
-| UI admin | **shadcn/ui** + **Tailwind CSS 4** | Componentes accesibles, mantenidos |
+| UI admin | **shadcn/ui** + **Tailwind CSS 4** | Kit de partida; **no** sustituye HU-1.6 (WCAG 2.2 AA verificada) |
 | Editor plantillas | **react-konva** (canvas 2D) | Arrastrar capas, exportar `layout` JSONB |
 | Auth admin | **OAuth OSM** + sesiones httpOnly (cookie) | Sin password local; sin JWT en localStorage |
 | Rate limiting | `@nestjs/throttler` | Búsqueda **y** permalinks públicos (Fase 1) |
@@ -148,11 +148,12 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI, `normalize: digits`) + roles desde YAML anexos |
 | F1.13 | Tests unitarios + integración (ver §11) |
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
-| F1.19 | Job alertas ops ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)): log y, si hay SMTP + `OPS_ALERT_EMAIL`, correo |
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
 | F1.16 | Anti-abuso y carga: rate limit + `TRUST_PROXY`, `robots.txt`, semáforo PDF, Puppeteer no-root/sin fetch remoto, zip-slip/bomb, magic bytes — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
 | F1.17 | Página `/privacy` (HU-8.3) + enlaces footer/búsqueda/`/c/`; placeholder de aviso; `PRIVACY_CONTACT_EMAIL` |
 | F1.18 | HU-7.5: persistir `audit_log` (catálogo F1) + `GET /api/v1/admin/audit-log` + pantalla `/admin/audit` (solo admin) |
+| F1.19 | Job alertas ops ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)): log y, si hay SMTP + `OPS_ALERT_EMAIL`, correo |
+| F1.20 | HU-1.6: WCAG 2.2 AA en `/`, `/c/`, `/privacy`, `/about` y formularios admin; tests axe; excepción Konva |
 
 ### 2.2. Historias de usuario incluidas
 
@@ -174,6 +175,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-7.5 | Audit log acciones sensibles (catálogo F1; lectura admin) |
 | HU-8.1 | Branding vía ENV (`SITE_*`) + atribución software (`SOFTWARE_*`, `/about`, health) — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia) |
 | HU-8.3 | Aviso `/privacy` |
+| HU-1.6 | Accesibilidad WCAG 2.2 AA (público F1 + formularios admin; no el lienzo Konva) |
 
 **Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard de métricas (HU-7.2), **erase ARCO** (HU-8.4, F2).
 
@@ -195,11 +197,12 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 9. `/privacy` responde 200; footer y búsqueda enlazan; el texto no dice que el sistema “no trata datos”.
 10. Import CSV aceptado deja fila `participant_csv_import`; `GET /api/v1/admin/audit-log` 200 para admin y 403 para editor.
 11. Job ops: un `failed` produce `OPS_ALERT` (log o mail); un `pending` sin intentos **no**.
+12. `/` y `/c/` recorribles con teclado; axe sin violaciones serious/critical (HU-1.6).
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
 
-> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes, **§8.1** migrate/alertas ops sin Prometheus) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. Persiste `audit_log` (catálogo F1, HU-7.5) en la misma transacción que el efecto; `GET /api/v1/admin/audit-log` solo admin. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
+> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes, **§8.1** migrate/alertas ops sin Prometheus) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. Persiste `audit_log` (catálogo F1, HU-7.5) en la misma transacción que el efecto; `GET /api/v1/admin/audit-log` solo admin. HU-1.6: WCAG 2.2 AA en `/`, `/c/`, `/privacy`, `/about` y formularios admin (tests axe); el lienzo Konva es excepción. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
 
 ---
 
@@ -218,7 +221,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions`, `instance_legal`, `instance_legal_signers` |
 | F2.2 | Issuer OB + endpoints JSON-LD + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
-| F2.4 | Página pública `GET /b/{slug}` + JSON-LD |
+| F2.4 | Página pública `GET /b/{slug}` + JSON-LD; misma AA que `/c/` (HU-1.6) |
 | F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva; audit `certificate_revoke` / `badge_revoke` |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
 | F2.7 | `legal_snapshot` al pasar a `issued` (AC3: `generated` y `pregenerated`) |
@@ -369,6 +372,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-1.3 | Verificación | **1** + **2** | F1: `/c/` + SHA-256; F2: `/b/` + API `GET /api/v1/verify/c|b/{slug}` |
 | HU-1.4 | Datos correctos | **1** | |
 | HU-1.5 | Legal AC3 | **2** | Pantalla admin |
+| HU-1.6 | Accesibilidad WCAG 2.2 AA | **1** + **2** + **3** | Must. F1: público `/` `/c/` `/privacy` `/about` + formularios admin. F2: `/b/`. F3: `/me`. Lienzo Konva = excepción. |
 | HU-2.1 | Multi-rol | **1** | |
 | HU-2.2 | Plantilla por rol | **2** | Should |
 | HU-3.1 | Editor visual | **1** | Konva; capas `legal.*` ocultas hasta F2 |
@@ -444,6 +448,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 |------|-------------|
 | API unit + integración | **Jest** (incluido en NestJS) + **Supertest** |
 | Web componentes | **Vitest** + **React Testing Library** |
+| Accesibilidad (páginas públicas) | **axe** (Vitest o Playwright) — 0 serious/critical en `/` y `/c/` |
 | BD test | PostgreSQL en Docker (`docker-compose.test.yml` o servicio CI) |
 | OSM APIs (por métrica) | **Mocks** en CI; test live manual opcional |
 | Puppeteer PDF | Test de integración con HTML fixture (no comparar pixels) |
@@ -486,6 +491,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | `GET /api/v1/admin/audit-log` | Admin 200; editor **403**; CSV aceptado → fila `participant_csv_import` |
 | PATCH rol si falla INSERT audit | **500**; el rol **no** cambia |
 | Digest ops | `failed` ⇒ señal `OPS_ALERT`; `pending` sin intentos ⇒ **no** |
+| axe `/` y `/c/` issued | 0 violaciones serious/critical; búsqueda usable con teclado |
 
 #### Fase 2
 

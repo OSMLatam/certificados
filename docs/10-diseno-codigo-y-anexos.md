@@ -276,6 +276,8 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 
 **API client:** `fetch` con `credentials: 'include'` (cookie admin o mapper según ruta).
 
+**Accesibilidad (HU-1.6):** `lang="es"`, skip link, labels, foco visible, contraste 4,5:1. El canvas Konva de `/admin/events/:id/template` es la excepción documentada. Tests axe en público.
+
 ---
 
 ## 6. `packages/shared`

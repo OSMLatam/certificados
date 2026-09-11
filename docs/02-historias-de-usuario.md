@@ -204,6 +204,29 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 
 ---
 
+### HU-1.6 — Accesibilidad de las superficies web
+
+**Como** titular, verificador o editor con teclado o lector de pantalla,  
+**quiero** usar búsqueda, permalinks y el panel de formularios sin depender solo del ratón ni del color,  
+**para** consultar y operar la instancia en igualdad de condiciones.
+
+| Campo | Valor |
+|-------|-------|
+| Prioridad | Must |
+| Fase | 1 |
+
+**Criterios de aceptación:**
+
+1. **Nivel:** [WCAG 2.2](https://www.w3.org/TR/WCAG22/) **nivel AA** en las superficies HTML de esta HU. Elegir shadcn/ui **no** cumple esto por sí solo: hay que verificar (labels, foco, contraste, errores).
+2. **Público (Must F1, se amplía en F2/F3 con `/b/` y `/me`):** `/`, `/c/{slug}`, `/privacy`, `/about` (y `/help` si existe). `lang="es"` en el documento. Enlace “Saltar al contenido”. Foco visible. Formularios: cada control tiene `<label>` (o `aria-labelledby`); errores asociados al campo (`aria-describedby` / `role="alert"`). Logo: `alt` = nombre de instancia (o vacío si es decorativo junto a texto visible).
+3. **`/c/` y búsqueda:** el estado (`válido` / `pendiente` / `no generado` / `revocado`) no se comunica **solo** con color. La página `/c/` de un `issued` expone en HTML (no solo en el PDF) nombre, evento, rol, fechas relevantes, hash y enlace de descarga — un lector de pantalla no debe depender del canvas del certificado.
+4. **Contraste:** texto normal ≥ **4,5:1**. Colores de marca (`SITE_*`) que no lo cumplan son defecto de despliegue: el runbook lo exige; el código no introduce texto gris sobre gris.
+5. **Panel admin (Must F1):** login, listados, altas, CSV, ficha de evento, usuarios, audit log: mismas reglas de formulario/foco/contraste. Atajos de teclado que no pisen el lector.
+6. **Excepción documentada — editor Konva (HU-3.1):** el **lienzo** de arrastrar capas no es AA completo en v1.0 (herramienta de diseño). Sí: paleta y campos fuera del canvas accesibles; `Escape` sale del lienzo; no se exige pintar capas solo con teclado. PDF/UA (PDF etiquetado) **fuera de v1.0**.
+7. **Pruebas:** axe (o equivalente) en `/` y `/c/` sin violaciones **serious/critical**; recorrido de teclado del formulario de búsqueda (Tab, Enter, error visible). Sin auditoría legal de tercera parte exigida en v1.0.
+
+---
+
 ## Épica 2 — Múltiples roles por participante
 
 ### HU-2.1 — Asignar varios roles a una persona en un evento
@@ -265,6 +288,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 3. Vista previa con datos de ejemplo; en AC3 la preview de capas `legal.*` usa config real de instancia. `legal.folio` y `legal.issue_date` en preview muestran “—” (no consumen folio ni fijan `issued_at`).
 4. El sistema persiste posiciones en `layout` JSONB; validación contra el catálogo de tokens en `packages/shared`.
 5. No se requiere que el usuario edite JSON crudo.
+6. Accesibilidad del **lienzo:** excepción HU-1.6 (no AA completo). Paleta y controles fuera del canvas sí cumplen AA.
 
 ---
 
@@ -583,6 +607,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 3. Crédito de **software** separado del branding de instancia (`SOFTWARE_*`): footer / búsqueda / pie de permalinks y página `/about` según [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia).
 4. El crédito enlaza al **repositorio** GitHub, no a la URL de otra instancia.
 5. PDF e Issuer/Assertion Open Badges **no** incluyen atribución de software.
+6. Colores `SITE_*` usados como texto o fondo de texto cumplen contraste WCAG AA (4,5:1) o el operador los corrige antes de prod (HU-1.6).
 
 ---
 
@@ -862,6 +887,7 @@ Ver [06-open-badges.md](./06-open-badges.md).
 | HU-1.3 | Verificación | Must |
 | HU-1.4 | Datos correctos | Must |
 | HU-1.5 | Legal AC3 | Must |
+| HU-1.6 | Accesibilidad WCAG 2.2 AA | Must |
 | HU-2.1 | Múltiples roles | Must |
 | HU-2.2 | Plantilla por rol | Should |
 | HU-3.1 | Editor visual | Must |

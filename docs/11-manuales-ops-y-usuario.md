@@ -25,7 +25,7 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 ### 2.1. Contenidos mínimos
 
 1. **Arquitectura del despliegue** — Compose, reverse proxy, DNS, TLS.
-2. **Variables de entorno** — referencia a [`.env.example`](../.env.example) en la raíz del repo; secretos (dónde viven, rotación).
+2. **Variables de entorno** — referencia a [`.env.example`](../.env.example) en la raíz del repo; secretos (dónde viven, rotación). Colores `SITE_*`: contraste texto ≥ 4,5:1 (HU-1.6).
 3. **OAuth OSM** — registrar app, `OSM_OAUTH_*`; en osm.lat F3 registrar **dos** redirect URI (admin + público HU-10.5); scopes solo identidad / `read_prefs`.
 4. **Bootstrap admin** — `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`; primer login.
 5. **Migraciones y seed** — Antes de cada upgrade: backup BD+MinIO. Luego `prisma migrate deploy` (el API no debe quedar `/ready` si migrate falla). **No** hay down-migration: rollback = restaurar ese backup. Seed YAML de países/roles cuando el runbook de la versión lo pida.
@@ -59,7 +59,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 2. **Login** — “Iniciar sesión con OSM”; pantalla sin acceso.
 3. **Crear evento** — `draft` / `active`; evento `generated` se crea en `draft` y **no** se activa sin plantilla default; qué pasa al desactivar (`active`→`draft`: sale de búsqueda, permalinks vivos).
 4. **Sedes** — 0 / 1 / N; inferencia; sede = texto en certificado, no identidad.
-5. **Plantilla visual** — fondo, capas, preview; A4 @ 150 DPI; fuentes abiertas.
+5. **Plantilla visual** — fondo, capas, preview; A4 @ 150 DPI; fuentes abiertas. El lienzo **no** es totalmente accesible con teclado (HU-1.6); la paleta sí.
 6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
 7. **Pregenerados** — 1:1 y sheet+ZIP; CSV↔ZIP 1:1 (falta/sobrante tumba el lote); rol ∈ `allowed_roles`; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
@@ -90,7 +90,7 @@ Sin pantalla ni API de restore en v1.0.
 
 Texto corto en la UI (no un PDF largo):
 
-1. Cómo buscar (email o documento).
+1. Cómo buscar (email o documento); el formulario se puede usar con teclado.
 2. Qué es el permalink y que se puede compartir. La validez se comprueba **en este sitio** (mirar el dominio). En un certificado emitido aparece el **SHA-256** del archivo para contrastar la descarga. La rúbrica del PDF no es firma digital.
 3. Si aparece “revocado” / “no encontrado”.
 4. (osm.lat) Cómo ver badges OSM por `osm_id` (F3).
