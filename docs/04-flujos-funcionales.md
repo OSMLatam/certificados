@@ -148,7 +148,7 @@ Detalle de implementación: [10 §10](./10-diseno-codigo-y-anexos.md#10-segurida
 | Sin sitemap de slugs | Evitar descubrimiento masivo |
 | `robots.txt` + señales anti-IA | Reducir scrapers / entrenamiento; verify humano y backpacks OK |
 | PDF `issued` | Solo storage; no Puppeteer en cada visita |
-| Concurrencia Chromium | Máx. 1 por defecto (`PDF_CONCURRENCY`) |
+| Concurrencia Chromium | Máx. 1 (`PDF_CONCURRENCY`); volumen 50–200 certs/evento ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)) |
 
 ### Ejemplo
 

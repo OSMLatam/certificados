@@ -81,6 +81,25 @@ Cada instancia tiene BD, administradores y branding propios, desplegada en **su 
 3. Identificación por país; **UI y mensajes en español** en v1.0 (cadenas externalizadas para traducción futura).
 4. Compatibilidad con backpacks OB (Badgr, Open Badge Passport) vía **Open Badges 2.0 hosted**.
 
+### 5.1. Volumen y desempeño — decisión cerrada
+
+Ambas instancias se dimensionan como **comunitarias pequeñas**. No es un SaaS de alta concurrencia.
+
+| Magnitud | Valor de diseño v1.0 |
+|----------|----------------------|
+| Certificados por evento | Típico **50–200**. Techo de diseño **~500**. Por encima: reevaluar (no subir `PDF_CONCURRENCY` a ciegas). |
+| Eventos por instancia y año | **Unos pocos** (planificación: ≤ **10**). |
+| Certificados acumulados | Orden de **miles**, no cientos de miles. |
+| `PDF_CONCURRENCY` | **1** (cerrado). Un Chromium a la vez en el host compartido. |
+| Primera emisión (cola) | 200 visitas simultáneas a permalinks `pending` se serializan; minutos de espera son **aceptables**. Sin emisión masiva ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)). |
+| Timeout PDF | `PDF_TIMEOUT_MS` (30 s): un render debe caber; si no → intento / `failed`. |
+| Búsqueda pública | p95 **< 2 s** con el catálogo de este volumen (índice por email/documento). |
+| Storage PDF | Orden **1–2 MB** por archivo @ 150 DPI → cientos de MB por evento; **pocos GB** en años. |
+| Backups | **Diarios** off-host, cifrados, BD+MinIO pareados; retención **≥ 14 días**; más el snapshot **antes de cada migrate**. Tamaño esperado: manejable en un VPS (BD pequeña + MinIO de unos GB). |
+| Pruebas de carga | **No** exigidas en v1.0 ([09 §11](./09-plan-de-implementacion.md)). |
+
+Detalle operativo: [10 §10.5](./10-diseno-codigo-y-anexos.md#105-protección-de-desempeño-puppeteer--storage).
+
 ---
 
 ## 6. Fuera de alcance
@@ -158,6 +177,7 @@ Incluye:
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
 - **Ops v1.0:** migrate documentado + rollback = backup; alertas por correo (`failed` / `/ready`), **sin** Prometheus ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)).
 - **Emisión solo lazy** ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)): **no** hay botón de emitir pendientes, ZIP de PDFs ni impresión para entrega presencial el mismo día. Papel el día del evento = archivos **pregenerados** (fuera de este sistema).
+- **Volumen v1.0:** 50–200 certificados/evento, pocos eventos/año; `PDF_CONCURRENCY=1`; backups diarios ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)).
 
 **No confundir** con [§6 Fuera de alcance](#6-fuera-de-alcance): eso no entra ni en v1.0 ni en la evolución prevista.
 

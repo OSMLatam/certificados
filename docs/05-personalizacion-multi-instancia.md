@@ -53,10 +53,10 @@ Internet → reverse proxy (Caddy o nginx, TLS)
 ```
 
 - **No** hay BD compartida ni storage compartido entre osm.lat y AC3.
-- **Backups:** responsabilidad de cada operador — **pareados** `pg_dump` (o equivalente) **+** sync del bucket MinIO hacia almacenamiento **off-host** (otro servidor o S3-compatible), **cifrados** en tránsito al destino (age/gpg o SSE). Volúmenes de Postgres y MinIO en disco cifrado en producción. Detalle (frecuencia, retención, restore): **manual de operación**. Sin regenerar PDFs `issued` tras restore incompleto.
+- **Backups:** responsabilidad de cada operador — **pareados** `pg_dump` (o equivalente) **+** sync del bucket MinIO hacia almacenamiento **off-host** (otro servidor o S3-compatible), **cifrados** en tránsito al destino (age/gpg o SSE). Volúmenes de Postgres y MinIO en disco cifrado en producción. **v1.0:** diarios, retención ≥ 14 días + snapshot pre-migrate ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)). Sin regenerar PDFs `issued` tras restore incompleto.
 - **CI:** GitHub Actions construye imagen; cada servidor hace `docker compose pull && up -d` (manual o webhook de deploy).
 - Desarrollo local: mismo `docker-compose.yml` con perfiles `osm_lat` / `ac3`.
-- **Carga:** los hosts suelen ser compartidos; aplicar rate limits, `PDF_CONCURRENCY` baja y `robots.txt` según [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) para no saturar CPU/RAM del servidor.
+- **Carga:** hosts compartidos; `PDF_CONCURRENCY=1` (50–200 certs/evento). Rate limits y `robots.txt` según [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga).
 
 ---
 

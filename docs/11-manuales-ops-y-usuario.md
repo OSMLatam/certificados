@@ -30,10 +30,10 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 4. **Bootstrap admin** — `SEED_ADMIN_OSM_USERNAMES` / `SEED_ADMIN_OSM_IDS`; primer login.
 5. **Migraciones y seed** — Antes de cada upgrade: backup BD+MinIO. Luego `prisma migrate deploy` (el API no debe quedar `/ready` si migrate falla). **No** hay down-migration: rollback = restaurar ese backup. Seed YAML de países/roles cuando el runbook de la versión lo pida.
 6. **Storage MinIO** — bucket, acceso; **cambiar** `minioadmin` en prod (boot lo rechaza); **put → luego DB**; GC de objetos `certs/` huérfanos (>24 h sin fila `stored_files`).
-7. **Backups** — `pg_dump` + sync MinIO **pareados**, off-host, **cifrados**; frecuencia; retención. Volúmenes de disco cifrados en producción.
+7. **Backups** — diarios off-host, cifrados, `pg_dump` + MinIO **pareados**; retención ≥ 14 días; extra antes de cada migrate. Volumen v1.0: pocos GB ([01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)). Disco de Postgres/MinIO cifrado.
 8. **Restore** — procedimiento; verificación de que BD y objetos coinciden; no regenerar PDF a ciegas.
 9. **Health y alertas** — `/health`, `/ready` tras deploy. Job periódico: correo a `OPS_ALERT_EMAIL` si hay `failed`, pending con reintentos viejos, o `/ready` mal. **No** alertar certificados `pending` que nadie ha abierto. Sin Prometheus. Ver [10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada).
-10. **Rate limits / PDF** — `THROTTLE_*`, `TRUST_PROXY` (1 detrás de Caddy), `PDF_CONCURRENCY`, `PDF_MAX_ISSUE_ATTEMPTS`; síntomas de saturación y certificados `failed`.
+10. **Rate limits / PDF** — `THROTTLE_*`, `TRUST_PROXY` (1 detrás de Caddy), **`PDF_CONCURRENCY=1`** (diseño: 50–200 certs/evento; no subir sin más RAM), `PDF_MAX_ISSUE_ATTEMPTS`; síntomas de saturación y certificados `failed`.
 11. **SMTP (F3)** — obligatorio en osm.lat para códigos de vínculo HU-10.5; también envío de enlace `/c/`. From dedicado, reputación, cola prudente. El digest `OPS_ALERT_EMAIL` puede usar el mismo SMTP desde F1 si está configurado; si no, solo log.
 12. **Redis / BullMQ (F3)** — solo osm.lat jobs.
 13. **Upgrade** — backup → `docker compose pull && up -d` (migrate al arrancar) → `/ready`. Si hay que volver atrás: restore del backup, no `migrate down`.

@@ -505,7 +505,7 @@ Caddy/nginx termina TLS y pone `X-Forwarded-For`. Si Nest **no** hace `trust pro
 No hay cifrado campo-a-campo en v1.0 (índices y búsqueda por documento/email). Sí es **requisito de despliegue producción**:
 
 1. Volúmenes de Postgres y MinIO en disco **cifrado** (LUKS, ZFS encryption, o cifrado del proveedor).
-2. Backups off-host **cifrados** (age/gpg o bucket con SSE) y **pareados** BD+MinIO ([05 §1.1](./05-personalizacion-multi-instancia.md)).
+2. Backups off-host **cifrados** (age/gpg o bucket con SSE) y **pareados** BD+MinIO ([05 §1.1](./05-personalizacion-multi-instancia.md)). **Frecuencia:** diaria; retención ≥ 14 días; más un juego **antes de cada migrate**. A este volumen el tamaño es de unos GB, no de cientos.
 3. Tránsito: HTTPS en el proxy; MinIO y Postgres no expuestos a internet.
 
 Detalle operativo: [11](./11-manuales-ops-y-usuario.md).
@@ -591,6 +591,10 @@ Puppeteer es el mayor riesgo de carga en el servidor.
 | Jobs masivos | Solo vía BullMQ (admin o cron); chunks pequeños; backoff |
 | Redis | **Fase 3** (BullMQ). F1/F2: sin Redis; sesiones en Postgres (`admin_sessions`); límites PDF en-proceso |
 | Caché HTTP | Permalinks `issued`: `Cache-Control` razonable en estáticos/PDF (CDN o nginx); HTML verify puede ser más corto |
+
+**Dimensionamiento (cerrado, [01 §5.1](./01-vision-y-alcance.md#51-volumen-y-desempeño--decisión-cerrada)):** 50–200 certificados/evento, pocos eventos/año. `PDF_CONCURRENCY=1` es el valor correcto, no un placeholder. Subirlo exige más RAM para Chromium en un host compartido y **no** está en v1.0. Un pico de primeras visitas se encola (503 transitorio / reintento del cliente); no hay botón de emitir el lote.
+
+Backups diarios bastan a este volumen; el snapshot pre-migrate sigue siendo obligatorio ([§8.1](#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)).
 
 ### 10.6. Checklist para implementación (IA / humano)
 
