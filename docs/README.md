@@ -67,6 +67,7 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | Legal AC3 | Tabla `instance_legal` + firmantes (slots 1..8) + ciudad de expedición + disclaimer; folio global; `issued_at` ≠ fecha evento; `legal_snapshot` al `issued` |
 | Contrato `/c/` | SPA + metadata (único lazy issue) + `/file` (**409** si pending o failed); crawlers no emiten; `failed` no relanza Chromium |
 | Emisión masiva | **No** en v1.0 (decisión cerrada). Sin ZIP de PDFs ni botón “emitir pendientes”. Papel el mismo día = pregenerados ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)) |
+| Ops | Backup → migrate → `/ready`; rollback = restore. Alertas por correo (`OPS_ALERT_EMAIL`); **sin** Prometheus ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)) |
 | Emisión storage | Put MinIO → luego UPDATE `issued`; CSV↔ZIP biyectivo; slug retry 5× |
 | Vínculo cert↔badge | FK solo en `badge_assertions.certificate_id` |
 | Formato Open Badges | **2.0 hosted** en v1.0 (deuda de durabilidad); destino = **OB 3.0** ([06 §1.1](./06-open-badges.md#11-camino-a-open-badges-30)) |

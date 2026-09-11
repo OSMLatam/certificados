@@ -71,6 +71,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Uploads / ZIP** | Magic bytes + límites de decode; zip-slip (`..` `/`) y zip-bomb (200 MB / ratio 100). [10 §10.1](./10-diseno-codigo-y-anexos.md). |
 | **Puppeteer** | No-root; abort de red salvo `data:`; `PUPPETEER_NO_SANDBOX` solo con no-root. |
 | **Cifrado reposo** | Ops: volúmenes y backups cifrados. App sin cifrado por columna. |
+| **Migraciones / alertas ops** | Sin Prometheus. Backup → `migrate deploy` → `/ready`; rollback = restore pareado. Correo periódico a `OPS_ALERT_EMAIL` (`failed`, pending atascado, `/ready`); no alertar `pending` lazy. [10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada). |
 | **Verify `/c/` legal AC3** | `issued`: muestra `legal_snapshot` del certificado, no config actual. `pending`/`failed`: sin bloque legal estructurado. |
 | **Issuer OB AC3** | `issuer.json` lee `instance_legal` **actual** (nombre/NIT vigentes para nuevas emisiones). |
 | **Badge pending** | Se reserva slug `/b/` al crear certificado `pending`; badge público solo en `issued`. Visitar `/b/` pending **no** emite el certificado. BadgeClass `event_role`: ver fila **BadgeClass event_role**. Imagen default = logo instancia si no hay upload. |
@@ -147,6 +148,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.12 | Seed `country_identity_config` (Colombia CC/CE/TI, `normalize: digits`) + roles desde YAML anexos |
 | F1.13 | Tests unitarios + integración (ver §11) |
 | F1.14 | `GET /health`, `GET /ready` ([10 §8](./10-diseno-codigo-y-anexos.md)) |
+| F1.19 | Job alertas ops ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)): log y, si hay SMTP + `OPS_ALERT_EMAIL`, correo |
 | F1.15 | `.env.example` en raíz del repo; seeds YAML + CSV en `docs/anexos/` |
 | F1.16 | Anti-abuso y carga: rate limit + `TRUST_PROXY`, `robots.txt`, semáforo PDF, Puppeteer no-root/sin fetch remoto, zip-slip/bomb, magic bytes — [10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga) |
 | F1.17 | Página `/privacy` (HU-8.3) + enlaces footer/búsqueda/`/c/`; placeholder de aviso; `PRIVACY_CONTACT_EMAIL` |
@@ -192,11 +194,12 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 8. `/c/` de un `issued` muestra `checksum_sha256` e `issued_at`; coinciden con `stored_files` y con la descarga.
 9. `/privacy` responde 200; footer y búsqueda enlazan; el texto no dice que el sistema “no trata datos”.
 10. Import CSV aceptado deja fila `participant_csv_import`; `GET /api/v1/admin/audit-log` 200 para admin y 403 para editor.
+11. Job ops: un `failed` produce `OPS_ALERT` (log o mail); un `pending` sin intentos **no**.
 ```
 
 ### 2.5. Prompt sugerido para IA (Fase 1)
 
-> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. Persiste `audit_log` (catálogo F1, HU-7.5) en la misma transacción que el efecto; `GET /api/v1/admin/audit-log` solo admin. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
+> Implementa Fase 1 según `docs/09-plan-de-implementacion.md` sección 2, `docs/10-diseno-codigo-y-anexos.md` (incluir **§10 seguridad/abuso/carga**, Puppeteer no-root, zip-slip/bomb, `TRUST_PROXY`, magic bytes, **§8.1** migrate/alertas ops sin Prometheus) y `docs/03-modelo-de-datos.md`. Stack: NestJS + Prisma + React + Puppeteer + Konva. Una instancia osm.lat. Rate limit en búsqueda y permalinks; PDF issued solo desde storage; `robots.txt`. Persiste `audit_log` (catálogo F1, HU-7.5) en la misma transacción que el efecto; `GET /api/v1/admin/audit-log` solo admin. No implementes Open Badges ni capas `legal.*`. Incluye tests (§11), health checks (doc 10 §8), openapi (doc 10 §13), anexos ENV/seeds.
 
 ---
 
@@ -281,7 +284,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F3.9 | Filas de audit de jobs OSM (`osm_job_run`, `admin_user_id` NULL) + import awardees; dashboard HU-7.2 (métricas) |
 | F3.10 | Seed BadgeClass OSM según catálogo [06 §5.1](./06-open-badges.md) |
 | F3.11 | Tests integración OSM (mocks + opcional live) |
-| F3.12 | Manual/README operación según outline [11](./11-manuales-ops-y-usuario.md): backup **BD + MinIO** off-host, SMTP reputación, secrets |
+| F3.12 | Manual/README operación ([11](./11-manuales-ops-y-usuario.md)): backup **BD + MinIO** off-host, orden migrate, `OPS_ALERT_EMAIL`, SMTP reputación, secrets |
 
 ### 4.2. Historias de usuario incluidas
 
@@ -482,6 +485,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | Auth guard | Endpoints admin rechazan anónimo |
 | `GET /api/v1/admin/audit-log` | Admin 200; editor **403**; CSV aceptado → fila `participant_csv_import` |
 | PATCH rol si falla INSERT audit | **500**; el rol **no** cambia |
+| Digest ops | `failed` ⇒ señal `OPS_ALERT`; `pending` sin intentos ⇒ **no** |
 
 #### Fase 2
 

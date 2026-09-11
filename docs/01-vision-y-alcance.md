@@ -156,6 +156,7 @@ Incluye:
 - Autenticidad v1.0: permalink oficial + **SHA-256 público** del PDF ([10 §10.2](./10-diseno-codigo-y-anexos.md#102-modelo-de-autenticidad-decisión-cerrada)). OB 3.0 / PAdES = post-v1.0.
 - Imagen de badge: upload PNG/SVG por BadgeClass (sin biblioteca de plantillas).
 - Protecciones de abuso y carga ([10 §10](./10-diseno-codigo-y-anexos.md#10-seguridad-abuso-y-protección-de-carga)): rate limit en búsqueda y permalinks, `robots.txt` / anti-IA básico, concurrencia PDF acotada.
+- **Ops v1.0:** migrate documentado + rollback = backup; alertas por correo (`failed` / `/ready`), **sin** Prometheus ([10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada)).
 - **Emisión solo lazy** ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)): **no** hay botón de emitir pendientes, ZIP de PDFs ni impresión para entrega presencial el mismo día. Papel el día del evento = archivos **pregenerados** (fuera de este sistema).
 
 **No confundir** con [§6 Fuera de alcance](#6-fuera-de-alcance): eso no entra ni en v1.0 ni en la evolución prevista.
@@ -184,7 +185,7 @@ Lista **canónica**. El resto de la documentación solo referencia esta sección
 | Portal de auto-baja del titular | v1.0 = aviso + ARCO **ops/admin** (HU-8.3, HU-8.4). Autoservicio público = post-v1.0 | [02](./02-historias-de-usuario.md), [11](./11-manuales-ops-y-usuario.md) |
 | Traducciones (i18n) | v1.0 = español; cadenas ya externalizadas — añadir locale | — |
 | Tercera instancia (u otras) | Mismo patrón: despliegue + ENV + BD + DNS | [05 §9](./05-personalizacion-multi-instancia.md#9-tercera-instancia-u-otras) |
-| Otros OAuth (no OSM) para panel | v1.0 = solo OAuth OSM | [02](./02-historias-de-usuario.md) HU-7.1 |
+| Prometheus / métricas scrapeables | v1.0 = `/health` + `/ready` + correo ops. Sin `/metrics`. | [10 §8.1](./10-diseno-codigo-y-anexos.md#81-migraciones-rollback-y-alertas-ops--decisión-cerrada) |
 
 ---
 

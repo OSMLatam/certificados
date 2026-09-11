@@ -320,6 +320,7 @@ Plantilla completa: [`.env.example`](../.env.example) en la **raíz** del reposi
 | Rate limit / abuso | `THROTTLE_SEARCH_*`, `THROTTLE_PERMALINK_*`, `BLOCKED_BOT_UA_REGEX`, `PREVIEW_BOT_UA_REGEX`, `TRUST_PROXY` | 1 |
 | PDF / carga | `PDF_CONCURRENCY`, `PDF_TIMEOUT_MS`, `PDF_MAX_ISSUE_ATTEMPTS`, `PUPPETEER_NO_SANDBOX` | 1 |
 | Logging | `LOG_LEVEL`, `LOG_REDACT_IP` | 1 |
+| Ops alertas | `OPS_ALERT_EMAIL`, `OPS_ALERT_INTERVAL_MINUTES`, `OPS_ALERT_PENDING_HOURS` | 1 |
 | Legal AC3 | Tabla `instance_legal` + `instance_legal_signers` (máx. 8) + bootstrap `LEGAL_*` opcional; folio global | 2 |
 | Open Badges | `OB_ISSUER_*` | 2 |
 | OSM API | `OSM_API_*` (fuentes por métrica en [06 §5.1](./06-open-badges.md)) | 3 |
@@ -368,6 +369,34 @@ Respuesta ejemplo:
 - **`audit_log`:** acciones sensibles del catálogo ([03 §5.2](./03-modelo-de-datos.md#52-audit_log)); lectura solo admin (HU-7.5).
 - **`permalink_access_log`:** accesos a `/c/` (sin IP completa si `LOG_REDACT_IP=true`).
 - **No** loguear documentos completos ni contraseñas.
+
+### 8.1. Migraciones, rollback y alertas ops — decisión cerrada
+
+**Sin Prometheus** ni `/metrics` públicos en v1.0 (post-v1.0: [01 §11](./01-vision-y-alcance.md#11-evolución-futura-post-v10)). Las migraciones de esquema son **pocas** (saltos de fase); el procedimiento es corto, no un stack de monitoreo.
+
+**Quién migra:** el operador de cada instancia, en cada upgrade de código que traiga Prisma nuevo. Orden:
+
+1. Backup **pareado** Postgres + MinIO (off-host, cifrado).
+2. `prisma migrate deploy` (recomendado: el contenedor API lo ejecuta al arrancar y **no** pasa a `/ready` si falla).
+3. Comprobar `GET /ready` → 200.
+4. Seed solo si el runbook de esa versión lo pide (catálogos YAML).
+
+**Rollback:** no hay `migrate down`. Restaurar el backup del paso 1 (BD **y** MinIO juntos). Verificar que un `/c/` `issued` conocido sirve el PDF.
+
+**Alertas mínimas (correo, no dashboard):** job periódico F1 (`OPS_ALERT_INTERVAL_MINUTES`, default **60**). Si `OPS_ALERT_EMAIL` está vacío → solo log `OPS_ALERT` (error). Si hay SMTP + email → un correo a ops (**no** usar `PRIVACY_CONTACT_EMAIL`: es canal ARCO).
+
+Dispara si **alguna** condición es cierta. **No** alertar por `pending` con `issue_attempts = 0` (emisión lazy).
+
+| Señal | Condición |
+|-------|-----------|
+| Ready | Lo que `/ready` comprobaría está mal (BD/MinIO/Redis F3) |
+| `failed` | `COUNT(*)` de certificados `failed` > 0 |
+| Pending atascado | `pending` con `issue_attempts > 0` y `last_issue_attempt_at` anterior a `OPS_ALERT_PENDING_HOURS` (default **24**) |
+| F3 | Jobs BullMQ fallidos o SMTP de aplicación caído (último envío con error persistente) |
+
+**Anti-ruido:** no reenviar la misma firma (`ready` / `failed:N` / `stuck:N` / `jobs`) antes de **24 h**, salvo que el conteo **suba**. Cuerpo del mail: conteos + “revisar ficha del evento / `retry-issue`”. Sin PII (nombres, documentos, emails de titulares).
+
+El editor sigue viendo `failed` en la ficha del evento; el correo es para enterarse **sin** abrir el panel.
 
 ---
 
