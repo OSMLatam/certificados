@@ -52,7 +52,8 @@ html, body { margin: 0; padding: 0; width: 297mm; height: 210mm; overflow: hidde
 
 function renderLayer(layer: LayoutLayer, values: CertificateValues, qrSvg: string): string {
   if (layer.field === "permalink_qr") {
-    return `<div class="layer" style="left:${mm(layer.x)};top:${mm(layer.y)};width:${mm(layer.size)};height:${mm(layer.size)}">${qrSvg}</div>`;
+    const box = `left:${mm(layer.x)};top:${mm(layer.y)};width:${mm(layer.size)};height:${mm(layer.size)}`;
+    return `<div class="layer" style="${box};overflow:hidden">${embedQrSvg(qrSvg)}</div>`;
   }
   const font = FAMILY[layer.fontFamily] ?? FAMILY["Liberation Sans"]!;
   const shift = layer.align === "center" ? "transform:translateX(-50%);" : layer.align === "right" ? "transform:translateX(-100%);" : "";
@@ -62,6 +63,15 @@ function renderLayer(layer: LayoutLayer, values: CertificateValues, qrSvg: strin
 
 function mm(value: number): string {
   return `${(Number(value) * 25.4) / 150}mm`;
+}
+
+/** The QR library sizes the SVG in CSS pixels. Stretch it to the layout box instead. */
+export function embedQrSvg(svg: string): string {
+  const withoutPreamble = svg.replace(/<\?xml[\s\S]*?\?>/g, "").replace(/<!DOCTYPE[^>]*>/g, "");
+  return withoutPreamble.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => {
+    const cleaned = attrs.replace(/\s(?:width|height)="[^"]*"/gi, "");
+    return `<svg${cleaned} width="100%" height="100%" style="display:block;width:100%;height:100%">`;
+  });
 }
 
 function backgroundCss(uri: string | undefined): string {
