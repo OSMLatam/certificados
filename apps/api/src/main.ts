@@ -6,12 +6,14 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
+import { securityHeaders } from "./security-headers";
 
 loadDotenv({ path: path.resolve(__dirname, "../../../.env") });
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.use(securityHeaders());
   if (env.TRUST_PROXY > 0) {
     app.set("trust proxy", env.TRUST_PROXY);
   }

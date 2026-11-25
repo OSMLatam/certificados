@@ -17,4 +17,5 @@ FROM nginx:1.27-alpine
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/proxy-headers.conf /etc/nginx/proxy-headers.conf
+COPY docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
