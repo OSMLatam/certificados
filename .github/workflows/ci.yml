@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: certificados
+          POSTGRES_PASSWORD: certificados
+          POSTGRES_DB: certificados
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U certificados -d certificados"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      minio:
+        image: bitnamilegacy/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -fsS http://127.0.0.1:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 10s
+    env:
+      NODE_ENV: test
+      INSTANCE: osm_lat
+      PUBLIC_BASE_URL: http://localhost:5173
+      DATABASE_URL: postgresql://certificados:certificados@localhost:5432/certificados
+      STORAGE_ENDPOINT: http://127.0.0.1:9000
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: certificados
+      STORAGE_REGION: us-east-1
+      STORAGE_FORCE_PATH_STYLE: "true"
+      SESSION_SECRET: ci-session-secret-with-32-characters
+      OSM_OAUTH_CLIENT_ID: ci-client
+      OSM_OAUTH_CLIENT_SECRET: ci-secret
+      OSM_OAUTH_REDIRECT_URI: http://localhost:5173/api/v1/admin/auth/osm/callback
+      SOFTWARE_NAME: certificados
+      SOFTWARE_REPO_URL: https://github.com/OSMLatam/certificados
+      SITE_NAME: Certificados OSM Latam
+      PRIVACY_CONTACT_EMAIL: privacidad@example.org
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
+      PUPPETEER_NO_SANDBOX: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install Chrome and Poppler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils wget
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y /tmp/chrome.deb
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Prepare the database and the bucket
+        run: |
+          pnpm --filter api exec prisma generate
+          pnpm --filter api exec prisma migrate deploy
+          pnpm --filter api exec tsx prisma/seed.ts
+          node --import tsx --input-type=module -e '
+            import { CreateBucketCommand, HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+            const client = new S3Client({
+              endpoint: process.env.STORAGE_ENDPOINT,
+              region: process.env.STORAGE_REGION,
+              forcePathStyle: true,
+              credentials: {
+                accessKeyId: process.env.STORAGE_ACCESS_KEY,
+                secretAccessKey: process.env.STORAGE_SECRET_KEY,
+              },
+            });
+            try {
+              await client.send(new HeadBucketCommand({ Bucket: process.env.STORAGE_BUCKET }));
+            } catch {
+              await client.send(new CreateBucketCommand({ Bucket: process.env.STORAGE_BUCKET }));
+            }
+          '
+        working-directory: apps/api
+      - name: Lint
+        run: pnpm lint
+      - name: Test
+        run: pnpm test

@@ -299,7 +299,7 @@ Badge OSM (u otro) sin certificado:
 | T19 | Render falla `PDF_MAX_ISSUE_ATTEMPTS` veces | Pasa a `failed`; metadata posterior **no** lanza Puppeteer; `/file` **409** |
 | T20 | `POST …/retry-issue` sobre `failed` | Vuelve a `pending` (`issue_attempts=0`); la siguiente visita humana emite |
 | T22 | CSV rol fuera de `allowed_roles` | **0** filas; informe campo `role` |
-| T23 | ZIP falta archivo / sobra archivo | Lote **0**; `ZIP_FILE_MISSING` / `ZIP_FILE_UNEXPECTED` |
+| T23 | ZIP falta archivo / sobra archivo | Lote **0**; «El archivo X está en la hoja pero no en el ZIP» / «El ZIP trae X, que no está en la hoja» |
 | T24 | Unique violation de slug | Reintenta nanoid (máx. 5); no expone slug secuencial |
 | T25 | ZIP con `../` en una entrada | Lote **0**; no escribe en disco fuera del basename |
 | T26 | PNG o PDF con magic bytes / JS inválidos | **400**; no se almacena |

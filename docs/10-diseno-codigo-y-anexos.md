@@ -749,18 +749,7 @@ https://api.badgr.io/o/auth?badge={assertion_url}
 
 ## 16. CI (GitHub Actions)
 
-```yaml
-# Resumen ci.yml
-jobs:
-  test:
-    steps:
-      - pnpm install
-      - docker compose -f docker-compose.test.yml up -d
-      - pnpm --filter api prisma migrate deploy
-      - pnpm lint
-      - pnpm test
-      - pnpm build
-```
+`.github/workflows/ci.yml` corre en cada push y pull request. Instala las dependencias con pnpm 9.15.9, usa Postgres 16 y MinIO como servicios del flujo, aplica las migraciones, carga el seed y ejecuta `pnpm lint` y `pnpm test` (unitarias e integración). Chrome y Poppler están en el runner porque las pruebas del PDF rasterizan a 150 dpi.
 
 ---
 

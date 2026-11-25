@@ -70,12 +70,12 @@ export class PregeneratedService {
     const files = new Map(zip.entries.map((entry) => [entry.name, entry.bytes]));
     for (const row of parsed.rows) {
       if (!files.has(row.filename)) {
-        issues.push({ row: row.row, field: "filename", message: "ZIP_FILE_MISSING", value: row.filename });
+        issues.push({ row: row.row, field: "filename", message: missingInZip(row.filename), value: row.filename });
       }
     }
     for (const name of files.keys()) {
       if (!parsed.rows.some((row) => row.filename === name)) {
-        issues.push({ row: 0, field: "file", message: "ZIP_FILE_UNEXPECTED", value: name });
+        issues.push({ row: 0, field: "file", message: unexpectedInZip(name), value: name });
       }
     }
 
@@ -106,7 +106,7 @@ export class PregeneratedService {
       for (const certificate of person.certificates) {
         const file = inspected.get(`${person.email}|${certificate.roleCode}`);
         if (!file) {
-          throw report([{ row: 0, field: "file", message: "ZIP_FILE_MISSING" }]);
+          throw report([{ row: 0, field: "file", message: missingInZip() }]);
         }
         const checksum = createHash("sha256").update(file.bytes).digest("hex");
         const id = randomUUID();
@@ -328,6 +328,14 @@ function extensionFor(mimeType: string): string {
     return "jpg";
   }
   return "pdf";
+}
+
+function missingInZip(filename?: string): string {
+  return filename ? `El archivo ${filename} está en la hoja pero no en el ZIP` : "El archivo está en la hoja pero no en el ZIP";
+}
+
+function unexpectedInZip(filename: string): string {
+  return `El ZIP trae ${filename}, que no está en la hoja`;
 }
 
 function report(issues: ImportIssue[]): BadRequestException {

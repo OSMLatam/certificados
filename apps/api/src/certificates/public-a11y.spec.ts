@@ -37,7 +37,7 @@ describe("public accessibility", () => {
     const browser = await puppeteer.launch({
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
       headless: true,
-      args: ["--disable-dev-shm-usage", "--disable-gpu"],
+      args: ["--disable-dev-shm-usage", "--disable-gpu", ...(process.env.PUPPETEER_NO_SANDBOX === "true" ? ["--no-sandbox", "--disable-setuid-sandbox"] : [])],
     });
     try {
       const pages = {

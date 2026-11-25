@@ -488,7 +488,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | `GET /c/{slug}` issued (2ª visita) | Sirve MinIO; **sin** nueva generación Puppeteer |
 | Upload pregenerado | Sirve archivo original |
 | CSV `role` ∉ `allowed_roles` | **0** filas; informe de fallos |
-| ZIP con archivo de más o de menos | Lote **0**; `ZIP_FILE_UNEXPECTED` / `ZIP_FILE_MISSING` |
+| ZIP con archivo de más o de menos | Lote **0**; «El ZIP trae X, que no está en la hoja» / «El archivo X está en la hoja pero no en el ZIP» |
 | ZIP entrada con `..` o path | Rechazo zip-slip; lote **0** |
 | Upload PNG/PDF con MIME mentiroso o JS en PDF | **400** `UPLOAD_*` / catálogo PDF rechazado |
 | Auth guard | Endpoints admin rechazan anónimo |

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
 import { FormAlert, FormSuccess } from "./FormAlert";
+import { RevokeDialog } from "./RevokeDialog";
 import { invalidFormMessage } from "./form-feedback";
 
 type EventDetail = {
@@ -65,6 +66,7 @@ function EventBody({ eventId }: { eventId: string }) {
   const [docNumber, setDocNumber] = useState("");
   const [venueName, setVenueName] = useState("");
   const [venueCode, setVenueCode] = useState("");
+  const [revokeId, setRevokeId] = useState<string | null>(null);
 
   function reload() {
     void api<EventDetail>(`/api/v1/admin/events/${eventId}`).then(setEvent, (reason: unknown) => {
@@ -152,27 +154,7 @@ function EventBody({ eventId }: { eventId: string }) {
                   {certificate.issueAttempts > 0 ? ` · ${certificate.issueAttempts} intentos` : ""} ·{" "}
                   <a href={`/c/${certificate.slug}`}>/c/{certificate.slug}</a>
                   {certificate.status !== "revoked" ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const reason = window.prompt("Motivo de la revocación. Puedes dejarlo vacío.");
-                        if (reason === null) {
-                          return;
-                        }
-                        setError(null);
-                        setSuccess("");
-                        void api(`/api/v1/admin/certificates/${certificate.id}/revoke`, {
-                          method: "POST",
-                          body: JSON.stringify(reason.trim() ? { revokeReason: reason.trim() } : {}),
-                        }).then(
-                          () => {
-                            setSuccess("Certificado revocado.");
-                            reload();
-                          },
-                          (failure: unknown) => fail(failure),
-                        );
-                      }}
-                    >
+                    <button type="button" onClick={() => setRevokeId(certificate.id)}>
                       Revocar
                     </button>
                   ) : null}
@@ -432,6 +414,27 @@ function EventBody({ eventId }: { eventId: string }) {
         <input id="venue-code" value={venueCode} onChange={(input) => setVenueCode(input.target.value)} required />
         <button type="submit">Agregar sede</button>
       </form>
+      {revokeId ? (
+        <RevokeDialog
+          onCancel={() => setRevokeId(null)}
+          onConfirm={(reason) => {
+            const id = revokeId;
+            setRevokeId(null);
+            setError(null);
+            setSuccess("");
+            void api(`/api/v1/admin/certificates/${id}/revoke`, {
+              method: "POST",
+              body: JSON.stringify(reason ? { revokeReason: reason } : {}),
+            }).then(
+              () => {
+                setSuccess("Certificado revocado.");
+                reload();
+              },
+              (failure: unknown) => fail(failure),
+            );
+          }}
+        />
+      ) : null}
     </>
   );
 }

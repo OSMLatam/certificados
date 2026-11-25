@@ -216,3 +216,13 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
+dialog {
+  border: 1px solid #0b3d0b;
+  border-radius: 6px;
+  max-width: 28rem;
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
