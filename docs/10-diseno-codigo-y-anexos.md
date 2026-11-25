@@ -443,7 +443,7 @@ Las instancias viven en **servidores comunitarios/institucionales compartidos**.
 | Sesión admin | Cookie `httpOnly`, `Secure` en prod, `SameSite=Lax` |
 | CSRF | `SameSite=Lax` en cookie + validar header `Origin` en mutaciones admin POST/PATCH/DELETE |
 | CORS | Prod: mismo origen (nginx/Caddy proxy); dev: `localhost:5173` |
-| Headers | `helmet` en NestJS: CSP básico, HSTS en prod |
+| Headers | `helmet` en NestJS y las mismas cabeceras en el nginx del panel: HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`. La Content-Security-Policy empieza en **Report-Only**. |
 | Uploads sueltos (fondo, firma, 1:1) | Max **10 MB**; MIME declarado **y** magic bytes (ver §10.1.3) |
 | Lote pregenerados (CSV + ZIP) | Max **100 MB** comprimido; zip-slip/bomb §10.1.2; entradas internas png/jpeg/pdf validadas como upload |
 | Slug | nanoid 12 chars — no secuencial, no enumerable. UNIQUE violation → reintentar (máx. 5); agotar → 500 `SLUG_COLLISION`. Mismo criterio para slugs `/b/`. |
@@ -680,6 +680,7 @@ paths:
   /admin/events/{id}/templates: GET, POST, PATCH
   /admin/events/{id}/certificates: GET, POST
   /admin/certificates/{id}/retry-issue: POST  # failed → pending (F1)
+  /admin/certificates/{id}/revoke: POST      # pending, issued o failed → revoked (F1)
   /admin/certificates/{id}/pregenerated: POST   # multipart file (1:1)
   /admin/events/{id}/pregenerated/import: POST  # sheet + ZIP
   /admin/events/{id}/pregenerated/import/template: GET  # CSV plantilla
@@ -689,7 +690,7 @@ paths:
   /public/certificates/{slug}/file: GET         # PDF/imagen stream
 ```
 
-Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `/badges/revocations.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/certificates/{id}/revoke`, `POST /admin/badges/{id}/revoke`, `POST /admin/participants/{id}/erase`.  
+Fase 2+: `/public/badges/...`, `/badges/issuer.json`, `/badges/revocations.json`, `GET /api/v1/verify/c/{slug}`, `GET /api/v1/verify/b/{slug}`, `POST /admin/badges/{id}/revoke`, `POST /admin/participants/{id}/erase`.  
 Fase 3+: `/public/badges/osm`, `/public/auth/osm/*`, `/public/me`, `/public/me/link-email`, `/admin/badges/import`, `/admin/badges/import/template`, `POST /admin/certificates/{id}/send-link`.
 
 ---

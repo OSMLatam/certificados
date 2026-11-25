@@ -530,7 +530,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 | Campo | Valor |
 |-------|-------|
 | Prioridad | Must |
-| Fase | 2 |
+| Fase | 2 para badge y verificación JSON. La revocación del certificado ya está en el panel. |
 
 **Criterios de aceptación:**
 
@@ -539,7 +539,7 @@ Preferencias “hacer público/privado mi perfil” = [evolución futura](./01-v
 3. Si hay badge de evento vinculado, pasa a `revoked` en cascada.
 4. **Revocación directa de badge:** `POST /api/v1/admin/badges/{id}/revoke` (motivo opcional). Para `event_role`, preferir revocar el certificado (cascada). Para `osm_activity`, este endpoint es el camino normal.
 5. **Corrección de datos (decisión cerrada):** no hay PATCH de certificado `issued` ni regeneración del PDF. Procedimiento = **revocar + alta nueva** (nuevo slug). El UNIQUE `(participant_id, role_code)` es **parcial:** solo entre filas con `status <> 'revoked'` (incluye `failed`), para permitir la nueva emisión tras revocar.
-6. **Mientras `pending` o `failed` (también en Fase 1):** sí se puede corregir metadatos del participante/certificado o borrar y volver a dar de alta; aún no hay revocación en F1. Desde `failed`, el camino de render es `retry-issue` (tras arreglar plantilla/fondo) o borrar+alta.
+6. **Mientras `pending` o `failed`:** se pueden corregir metadatos o volver a dar de alta. También se puede revocar el certificado desde `pending`, `issued` o `failed`. Desde `failed`, el camino de render sigue siendo `retry-issue` (tras arreglar plantilla o fondo) o un alta nueva. La cascada al badge y `POST …/badges/{id}/revoke` siguen en la fase 2.
 7. RBAC: editor y admin (matriz).
 8. Escribe `audit_log` `certificate_revoke` / `badge_revoke` ([03 §5.2](./03-modelo-de-datos.md)).
 

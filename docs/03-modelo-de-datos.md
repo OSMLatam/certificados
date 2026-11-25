@@ -419,6 +419,7 @@ No hay fila por cada PATCH de título de evento ni por alta individual de partic
 | `certificate_retry_issue` | `POST …/retry-issue` | `certificate` | `previous_attempts` |
 | `template_export` | Exportación ZIP de una plantilla | `certificate_template` | `filename` |
 | `template_import` | Importación o copia de una plantilla aceptada | `certificate_template` | `filename` o `sourceTemplateId` |
+| `certificate_revoke` | `POST …/certificates/{id}/revoke` | `certificate` | `revoke_reason` (si hay) |
 
 Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap del primer OAuth (seed ENV) **no** escribe `user_role_change`.
 
@@ -426,7 +427,6 @@ Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap d
 
 | `action` | Cuándo | `entity_type` | `metadata` (mínimo) |
 |----------|--------|---------------|---------------------|
-| `certificate_revoke` | `POST …/certificates/{id}/revoke` | `certificate` | `revoke_reason` (si hay) |
 | `badge_revoke` | `POST …/badges/{id}/revoke` | `badge_assertion` | `revoke_reason` |
 | `participant_erase` | `POST …/participants/{id}/erase` | `participant` | `certificate_ids` (UUIDs) |
 | `instance_legal_patch` | PATCH `/admin/instance/legal` | `instance_legal` | keys cambiadas (no bytes de firma) |
@@ -704,9 +704,9 @@ Ejemplo: [anexos/csv/participantes-ejemplo.csv](./anexos/csv/participantes-ejemp
 
 ```csv
 full_name;email;country_code;doc_type;doc_number;role;activity_title;venue_code
-Ana García;ana@mail.com;CO;CC;1234567890;asistente;;
-Ana García;ana@mail.com;CO;CC;1234567890;voluntario;;
-Carlos López;carlos@mail.com;CO;CE;987654321;ponente;Mapping con OpenStreetMap;BOG
+Ana García;ana@example.org;CO;CC;1234567890;asistente;;
+Ana García;ana@example.org;CO;CC;1234567890;voluntario;;
+Carlos López;carlos@example.org;CO;CE;987654321;ponente;Mapping con OpenStreetMap;BOG
 ```
 
 | Columna | Obligatorio | Notas |
@@ -769,8 +769,8 @@ Ejemplo de hoja: [anexos/csv/pregenerados-ejemplo.csv](./anexos/csv/pregenerados
 
 ```csv
 filename;full_name;email;country_code;doc_type;doc_number;role
-cert-ana-asistente.pdf;Ana García;ana@mail.com;CO;CC;1234567890;asistente
-cert-carlos-ponente.pdf;Carlos López;carlos@mail.com;CO;CE;987654321;ponente
+cert-ana-asistente.pdf;Ana García;ana@example.org;CO;CC;1234567890;asistente
+cert-carlos-ponente.pdf;Carlos López;carlos@example.org;CO;CE;987654321;ponente
 ```
 
 ---

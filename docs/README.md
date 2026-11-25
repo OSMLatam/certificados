@@ -2,7 +2,18 @@
 
 Especificación **v1.0** del sistema de **certificados de evento** y **Open Badges** (evento + actividad OSM), desplegado en dos instancias independientes.
 
-**Estado:** Especificación v1.0 **lista para implementar Fase 1**. Revisión por pares incorporada (2026-09).
+**Estado:** Especificación v1.0. La fase 1 está implementada en este repositorio, con los ajustes de las pruebas del 24 de noviembre de 2026. Open Badges, el pie legal AC3 y la supresión ARCO siguen en fases posteriores.
+
+**Ajustes del 24 de noviembre de 2026:**
+
+- El panel muestra los `details[]` del servidor y un mensaje de éxito al agregar un participante, importar un CSV o crear una sede.
+- El editor publica o devuelve un evento a borrador, lo retira con confirmación y revoca un certificado (motivo opcional, auditoría `certificate_revoke`). El PDF emitido no se regenera. La revocación de badges sigue en la fase 2.
+- Sin rol o con la cuenta desactivada, el panel explica el caso, indica el correo de contacto y ofrece cerrar sesión. El menú y los formularios quedan ocultos.
+- Cada rol del evento puede tener su plantilla, además de la general.
+- La plantilla se exporta e importa en ZIP, se copia desde otro evento y el editor cambia tamaño, color, negrita y alineación. El estado del listado es «Aún no generado».
+- La ficha del evento lista las sedes. El alta individual pide país, tipo y número de documento. Un identificador mal formado responde 400. La auditoría se muestra en hora de Bogotá. El QR de una plantilla nueva queda a 60 px del borde. Los CSV de ejemplo usan `@example.org`.
+- La API envía HSTS, `X-Frame-Options: DENY`, `nosniff` y `Referrer-Policy`. La Content-Security-Policy va en modo Report-Only. El nginx del panel repite esas cabeceras en las páginas estáticas.
+- No se puede quitar el rol ni desactivar al único administrador activo.
 
 **Origen del proyecto:** ver [Historia](../README.md#historia) en el README del repositorio.
 

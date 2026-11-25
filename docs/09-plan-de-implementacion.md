@@ -173,12 +173,13 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-6.1, HU-6.2 | Alta individual + CSV + plantilla descargable |
 | HU-7.1 | Login OAuth OSM |
 | HU-7.4 | Gestión usuarios panel (asignar roles) |
+| HU-7.3 | Revocación del certificado (sin badge ni verify JSON) |
 | HU-7.5 | Audit log acciones sensibles (catálogo F1; lectura admin) |
 | HU-8.1 | Branding vía ENV (`SITE_*`) + atribución software (`SOFTWARE_*`, `/about`, health) — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia) |
 | HU-8.3 | Aviso `/privacy` |
 | HU-1.6 | Accesibilidad WCAG 2.2 AA (público F1 + formularios admin; no el lienzo Konva) |
 
-**Fuera de Fase 1:** Open Badges, AC3 legal, revocación, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard de métricas (HU-7.2), **erase ARCO** (HU-8.4, F2).
+**Fuera de Fase 1:** Open Badges, AC3 legal, revocación de badges, verify JSON, OSM badges, Open Graph, **SMTP** (envío de enlace), dashboard de métricas (HU-7.2), **erase ARCO** (HU-8.4, F2). La revocación del certificado sí está.
 
 ### 2.3. Tablas Prisma (Fase 1)
 
