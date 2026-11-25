@@ -41,8 +41,9 @@ export class UsersService {
         const others = await tx.adminUser.count({
           where: { role: "admin", isActive: true, id: { not: current.id } },
         });
-        if (others === 0) {
-          throw validationFailed([{ field: "role", message: "Tiene que quedar al menos un administrador activo." }]);
+        const blocked = lastAdminMessage(others);
+        if (blocked) {
+          throw validationFailed([{ field: nextActive ? "role" : "isActive", message: blocked }]);
         }
       }
       const updated = await tx.adminUser.update({
@@ -79,6 +80,13 @@ export class UsersService {
       return toUser(updated);
     });
   }
+}
+
+export function lastAdminMessage(otherActiveAdmins: number): string | null {
+  if (otherActiveAdmins > 0) {
+    return null;
+  }
+  return "Tiene que quedar al menos un administrador activo.";
 }
 
 function toUser(user: {

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { describe, it } from "node:test";
 import { config as loadDotenv } from "dotenv";
-import { ForbiddenException, type ExecutionContext } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, type ExecutionContext } from "@nestjs/common";
 import { loadEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { AdminGuard, type AdminRequest } from "../auth/admin.guard";
@@ -43,9 +43,19 @@ describe("panel users", () => {
       assert.equal(await guard.canActivate(asContext(adminRequest)), true);
       assert.equal(roleGuard.canActivate(asContext(adminRequest)), true);
 
-      await assert.rejects(() => users.update(admin.id, admin.id, { role: null }, "127.0.0.1"));
+      await assert.rejects(() => users.update(admin.id, admin.id, { role: null }, "127.0.0.1"), (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.match(JSON.stringify(error.getResponse()), /al menos un administrador activo/);
+        return true;
+      });
+      await assert.rejects(() => users.update(admin.id, admin.id, { isActive: false }, "127.0.0.1"), (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.match(JSON.stringify(error.getResponse()), /al menos un administrador activo/);
+        return true;
+      });
       const stillAdmin = await prisma.adminUser.findUniqueOrThrow({ where: { id: admin.id } });
       assert.equal(stillAdmin.role, "admin");
+      assert.equal(stillAdmin.isActive, true);
       assert.equal(await prisma.auditLog.count({ where: { entityId: admin.id } }), 0);
 
       const changed = await users.update(admin.id, editor.id, { role: "admin", isActive: false }, "127.0.0.1");
