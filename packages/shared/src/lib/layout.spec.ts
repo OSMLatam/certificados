@@ -7,6 +7,8 @@ describe("parseCertificateLayout", () => {
     const parsed = parseCertificateLayout(layout);
     expect(parsed.ok).toBe(true);
     expect(layoutHasLegal(layout)).toBe(false);
+    const qr = layout.layers.find((layer) => layer.field === "permalink_qr");
+    expect(qr).toMatchObject({ x: 60, y: 1030, size: 150 });
   });
 
   it("rejects a portrait canvas and a field outside the catalog", () => {

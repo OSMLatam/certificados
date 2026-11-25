@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/auth/*.spec.ts src/events/*.spec.ts src/participants/*.spec.ts src/pdf/*.spec.ts src/certificates/*.spec.ts src/templates/*.spec.ts src/pregenerated/*.spec.ts src/audit/*.spec.ts src/ops/*.spec.ts src/admin/*.spec.ts src/openapi.spec.ts",
+    "test": "node --import tsx --test src/auth/*.spec.ts src/events/*.spec.ts src/participants/*.spec.ts src/pdf/*.spec.ts src/certificates/*.spec.ts src/templates/*.spec.ts src/pregenerated/*.spec.ts src/audit/*.spec.ts src/ops/*.spec.ts src/admin/*.spec.ts src/prisma/*.spec.ts src/openapi.spec.ts",
     "prisma:generate": "dotenv -e ../../.env -- prisma generate",
     "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"

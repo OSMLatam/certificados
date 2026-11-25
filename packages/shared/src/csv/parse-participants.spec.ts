@@ -11,6 +11,8 @@ describe("parseParticipantCsv", () => {
     expect(parsed.rows).toHaveLength(4);
     expect(parsed.rows[0]).toMatchObject({ row: 2, fullName: "Ana García", role: "asistente" });
     expect(parsed.rows[2]).toMatchObject({ activityTitle: "Mapping con OpenStreetMap", venueCode: "BOG" });
+    expect(participantCsvTemplate()).toContain("@example.org");
+    expect(participantCsvTemplate()).not.toContain("@mail.com");
   });
 
   it("keeps a semicolon that sits inside quotes", () => {

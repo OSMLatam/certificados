@@ -37,8 +37,8 @@ const HEADER_FIELDS: Record<PregeneratedCsvHeader, keyof Omit<PregeneratedCsvRow
 /** UTF-8 CSV whose filename column must match one ZIP entry exactly. */
 export function pregeneratedCsvTemplate(): string {
   const examples = [
-    ["cert-ana-asistente.pdf", "Ana García", "ana@mail.com", "CO", "CC", "1234567890", "asistente"],
-    ["cert-carlos-ponente.pdf", "Carlos López", "carlos@mail.com", "CO", "CE", "987654321", "ponente"],
+    ["cert-ana-asistente.pdf", "Ana García", "ana@example.org", "CO", "CC", "1234567890", "asistente"],
+    ["cert-carlos-ponente.pdf", "Carlos López", "carlos@example.org", "CO", "CE", "987654321", "ponente"],
   ];
   const lines = [PREGENERATED_CSV_HEADERS.join(";"), ...examples.map((row) => row.join(";"))];
   return `\uFEFF${lines.join("\n")}\n`;

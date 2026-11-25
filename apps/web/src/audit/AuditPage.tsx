@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AccessNote, AdminShell } from "../admin/AdminShell";
+import { formatAuditTime } from "./audit-time";
 import { FormAlert } from "../admin/FormAlert";
 import { failureFromBody } from "../admin/form-feedback";
 
@@ -158,7 +159,7 @@ function AuditLog() {
                 <tbody>
                   {result.items.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.createdAt.replace("T", " ").slice(0, 16)}</td>
+                      <td>{formatAuditTime(item.createdAt)}</td>
                       <td>{item.actor?.name ?? "Sistema"}</td>
                       <td>{ACTIONS.find((entry) => entry.value === item.action)?.label ?? item.action}</td>
                       <td>{item.entityType}</td>

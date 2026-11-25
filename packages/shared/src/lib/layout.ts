@@ -88,7 +88,7 @@ export function minimalCertificateLayout(): CertificateLayout {
       text("event_date", 877, 680, "Liberation Sans", 24),
       text("venue_name", 877, 760, "Liberation Sans", 22),
       text("certificate_slug", 877, 1120, "Liberation Sans", 16),
-      { field: "permalink_qr", x: 80, y: 1020, size: 150 },
+      { field: "permalink_qr", x: 60, y: 1030, size: 150 },
     ],
   };
 }

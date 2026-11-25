@@ -58,14 +58,14 @@ describe("participant csv import", () => {
       );
       assert.deepEqual(imported, { rowCount: 4, participantCount: 3, certificateCount: 4 });
       const ana = await prisma.participant.findUniqueOrThrow({
-        where: { eventId_email: { eventId: event.id, email: "ana@mail.com" } },
+        where: { eventId_email: { eventId: event.id, email: "ana@example.org" } },
         include: { certificates: true },
       });
       assert.equal(ana.docNumber, "1234567890");
       assert.equal(ana.certificates.length, 2);
       assert.ok(ana.certificates.every((certificate) => certificate.status === "pending" && certificate.templateId === template.id && certificate.venueId === venue.id));
       const carlos = await prisma.participant.findUniqueOrThrow({
-        where: { eventId_email: { eventId: event.id, email: "carlos@mail.com" } },
+        where: { eventId_email: { eventId: event.id, email: "carlos@example.org" } },
       });
       assert.equal(carlos.activityTitle, "Mapping con OpenStreetMap");
 
@@ -76,11 +76,11 @@ describe("participant csv import", () => {
       assert.equal(await prisma.certificate.count({ where: { eventId: event.id } }), 4);
       assert.equal(await prisma.auditLog.count({ where: { entityId: event.id, action: "participant_csv_import" } }), 1);
 
-      const conflict = `${header}\nAna García;ana@mail.com;CO;CC;1111111111;organizador;;\n`;
+      const conflict = `${header}\nAna García;ana@example.org;CO;CC;1111111111;organizador;;\n`;
       await expectIssue(() => participants.importCsv(event.id, Buffer.from(conflict), "conflicto.csv", admin.id, null), "doc_number");
       assert.equal(await prisma.certificate.count({ where: { participantId: ana.id } }), 2);
 
-      const more = `${header}\nAna García;ana@mail.com;CO;CC;1234567890;organizador;;\nNueva Persona;nueva@example.org;;;;asistente;;\n`;
+      const more = `${header}\nAna García;ana@example.org;CO;CC;1234567890;organizador;;\nNueva Persona;nueva@example.org;;;;asistente;;\n`;
       const added = await participants.importCsv(event.id, Buffer.from(more), "nuevos.csv", admin.id, "127.0.0.1");
       assert.equal(added.certificateCount, 2);
       assert.equal(await prisma.participant.count({ where: { eventId: event.id } }), 4);

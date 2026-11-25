@@ -45,9 +45,9 @@ const HEADER_FIELDS: Record<ParticipantCsvHeader, keyof Omit<ParticipantCsvRow, 
 /** UTF-8 CSV with the columns an editor fills in and uploads again. */
 export function participantCsvTemplate(): string {
   const examples = [
-    ["Ana García", "ana@mail.com", "CO", "CC", "1234567890", "asistente", "", ""],
-    ["Ana García", "ana@mail.com", "CO", "CC", "1234567890", "voluntario", "", ""],
-    ["Carlos López", "carlos@mail.com", "CO", "CE", "987654321", "ponente", "Mapping con OpenStreetMap", "BOG"],
+    ["Ana García", "ana@example.org", "CO", "CC", "1234567890", "asistente", "", ""],
+    ["Ana García", "ana@example.org", "CO", "CC", "1234567890", "voluntario", "", ""],
+    ["Carlos López", "carlos@example.org", "CO", "CE", "987654321", "ponente", "Mapping con OpenStreetMap", "BOG"],
     ["María Ruiz", "maria@example.org", "CO", "CC", "5555555555", "asistente", "", ""],
   ];
   const lines = [PARTICIPANT_CSV_HEADERS.join(";"), ...examples.map((row) => row.join(";"))];

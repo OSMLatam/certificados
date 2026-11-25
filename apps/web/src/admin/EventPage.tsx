@@ -26,6 +26,12 @@ type Certificate = {
   issueAttempts: number;
 };
 
+type Venue = {
+  id: string;
+  name: string;
+  code: string;
+};
+
 type Participant = {
   id: string;
   fullName: string;
@@ -47,12 +53,14 @@ export function EventPage({ eventId }: { eventId: string }) {
 function EventBody({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [people, setPeople] = useState<Participant[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [success, setSuccess] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
   const [activityTitle, setActivityTitle] = useState("");
+  const [countryCode, setCountryCode] = useState("");
   const [docType, setDocType] = useState("CC");
   const [docNumber, setDocNumber] = useState("");
   const [venueName, setVenueName] = useState("");
@@ -64,6 +72,10 @@ function EventBody({ eventId }: { eventId: string }) {
     });
     void api<{ items: Participant[] }>(`/api/v1/admin/events/${eventId}/participants?pageSize=100`).then(
       (page) => setPeople(page.items),
+      () => undefined,
+    );
+    void api<{ items: Venue[] }>(`/api/v1/admin/events/${eventId}/venues`).then(
+      (page) => setVenues(page.items),
       () => undefined,
     );
   }
@@ -240,7 +252,7 @@ function EventBody({ eventId }: { eventId: string }) {
             body.activityTitle = activityTitle.trim();
           }
           if (docNumber.trim()) {
-            body.countryCode = event?.countryCode || "CO";
+            body.countryCode = (countryCode || event?.countryCode || "CO").trim().toUpperCase();
             body.docTypeCode = docType;
             body.docNumber = docNumber.trim();
           }
@@ -268,7 +280,16 @@ function EventBody({ eventId }: { eventId: string }) {
         <label htmlFor="activity-title">Actividad o charla</label>
         <input id="activity-title" value={activityTitle} onChange={(input) => setActivityTitle(input.target.value)} />
         <fieldset>
-          <legend>Documento (opcional)</legend>
+          <legend>Documento</legend>
+          <p>País, tipo y número permiten buscar el certificado. Puedes dejar el número vacío.</p>
+          <label htmlFor="doc-country">País</label>
+          <input
+            id="doc-country"
+            value={countryCode || event?.countryCode || ""}
+            onChange={(input) => setCountryCode(input.target.value.toUpperCase())}
+            maxLength={2}
+            autoComplete="off"
+          />
           <label htmlFor="doc-type">Tipo</label>
           <select id="doc-type" value={docType} onChange={(input) => setDocType(input.target.value)}>
             {DOC_TYPES.map((type) => (
@@ -393,7 +414,18 @@ function EventBody({ eventId }: { eventId: string }) {
           );
         }}
       >
-        <h2>Sede</h2>
+        <h2>Sedes</h2>
+        {venues.length === 0 ? <p>Este evento todavía no tiene sedes.</p> : null}
+        {venues.length > 0 ? (
+          <ul>
+            {venues.map((venue) => (
+              <li key={venue.id}>
+                {venue.name} ({venue.code})
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <h3>Agregar sede</h3>
         <label htmlFor="venue-name">Nombre</label>
         <input id="venue-name" value={venueName} onChange={(input) => setVenueName(input.target.value)} required />
         <label htmlFor="venue-code">Código</label>
