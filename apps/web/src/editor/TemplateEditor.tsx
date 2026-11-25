@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FormAlert } from "../admin/FormAlert";
+import { rolesWithoutTemplate, templateLabel } from "./template-choice";
 import { failureFromBody } from "../admin/form-feedback";
 import type Konva from "konva";
 import { Image as KonvaImage, Layer, Rect, Stage, Text, Group } from "react-konva";
@@ -73,6 +74,9 @@ type Pending =
   | { kind: "copy"; sourceTemplateId: string };
 
 export function TemplateEditor({ eventId }: { eventId: string }) {
+  const [templates, setTemplates] = useState<TemplateRecord[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [newRole, setNewRole] = useState("");
   const [template, setTemplate] = useState<TemplateRecord | null>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [baseline, setBaseline] = useState<Layout | null>(null);
@@ -88,23 +92,20 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void loadTemplate(eventId).then(
-      (record) => {
-        setTemplate(record);
-        setLayout(record.layout);
-        setBaseline(record.layout);
-        setStatus(record.name);
+    void loadTemplates(eventId).then(
+      (loaded) => {
+        setTemplates(loaded.items);
+        setRoles(loaded.roles);
+        if (loaded.startDate) {
+          setEventDate(formatEventDate(loaded.startDate));
+        }
+        const current = loaded.items.find((item) => item.isDefault) ?? loaded.items[0];
+        if (current) {
+          openTemplate(current);
+        }
       },
       (reason: unknown) => setError(reason),
     );
-    void fetch(`/api/v1/admin/events/${eventId}`, { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body: { startDate?: string } | null) => {
-        if (body?.startDate) {
-          setEventDate(formatEventDate(body.startDate));
-        }
-      })
-      .catch(() => undefined);
   }, [eventId]);
 
   useEffect(() => {
@@ -322,6 +323,34 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     setStatus(template?.name ?? "Plantilla");
   }
 
+  function openTemplate(record: TemplateRecord): void {
+    setTemplate(record);
+    setLayout(record.layout);
+    setBaseline(record.layout);
+    setSelected(0);
+    setPending(null);
+    setPreviewBackground(null);
+    setStatus(templateLabel(record));
+  }
+
+  async function createRoleTemplate(roleCode: string): Promise<void> {
+    setError(null);
+    const response = await fetch(`/api/v1/admin/events/${eventId}/templates`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: roleCode, roleCode }),
+    });
+    if (!response.ok) {
+      setError(failureFromBody(await response.json().catch(() => null), response.status));
+      return;
+    }
+    const created = (await response.json()) as TemplateRecord;
+    setTemplates((current) => [...current, created]);
+    setNewRole("");
+    openTemplate(created);
+  }
+
   const current = layout?.layers[selected];
   const currentLabel = FIELDS.find((field) => field.field === current?.field)?.label ?? "capa";
 
@@ -339,6 +368,49 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
           {status}
         </p>
         <FormAlert error={error} />
+        <label htmlFor="template-choice">Plantilla</label>
+        <select
+          id="template-choice"
+          value={template?.id ?? ""}
+          onChange={(event) => {
+            const next = templates.find((item) => item.id === event.target.value);
+            if (!next || next.id === template?.id) {
+              return;
+            }
+            const dirty = JSON.stringify(layout) !== JSON.stringify(baseline);
+            if (dirty && !window.confirm("Hay cambios sin guardar. ¿Cambias de plantilla?")) {
+              return;
+            }
+            openTemplate(next);
+          }}
+        >
+          {templates.map((item) => (
+            <option key={item.id} value={item.id}>
+              {templateLabel(item)}
+            </option>
+          ))}
+        </select>
+        {rolesWithoutTemplate(roles, templates).length > 0 ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (newRole) {
+                void createRoleTemplate(newRole);
+              }
+            }}
+          >
+            <label htmlFor="template-role">Nueva plantilla para el rol</label>
+            <select id="template-role" value={newRole} onChange={(event) => setNewRole(event.target.value)} required>
+              <option value="">Elige un rol</option>
+              {rolesWithoutTemplate(roles, templates).map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Crear plantilla del rol</button>
+          </form>
+        ) : null}
         <p>Arrastra cada texto. Las flechas del teclado lo mueven un píxel. Escape vuelve a los campos.</p>
         <div className="fields">
           {FIELDS.map((field) => {
@@ -633,7 +705,7 @@ function loadImage(url: string, assign: (image: HTMLImageElement | null) => void
   };
 }
 
-async function loadTemplate(eventId: string): Promise<TemplateRecord> {
+async function loadTemplates(eventId: string): Promise<{ items: TemplateRecord[]; roles: string[]; startDate: string }> {
   const listed = await fetch(`/api/v1/admin/events/${eventId}/templates`, { credentials: "include" });
   if (listed.status === 401 || listed.status === 403) {
     throw new Error("Tu sesión no tiene acceso al panel.");
@@ -642,20 +714,24 @@ async function loadTemplate(eventId: string): Promise<TemplateRecord> {
     throw failureFromBody(await listed.json().catch(() => null), listed.status);
   }
   const body = (await listed.json()) as { items: TemplateRecord[] };
-  const existing = body.items.find((item) => item.isDefault) ?? body.items[0];
-  if (existing) {
-    return existing;
+  const eventResponse = await fetch(`/api/v1/admin/events/${eventId}`, { credentials: "include" });
+  const event = eventResponse.ok
+    ? ((await eventResponse.json()) as { allowedRoles?: string[]; startDate?: string })
+    : {};
+  const items = [...body.items];
+  if (items.length === 0) {
+    const created = await fetch(`/api/v1/admin/events/${eventId}/templates`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "General" }),
+    });
+    if (!created.ok) {
+      throw failureFromBody(await created.json().catch(() => null), created.status);
+    }
+    items.push((await created.json()) as TemplateRecord);
   }
-  const created = await fetch(`/api/v1/admin/events/${eventId}/templates`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "General" }),
-  });
-  if (!created.ok) {
-    throw failureFromBody(await created.json().catch(() => null), created.status);
-  }
-  return (await created.json()) as TemplateRecord;
+  return { items, roles: event.allowedRoles ?? [], startDate: event.startDate ?? "" };
 }
 
 function isQr(layer: LayoutLayer): layer is QrLayer {

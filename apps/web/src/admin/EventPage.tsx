@@ -106,7 +106,7 @@ function EventBody({ eventId }: { eventId: string }) {
           <p>
             {event.status === "active" ? "Activo" : "Borrador"}
             {event.pregeneratedOnly ? " · Solo archivos ya generados" : ""} · {event.startDate} · {event.venueCount} sedes · {event.participantCount} participantes ·{" "}
-            <a href={`/admin/events/${eventId}/template`}>Editar plantilla</a>
+            <a href={`/admin/events/${eventId}/template`}>Editar plantillas</a>
           </p>
           <div className="actions">
             {event.status === "draft" ? (
