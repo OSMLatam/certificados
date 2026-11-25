@@ -42,8 +42,7 @@ export class AuthController {
     try {
       const result = await this.auth.loginWithCode(code);
       reply.setHeader("Set-Cookie", this.cookie(result.sessionId, this.env.SESSION_MAX_AGE_MS));
-      const allowed = result.user.isActive && result.user.role !== null;
-      reply.redirect(302, allowed ? `${this.env.PUBLIC_BASE_URL}/admin` : this.loginUrl("forbidden"));
+      reply.redirect(302, `${this.env.PUBLIC_BASE_URL}/admin`);
     } catch {
       reply.redirect(302, this.loginUrl("osm"));
     }
@@ -55,7 +54,7 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return user;
+    return { ...user, contactEmail: this.env.PRIVACY_CONTACT_EMAIL };
   }
 
   @Post("logout")

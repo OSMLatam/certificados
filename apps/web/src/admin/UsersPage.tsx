@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
+import { AccessNote } from "./AdminShell";
 import { FormAlert, FormSuccess } from "./FormAlert";
 
 type PanelUser = {
@@ -15,7 +16,7 @@ type PanelUser = {
 export function UsersPage() {
   return (
     <AdminShell title="Usuarios del panel">
-      {(me) => (me.role === "admin" ? <UsersBody /> : <p role="status">Tu sesión no tiene acceso a los usuarios.</p>)}
+      {(me) => (me.role === "admin" ? <UsersBody /> : <AccessNote me={me} reason="section" />)}
     </AdminShell>
   );
 }

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/admin/form-feedback.spec.ts"
+    "test": "node --import tsx --test src/admin/*.spec.ts"
   },
   "dependencies": {
     "konva": "^9.3.20",

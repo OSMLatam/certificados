@@ -5,6 +5,7 @@ export type Me = {
   role: "admin" | "editor" | null;
   osmUsername: string;
   isActive: boolean;
+  contactEmail?: string;
 };
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

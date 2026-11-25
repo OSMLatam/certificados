@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AccessNote, AdminShell } from "../admin/AdminShell";
 import { FormAlert } from "../admin/FormAlert";
 import { failureFromBody } from "../admin/form-feedback";
 
@@ -29,6 +30,14 @@ type AuditItem = {
 type Page = { items: AuditItem[]; meta: { page: number; pageSize: number; total: number } };
 
 export function AuditPage() {
+  return (
+    <AdminShell title="Registro de auditoría">
+      {(me) => (me.role === "admin" ? <AuditLog /> : <AccessNote me={me} reason="section" />)}
+    </AdminShell>
+  );
+}
+
+function AuditLog() {
   const [access, setAccess] = useState<"loading" | "anon" | "forbidden" | "ready">("loading");
   const [action, setAction] = useState("");
   const [from, setFrom] = useState("");
@@ -95,7 +104,9 @@ export function AuditPage() {
         </p>
         {access === "loading" ? <p>Cargando…</p> : null}
         {access === "anon" ? <p role="status">Inicia sesión para ver el registro.</p> : null}
-        {access === "forbidden" ? <p role="status">Tu sesión no tiene acceso a este registro.</p> : null}
+        {access === "forbidden" ? (
+          <p role="status">Iniciaste sesión, pero tu rol no puede ver esta sección. Pide el acceso a un administrador.</p>
+        ) : null}
         {access === "ready" ? (
           <>
             <form
