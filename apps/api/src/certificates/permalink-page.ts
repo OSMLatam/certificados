@@ -34,23 +34,30 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
     }
     const data = await response.json();
     estado.textContent = "Estado: " + (etiquetas[data.status] || data.status);
-    if (data.status === "revoked" || data.status === "failed" || data.status === "pending") {
+    if (data.status === "revoked") {
       return;
     }
     const list = document.createElement("dl");
-    for (const [label, value] of [
-      ["Nombre", data.fullName],
-      ["Evento", data.eventName],
-      ["Rol", data.roleLabel],
-      ["Fecha del evento", data.eventDate],
-      ["Sede", data.venueName],
-      ["Emisor", data.issuer],
-      ["Emitido", data.issuedAt ? new Date(data.issuedAt).toLocaleString("es-CO") : ""],
-      ["Suma de comprobación", data.checksumSha256],
-    ]) {
+    const rows = data.status === "issued"
+      ? [
+          ["Nombre", data.fullName],
+          ["Evento", data.eventName],
+          ["Rol", data.roleLabel],
+          ["Fecha del evento", data.eventDate],
+          ["Sede", data.venueName],
+          ["Documento", data.documentMasked],
+          ["Emisor", data.issuer],
+          ["Emitido", data.issuedAt ? new Date(data.issuedAt).toLocaleString("es-CO") : ""],
+          ["Suma de comprobación", data.checksumSha256],
+        ]
+      : [["Documento", data.documentMasked]];
+    for (const [label, value] of rows) {
       if (value) list.append(...field(label, value));
     }
-    root.append(list);
+    if (list.childElementCount > 0) root.append(list);
+    if (data.status !== "issued") {
+      return;
+    }
     const link = document.createElement("p");
     const anchor = document.createElement("a");
     anchor.href = "/api/v1/public/certificates/" + encodeURIComponent(slug) + "/file";

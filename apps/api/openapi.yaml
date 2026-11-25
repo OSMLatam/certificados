@@ -1630,7 +1630,7 @@ components:
           $ref: "#/components/schemas/Layout"
     PublicCertificate:
       type: object
-      required: [slug, status, fullName, eventName, roleLabel, eventDate, venueName, activityTitle, issuer, issuedAt, checksumSha256, permalink]
+      required: [slug, status, fullName, eventName, roleLabel, eventDate, venueName, activityTitle, issuer, issuedAt, checksumSha256, documentMasked, permalink]
       properties:
         slug:
           type: string
@@ -1665,6 +1665,10 @@ components:
         checksumSha256:
           type: string
           nullable: true
+        documentMasked:
+          type: string
+          nullable: true
+          description: Tipo de documento y número enmascarado. El número completo no sale en la API pública.
         permalink:
           type: string
     SearchItem:

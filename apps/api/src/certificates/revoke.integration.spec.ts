@@ -45,14 +45,23 @@ describe("certificate revocation", () => {
       const person = await participants.create(event.id, {
         fullName: "Ada Lovelace",
         email: "ada-revoke@example.org",
+        countryCode: "CO",
+        docTypeCode: "CC",
+        docNumber: "1234560010",
         roles: ["asistente"],
       });
       const first = person.certificates[0]!;
+      await prisma.certificate.update({ where: { id: first.id }, data: { status: "issued" } });
+      const visible = await issue.metadata(first.slug, "Mozilla/5.0", undefined);
+      assert.equal(visible.documentMasked, "CC ******0010");
+      assert.equal(JSON.stringify(visible).includes("1234560010"), false);
+      await prisma.certificate.update({ where: { id: first.id }, data: { status: "pending" } });
       const revoked = await issue.revoke(admin.id, first.id, "nombre mal escrito", "127.0.0.1");
       assert.equal(revoked.status, "revoked");
       const metadata = await issue.metadata(first.slug, "Mozilla/5.0", undefined);
       assert.equal(metadata.status, "revoked");
       assert.equal(metadata.fullName, null);
+      assert.equal(metadata.documentMasked, null);
       await assert.rejects(() => issue.file(first.slug), NotFoundException);
       await assert.rejects(() => issue.revoke(admin.id, first.id, undefined, null), ConflictException);
       const replacement = await participants.create(event.id, {

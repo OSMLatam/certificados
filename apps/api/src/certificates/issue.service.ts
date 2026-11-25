@@ -18,6 +18,7 @@ import { renderCertificateHtml, type CertificateValues } from "../pdf/certificat
 import { inspectImage } from "../templates/image-file";
 import { issueErrorCode, nextIssueState } from "../pdf/issue-state";
 import { isPreviewBot } from "../pdf/preview-bot";
+import { maskDocument } from "./mask-document";
 import { PdfService } from "../pdf/pdf.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
@@ -44,6 +45,7 @@ export type PublicCertificate = {
   issuer: string | null;
   issuedAt: string | null;
   checksumSha256: string | null;
+  documentMasked: string | null;
   permalink: string;
 };
 
@@ -324,6 +326,7 @@ export class IssueService {
       issuer: revoked ? null : this.env.SITE_NAME,
       issuedAt: issued && certificate.issuedAt ? certificate.issuedAt.toISOString() : null,
       checksumSha256: issued ? certificate.storedFile?.checksumSha256.trim() ?? null : null,
+      documentMasked: revoked ? null : maskDocument(certificate.participant.docTypeCode, certificate.participant.docNumber),
       permalink: this.permalink(certificate.slug),
     };
   }

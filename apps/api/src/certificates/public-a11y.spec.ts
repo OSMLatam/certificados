@@ -29,6 +29,7 @@ const issued = {
   issuer: "Certificados OSM Latam",
   issuedAt: "2026-11-23T15:00:00.000Z",
   checksumSha256: "a".repeat(64),
+  documentMasked: "CC ******0010",
 };
 
 describe("public accessibility", () => {
@@ -74,6 +75,8 @@ describe("public accessibility", () => {
       assert.match(shown, /Ada Lovelace/);
       assert.match(shown, /Descargar certificado/);
       assert.match(shown, /a{64}/);
+      assert.match(shown, /CC \*{6}0010/);
+      assert.equal(shown.includes("1234560010"), false);
     } finally {
       await browser.close();
     }
