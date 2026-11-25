@@ -422,7 +422,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | 7 | API por fase en flujos (§15) | ✓ |
 | 8 | Prompts sugeridos por fase | ✓ |
 | 9 | Reglas negocio cerradas (emisión, legal, búsqueda) | ✓ |
-| 10 | OpenAPI se genera en código (Fase 1) | Pendiente implementación |
+| 10 | OpenAPI se genera en código (Fase 1) | Hecho: `apps/api/openapi.yaml` |
 | 11 | Estrategia de pruebas definida (§11) | ✓ |
 | 12 | Diseño de código y anexos ([10](./10-diseno-codigo-y-anexos.md)) | ✓ |
 | 13 | Revisión por pares incorporada a la spec | ✓ |

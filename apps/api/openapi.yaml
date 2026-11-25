@@ -1,0 +1,1678 @@
+openapi: 3.0.3
+info:
+  title: certificados
+  version: 0.1.0
+  summary: API de certificados de evento. El título es el software, no la marca de la instancia.
+  description: |
+    Contrato de la fase 1. Las páginas HTML (`/`, `/c/{slug}`, `/privacy`, `/about`, `/robots.txt`)
+    no forman parte de esta API. Open Badges, datos legales AC3, revocación y envío por correo quedan fuera.
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+  contact:
+    name: certificados
+    url: https://github.com/OSMLatam/certificados
+externalDocs:
+  description: Repositorio del software
+  url: https://github.com/OSMLatam/certificados
+servers:
+  - url: /
+    description: Origen de la instancia
+tags:
+  - name: Auth
+  - name: Admin Users
+  - name: Admin Events
+  - name: Admin Participants
+  - name: Admin Templates
+  - name: Admin Certificates
+  - name: Public
+  - name: Health
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Proceso vivo
+      responses:
+        "200":
+          description: El proceso responde.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /ready:
+    get:
+      tags: [Health]
+      operationId: getReady
+      summary: Base de datos y almacenamiento disponibles
+      responses:
+        "200":
+          description: La instancia puede servir.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ready"
+        "503":
+          description: Alguna dependencia no responde.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ready"
+  /api/v1/admin/auth/osm/start:
+    get:
+      tags: [Auth]
+      operationId: startOsmLogin
+      summary: Redirige al inicio de sesión de OpenStreetMap
+      responses:
+        "302":
+          description: Redirección al autorizador de OpenStreetMap.
+          headers:
+            Location:
+              schema:
+                type: string
+  /api/v1/admin/auth/osm/callback:
+    get:
+      tags: [Auth]
+      operationId: finishOsmLogin
+      summary: Canjea el código y deja la cookie de sesión
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+      responses:
+        "302":
+          description: Redirige al panel o a la pantalla de entrada.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+  /api/v1/admin/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Cierra la sesión
+      responses:
+        "200":
+          description: La cookie queda vacía aunque no hubiera sesión.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+  /api/v1/admin/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getMe
+      summary: Sesión actual
+      responses:
+        "200":
+          description: Hay cookie. El rol puede ser nulo si la cuenta aún no está habilitada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPrincipal"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/admin/summary:
+    get:
+      tags: [Admin Events]
+      operationId: getSummary
+      summary: Conteos del panel
+      security:
+        - session: []
+      responses:
+        "200":
+          description: Conteos de eventos, participantes y certificados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/users:
+    get:
+      tags: [Admin Users]
+      operationId: listUsers
+      summary: Cuentas del panel
+      description: Solo rol admin.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Página de cuentas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/users/{id}:
+    patch:
+      tags: [Admin Users]
+      operationId: updateUser
+      summary: Cambia el rol o la activación
+      description: Solo rol admin. No se puede dejar la instancia sin un administrador activo.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPatch"
+      responses:
+        "200":
+          description: Cuenta actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/audit-log:
+    get:
+      tags: [Admin Users]
+      operationId: listAuditLog
+      summary: Registro de auditoría
+      description: Solo rol admin.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: action
+          in: query
+          schema:
+            $ref: "#/components/schemas/AuditAction"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Página del registro, de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/events:
+    get:
+      tags: [Admin Events]
+      operationId: listEvents
+      summary: Eventos visibles
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Los eventos con borrado lógico no aparecen.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Admin Events]
+      operationId: createEvent
+      summary: Crea un evento
+      security:
+        - session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventWrite"
+      responses:
+        "201":
+          description: Evento creado, en borrador salvo que sea solo pregenerado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/events/{id}:
+    get:
+      tags: [Admin Events]
+      operationId: getEvent
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: Evento.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Admin Events]
+      operationId: updateEvent
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventPatch"
+      responses:
+        "200":
+          description: Evento actualizado. Activar un evento generado exige plantilla predeterminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Admin Events]
+      operationId: deleteEvent
+      summary: Borrado lógico
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: El evento deja de listarse. El cuerpo trae la fecha de borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, deletedAt]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  deletedAt:
+                    type: string
+                    format: date-time
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/venues:
+    get:
+      tags: [Admin Events]
+      operationId: listVenues
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: Sedes del evento.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Venue"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin Events]
+      operationId: createVenue
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueWrite"
+      responses:
+        "201":
+          description: Sede creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/participants:
+    get:
+      tags: [Admin Participants]
+      operationId: listParticipants
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Participantes del evento.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin Participants]
+      operationId: createParticipant
+      summary: Alta individual. Un certificado pendiente por rol.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantWrite"
+      responses:
+        "201":
+          description: Participante y certificados creados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Participant"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/participants/import/template:
+    get:
+      tags: [Admin Participants]
+      operationId: downloadParticipantTemplate
+      summary: Plantilla CSV de participantes
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: CSV separado por punto y coma.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/participants/import:
+    post:
+      tags: [Admin Participants]
+      operationId: importParticipants
+      summary: Importa participantes. Si una fila falla, no se escribe nada.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+          text/csv:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Lote aceptado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates:
+    get:
+      tags: [Admin Templates]
+      operationId: listTemplates
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: Plantillas del evento.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Template"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin Templates]
+      operationId: createTemplate
+      summary: Crea una plantilla. Sin layout, usa el mínimo A4 horizontal.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateWrite"
+      responses:
+        "201":
+          description: Plantilla creada. La primera sin rol queda como predeterminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates/{templateId}:
+    patch:
+      tags: [Admin Templates]
+      operationId: updateTemplateLayout
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [layout]
+              properties:
+                layout:
+                  $ref: "#/components/schemas/Layout"
+      responses:
+        "200":
+          description: Layout guardado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates/{templateId}/background:
+    get:
+      tags: [Admin Templates]
+      operationId: getTemplateBackground
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+      responses:
+        "200":
+          description: Bytes de la imagen.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin Templates]
+      operationId: uploadTemplateBackground
+      summary: Sustituye el fondo. PNG o JPEG, máximo 10 MB.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Fondo guardado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates/{templateId}/export:
+    get:
+      tags: [Admin Templates]
+      operationId: exportTemplate
+      summary: Descarga la plantilla en un ZIP con layout.json y, si existe, el fondo.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+      responses:
+        "200":
+          description: ZIP de la plantilla. No incluye datos de participantes.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates/{templateId}/import:
+    post:
+      tags: [Admin Templates]
+      operationId: importTemplate
+      summary: Valida un ZIP o un JSON. Con preview=1 no guarda.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+        - name: preview
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Vista previa o plantilla ya reemplazada. Los emitidos no cambian.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/templates/{templateId}/copy-from:
+    post:
+      tags: [Admin Templates]
+      operationId: copyTemplate
+      summary: Copia el diseño de una plantilla de otro evento visible.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - $ref: "#/components/parameters/TemplateId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceTemplateId]
+              properties:
+                sourceTemplateId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Plantilla reemplazada con el diseño de origen.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/template-sources:
+    get:
+      tags: [Admin Templates]
+      operationId: listTemplateSources
+      summary: Plantillas de eventos no retirados, para copiar un diseño.
+      security:
+        - session: []
+      responses:
+        "200":
+          description: Lista de plantillas copiables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/admin/events/{id}/pregenerated/import/template:
+    get:
+      tags: [Admin Certificates]
+      operationId: downloadPregeneratedTemplate
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: CSV de certificados pregenerados.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/events/{id}/pregenerated/import:
+    post:
+      tags: [Admin Certificates]
+      operationId: importPregenerated
+      summary: Hoja CSV y ZIP con un archivo por fila. Máximo 100 MB.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [csv, zip]
+              properties:
+                csv:
+                  type: string
+                  format: binary
+                zip:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Certificados pendientes con el archivo ya guardado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/certificates/{id}/pregenerated:
+    post:
+      tags: [Admin Certificates]
+      operationId: attachPregeneratedFile
+      summary: Adjunta un PDF, PNG o JPEG a un certificado pregenerado. Máximo 10 MB.
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/CertificateId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Archivo guardado. El certificado queda pendiente hasta la primera visita.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status, mimeType]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending]
+                  mimeType:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/certificates/{id}/retry-issue:
+    post:
+      tags: [Admin Certificates]
+      operationId: retryIssue
+      summary: Devuelve un certificado fallido a pendiente
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/CertificateId"
+      responses:
+        "200":
+          description: Listo para un nuevo intento al abrir el enlace.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/search:
+    post:
+      tags: [Public]
+      operationId: searchCertificates
+      summary: Busca por correo o por documento, no por los dos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchQuery"
+      responses:
+        "200":
+          description: Resultados de eventos activos, o el mensaje genérico si no hay coincidencias.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/public/certificates/{slug}:
+    get:
+      tags: [Public]
+      operationId: getCertificate
+      summary: Metadatos. La primera visita humana de un pendiente lo emite.
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Metadatos. Un bot de vista previa no dispara la emisión.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicCertificate"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          description: La generación falló en esta visita.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+  /api/v1/public/certificates/{slug}/file:
+    get:
+      tags: [Public]
+      operationId: downloadCertificate
+      summary: Archivo ya emitido. No genera el PDF.
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+        - name: download
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+          description: Si vale 1, la disposición es attachment.
+      responses:
+        "200":
+          description: PDF o imagen guardada.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: El certificado aún no tiene archivo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: cert_session
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    EventId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CertificateId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 12
+        maxLength: 12
+    OAuthCode:
+      name: code
+      in: query
+      schema:
+        type: string
+    OAuthState:
+      name: state
+      in: query
+      schema:
+        type: string
+  responses:
+    ValidationFailed:
+      description: Los datos no cumplen las reglas.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    Unauthorized:
+      description: No hay sesión.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    Forbidden:
+      description: La sesión no tiene el rol necesario.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    NotFound:
+      description: No existe.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    Conflict:
+      description: El estado no permite la operación.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    TooManyRequests:
+      description: Se superó el límite por dirección.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+    ValidationError:
+      allOf:
+        - $ref: "#/components/schemas/ErrorBody"
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+                  row:
+                    type: integer
+                  value:
+                    type: string
+    Software:
+      type: object
+      required: [name, version, repository]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        repository:
+          type: string
+          format: uri
+    Health:
+      type: object
+      required: [status, instance, software]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        instance:
+          type: string
+          enum: [osm_lat, ac3]
+        software:
+          $ref: "#/components/schemas/Software"
+    Ready:
+      type: object
+      required: [status, checks, instance, software]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        checks:
+          type: object
+          required: [database, storage]
+          properties:
+            database:
+              type: string
+              enum: [up, down]
+            storage:
+              type: string
+              enum: [up, down]
+        instance:
+          type: string
+        software:
+          $ref: "#/components/schemas/Software"
+    PageMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    PanelRole:
+      type: string
+      nullable: true
+      enum: [admin, editor]
+    AdminPrincipal:
+      type: object
+      required: [id, osmId, osmUsername, role, isActive]
+      properties:
+        id:
+          type: string
+          format: uuid
+        osmId:
+          type: string
+        osmUsername:
+          type: string
+        role:
+          $ref: "#/components/schemas/PanelRole"
+        isActive:
+          type: boolean
+    AdminUser:
+      allOf:
+        - $ref: "#/components/schemas/AdminPrincipal"
+        - type: object
+          required: [lastLoginAt]
+          properties:
+            lastLoginAt:
+              type: string
+              format: date-time
+              nullable: true
+    UserPatch:
+      type: object
+      minProperties: 1
+      properties:
+        role:
+          $ref: "#/components/schemas/PanelRole"
+        isActive:
+          type: boolean
+    UserPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+    Summary:
+      type: object
+      required: [events, participants, certificates]
+      properties:
+        events:
+          type: integer
+        participants:
+          type: integer
+        certificates:
+          type: object
+          required: [pending, issued, failed]
+          properties:
+            pending:
+              type: integer
+            issued:
+              type: integer
+            failed:
+              type: integer
+    AuditAction:
+      type: string
+      enum:
+        - user_role_change
+        - user_activation_change
+        - event_status_change
+        - event_soft_delete
+        - participant_csv_import
+        - pregenerated_import
+        - certificate_retry_issue
+        - template_export
+        - template_import
+    AuditEntry:
+      type: object
+      required: [id, createdAt, action, entityType, entityId, ipAddress, metadata, actor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        ipAddress:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        actor:
+          type: object
+          nullable: true
+          required: [id, name]
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+    AuditPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+    EventStatus:
+      type: string
+      enum: [draft, active]
+    Event:
+      type: object
+      required: [id, name, year, startDate, endDate, countryCode, allowedRoles, status, pregeneratedOnly, defaultTemplateId, venueCount, participantCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        year:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+        allowedRoles:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: "#/components/schemas/EventStatus"
+        pregeneratedOnly:
+          type: boolean
+        defaultTemplateId:
+          type: string
+          format: uuid
+          nullable: true
+        venueCount:
+          type: integer
+        participantCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    EventWrite:
+      type: object
+      required: [name, year, startDate, countryCode, allowedRoles]
+      properties:
+        name:
+          type: string
+        year:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        countryCode:
+          type: string
+        allowedRoles:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        pregeneratedOnly:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/EventStatus"
+    EventPatch:
+      type: object
+      description: Los mismos campos de EventWrite, todos opcionales.
+      properties:
+        name:
+          type: string
+        year:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        countryCode:
+          type: string
+        allowedRoles:
+          type: array
+          items:
+            type: string
+        pregeneratedOnly:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/EventStatus"
+    EventPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+    Venue:
+      type: object
+      required: [id, eventId, name, code, eventDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        eventDate:
+          type: string
+          format: date
+          nullable: true
+    VenueWrite:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        eventDate:
+          type: string
+          format: date
+          nullable: true
+    CertificateStatus:
+      type: string
+      enum: [pending, issued, failed, revoked]
+    ParticipantCertificate:
+      type: object
+      required: [id, roleCode, slug, status, mode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        roleCode:
+          type: string
+        slug:
+          type: string
+        status:
+          $ref: "#/components/schemas/CertificateStatus"
+        issueAttempts:
+          type: integer
+          minimum: 0
+        mode:
+          type: string
+          enum: [generated, pregenerated]
+        templateId:
+          type: string
+          format: uuid
+          nullable: true
+        venueId:
+          type: string
+          format: uuid
+          nullable: true
+    Participant:
+      type: object
+      required: [id, eventId, fullName, email, certificates]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        activityTitle:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        docTypeCode:
+          type: string
+          nullable: true
+        docNumber:
+          type: string
+          nullable: true
+        venueId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParticipantCertificate"
+    ParticipantWrite:
+      type: object
+      required: [fullName, email, roles]
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        roles:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        venueCode:
+          type: string
+        countryCode:
+          type: string
+        docTypeCode:
+          type: string
+        docNumber:
+          type: string
+        activityTitle:
+          type: string
+          nullable: true
+    ParticipantPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Participant"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+    ImportResult:
+      type: object
+      required: [rowCount, participantCount, certificateCount]
+      properties:
+        rowCount:
+          type: integer
+        participantCount:
+          type: integer
+        certificateCount:
+          type: integer
+    Layout:
+      type: object
+      description: Lienzo A4 horizontal, 1754×1240 px a 150 dpi, con hasta 40 capas.
+      additionalProperties: true
+    Template:
+      type: object
+      required: [id, eventId, name, roleCode, isDefault, hasBackground, layout]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        roleCode:
+          type: string
+          nullable: true
+        isDefault:
+          type: boolean
+        hasBackground:
+          type: boolean
+        layout:
+          $ref: "#/components/schemas/Layout"
+    TemplateWrite:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        roleCode:
+          type: string
+          nullable: true
+        layout:
+          $ref: "#/components/schemas/Layout"
+    PublicCertificate:
+      type: object
+      required: [slug, status, fullName, eventName, roleLabel, eventDate, venueName, activityTitle, issuer, issuedAt, checksumSha256, permalink]
+      properties:
+        slug:
+          type: string
+        status:
+          $ref: "#/components/schemas/CertificateStatus"
+        fullName:
+          type: string
+          nullable: true
+        eventName:
+          type: string
+          nullable: true
+        roleLabel:
+          type: string
+          nullable: true
+        eventDate:
+          type: string
+          format: date
+          nullable: true
+        venueName:
+          type: string
+          nullable: true
+        activityTitle:
+          type: string
+          nullable: true
+        issuer:
+          type: string
+          nullable: true
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        checksumSha256:
+          type: string
+          nullable: true
+        permalink:
+          type: string
+    SearchItem:
+      type: object
+      required: [slug, permalink, status, fullName, eventName, year, roleCode, roleLabel, eventDate, venueName]
+      properties:
+        slug:
+          type: string
+        permalink:
+          type: string
+        status:
+          $ref: "#/components/schemas/CertificateStatus"
+        fullName:
+          type: string
+          nullable: true
+        eventName:
+          type: string
+        year:
+          type: integer
+        roleCode:
+          type: string
+        roleLabel:
+          type: string
+        eventDate:
+          type: string
+          format: date
+        venueName:
+          type: string
+          nullable: true
+    SearchResult:
+      type: object
+      required: [message, items]
+      properties:
+        message:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchItem"
+    SearchQuery:
+      type: object
+      description: Correo, o país más tipo y número. No los dos.
+      properties:
+        email:
+          type: string
+        countryCode:
+          type: string
+        docTypeCode:
+          type: string
+        docNumber:
+          type: string

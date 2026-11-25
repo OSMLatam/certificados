@@ -279,6 +279,22 @@ Diseño visual para certificados generados.
 
 Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detalle: [08-datos-legales-ac3-plantilla.md](./08-datos-legales-ac3-plantilla.md).
 
+**Paquete exportable (`schemaVersion: 1`).** `GET …/templates/{id}/export` entrega un ZIP con `layout.json` y, si hay fondo, `background.png` o `background.jpg`. El JSON es el `layout` más `meta`:
+
+```json
+{
+  "meta": {
+    "schemaVersion": 1,
+    "exportedAt": "2026-11-24T12:00:00.000Z",
+    "instance": "osm_lat",
+    "sourceEventName": "Nombre del evento",
+    "roleCode": null
+  }
+}
+```
+
+`roleCode` es `null` en la plantilla general. El archivo no lleva datos de participantes ni los valores legales: las capas `legal.*` viajan solo como referencia. La importación exige esta versión, el canvas fijo de arriba y los tokens canónicos (`document`, `certificate_slug`, no alias). Rechaza propiedades desconocidas, URL y rutas. Límites del QR y de la letra: 40–400 px y 8–200 pt, los mismos del editor.
+
 ---
 
 ### 4.6. `certificates` (entidad central)
@@ -401,6 +417,8 @@ No hay fila por cada PATCH de título de evento ni por alta individual de partic
 | `participant_csv_import` | CSV participantes **aceptado** | `event` | `row_count`, `filename` (basename) |
 | `pregenerated_import` | Import sheet+ZIP **aceptado** | `event` | `row_count`, `filename` |
 | `certificate_retry_issue` | `POST …/retry-issue` | `certificate` | `previous_attempts` |
+| `template_export` | Exportación ZIP de una plantilla | `certificate_template` | `filename` |
+| `template_import` | Importación o copia de una plantilla aceptada | `certificate_template` | `filename` o `sourceTemplateId` |
 
 Lote CSV/ZIP rechazado (0 escrituras de negocio) **no** genera fila. Bootstrap del primer OAuth (seed ENV) **no** escribe `user_role_change`.
 

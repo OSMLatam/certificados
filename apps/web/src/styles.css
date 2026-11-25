@@ -1,0 +1,218 @@
+body {
+  margin: 0;
+  font-family: "Liberation Sans", "Noto Sans", sans-serif;
+  background: #f4f7f4;
+  color: #1a1a1a;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 22rem 1fr;
+  min-height: 100vh;
+}
+
+.panel {
+  padding: 1.25rem;
+  background: #ffffff;
+  border-right: 1px solid #d5e0d5;
+}
+
+.panel h1 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.panel p,
+.panel label {
+  line-height: 1.4;
+}
+
+.fields,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+button,
+input[type="number"] {
+  font: inherit;
+}
+
+button {
+  background: #ffffff;
+  border: 1px solid #0b3d0b;
+  color: #0b3d0b;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+
+button.primary {
+  background: #0b3d0b;
+  color: #ffffff;
+}
+
+button:focus,
+input:focus,
+select:focus,
+a:focus {
+  outline: 3px solid #0b3d0b;
+  outline-offset: 2px;
+}
+
+.coords {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.coords p,
+.coords label:has(input[type="checkbox"]) {
+  grid-column: 1 / -1;
+}
+
+.stage-wrap {
+  padding: 1rem;
+  overflow: auto;
+}
+
+.status {
+  min-height: 1.4rem;
+}
+
+.skip {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: #fff;
+  padding: 0.4rem 0.6rem;
+}
+
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+}
+
+.audit {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.audit h1 {
+  font-size: 1.6rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.filters label {
+  display: grid;
+  gap: 0.25rem;
+  font-weight: 700;
+}
+
+.filters select,
+.filters input {
+  font: inherit;
+  padding: 0.35rem;
+}
+
+.audit table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.audit th,
+.audit td {
+  text-align: left;
+  padding: 0.45rem;
+  border-bottom: 1px solid #d5e0d5;
+  vertical-align: top;
+}
+
+.pager {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+}
+
+.admin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-bar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin h1 {
+  font-size: 1.6rem;
+}
+
+.stack {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 24rem;
+  margin: 1.5rem 0;
+}
+
+.stack label {
+  font-weight: 700;
+}
+
+.stack fieldset label {
+  font-weight: 400;
+}
+
+.stack input,
+.stack select,
+.admin select {
+  font: inherit;
+  padding: 0.35rem;
+}
+
+.button-link {
+  display: inline-block;
+  background: #0b3d0b;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.9rem;
+}
+
+.admin table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin th,
+.admin td {
+  text-align: left;
+  padding: 0.45rem;
+  border-bottom: 1px solid #d5e0d5;
+  vertical-align: top;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

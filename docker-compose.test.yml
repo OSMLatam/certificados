@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: certificados
+      POSTGRES_PASSWORD: certificados
+      POSTGRES_DB: certificados_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U certificados -d certificados_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

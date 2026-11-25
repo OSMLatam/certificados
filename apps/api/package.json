@@ -1,0 +1,41 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- nest start --watch",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/auth/*.spec.ts src/events/*.spec.ts src/participants/*.spec.ts src/pdf/*.spec.ts src/certificates/*.spec.ts src/templates/*.spec.ts src/pregenerated/*.spec.ts src/audit/*.spec.ts src/ops/*.spec.ts src/admin/*.spec.ts src/openapi.spec.ts",
+    "prisma:generate": "dotenv -e ../../.env -- prisma generate",
+    "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
+    "@certificados/shared": "workspace:*",
+    "@nestjs/common": "^11.1.3",
+    "@nestjs/core": "^11.1.3",
+    "@nestjs/platform-express": "^11.1.3",
+    "@prisma/client": "^6.11.1",
+    "dotenv": "^16.6.1",
+    "nodemailer": "^10.6.1",
+    "puppeteer-core": "^25.18.1",
+    "qrcode": "^1.5.4",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "yaml": "^2.8.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@types/node": "^22.15.30",
+    "@types/qrcode": "^1.5.6",
+    "axe-core": "^4.14.1",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.11.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}
