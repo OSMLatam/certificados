@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
+import { FormAlert, FormSuccess } from "./FormAlert";
+import { invalidFormMessage } from "./form-feedback";
 
 const ROLES = ["asistente", "ponente", "tallerista", "voluntario", "organizador"];
 
@@ -23,7 +25,7 @@ export function EventsPage() {
 
 function EventsBody() {
   const [items, setItems] = useState<EventRow[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [roles, setRoles] = useState<string[]>(["asistente"]);
@@ -32,7 +34,7 @@ function EventsBody() {
   function reload() {
     void api<{ items: EventRow[] }>("/api/v1/admin/events?pageSize=100").then(
       (page) => setItems(page.items),
-      (reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudieron cargar los eventos."),
+      (reason: unknown) => setError(reason),
     );
   }
 
@@ -41,7 +43,7 @@ function EventsBody() {
   return (
     <>
       <h1>Eventos</h1>
-      {error ? <p role="alert">{error}</p> : null}
+      <FormAlert error={error} />
       <ul>
         {items.map((event) => (
           <li key={event.id}>
@@ -56,9 +58,15 @@ function EventsBody() {
       </ul>
       <form
         className="stack"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          setError("");
+          const invalid = invalidFormMessage(event.currentTarget);
+          if (invalid) {
+            setError(new Error(invalid));
+            return;
+          }
+          setError(null);
           void api("/api/v1/admin/events", {
             method: "POST",
             body: JSON.stringify({
@@ -73,7 +81,7 @@ function EventsBody() {
             (created) => {
               window.location.assign(`/admin/events/${(created as { id: string }).id}`);
             },
-            (reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo crear el evento."),
+            (reason: unknown) => setError(reason),
           );
         }}
       >

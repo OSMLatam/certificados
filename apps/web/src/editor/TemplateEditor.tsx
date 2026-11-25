@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { FormAlert } from "../admin/FormAlert";
+import { failureFromBody } from "../admin/form-feedback";
 import type Konva from "konva";
 import { Image as KonvaImage, Layer, Rect, Stage, Text, Group } from "react-konva";
 
@@ -76,7 +78,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
   const [baseline, setBaseline] = useState<Layout | null>(null);
   const [selected, setSelected] = useState(0);
   const [status, setStatus] = useState("Cargando la plantilla…");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const [background, setBackground] = useState<HTMLImageElement | null>(null);
   const [previewBackground, setPreviewBackground] = useState<HTMLImageElement | null>(null);
   const [eventDate, setEventDate] = useState("");
@@ -93,7 +95,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
         setBaseline(record.layout);
         setStatus(record.name);
       },
-      (reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo abrir la plantilla."),
+      (reason: unknown) => setError(reason),
     );
     void fetch(`/api/v1/admin/events/${eventId}`, { credentials: "include" })
       .then((response) => (response.ok ? response.json() : null))
@@ -188,7 +190,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     if (!template || !layout || pending) {
       return;
     }
-    setError("");
+    setError(null);
     setStatus("Guardando…");
     const response = await fetch(`/api/v1/admin/events/${eventId}/templates/${template.id}`, {
       method: "PATCH",
@@ -197,7 +199,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
       body: JSON.stringify({ layout }),
     });
     if (!response.ok) {
-      setError(await errorMessage(response));
+      setError(failureFromBody(await response.json().catch(() => null), response.status));
       setStatus(template.name);
       return;
     }
@@ -209,7 +211,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     if (!template || pending) {
       return;
     }
-    setError("");
+    setError(null);
     setStatus("Subiendo el fondo…");
     const response = await fetch(`/api/v1/admin/events/${eventId}/templates/${template.id}/background`, {
       method: "POST",
@@ -218,7 +220,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
       body: file,
     });
     if (!response.ok) {
-      setError(await errorMessage(response));
+      setError(failureFromBody(await response.json().catch(() => null), response.status));
       setStatus(template.name);
       return;
     }
@@ -231,7 +233,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     if (!template || !layout) {
       return;
     }
-    setError("");
+    setError(null);
     const body = new FormData();
     body.set("file", file);
     const response = await fetch(`/api/v1/admin/events/${eventId}/templates/${template.id}/import?preview=1`, {
@@ -240,7 +242,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
       body,
     });
     if (!response.ok) {
-      setError(await errorMessage(response));
+      setError(failureFromBody(await response.json().catch(() => null), response.status));
       return;
     }
     const preview = (await response.json()) as { layout: Layout; background: { mimeType: string; base64: string } | null };
@@ -259,10 +261,10 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     if (!source) {
       return;
     }
-    setError("");
+    setError(null);
     const listed = await fetch(`/api/v1/admin/events/${source.eventId}/templates`, { credentials: "include" });
     if (!listed.ok) {
-      setError(await errorMessage(listed));
+      setError(failureFromBody(await listed.json().catch(() => null), listed.status));
       return;
     }
     const body = (await listed.json()) as { items: TemplateRecord[] };
@@ -286,7 +288,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     if (!template || !pending) {
       return;
     }
-    setError("");
+    setError(null);
     const response =
       pending.kind === "import"
         ? await fetch(`/api/v1/admin/events/${eventId}/templates/${template.id}/import`, {
@@ -301,7 +303,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
             body: JSON.stringify({ sourceTemplateId: pending.sourceTemplateId }),
           });
     if (!response.ok) {
-      setError(await errorMessage(response));
+      setError(failureFromBody(await response.json().catch(() => null), response.status));
       return;
     }
     const updated = (await response.json()) as TemplateRecord;
@@ -336,7 +338,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
         <p className="status" role="status">
           {status}
         </p>
-        {error ? <p role="alert">{error}</p> : null}
+        <FormAlert error={error} />
         <p>Arrastra cada texto. Las flechas del teclado lo mueven un píxel. Escape vuelve a los campos.</p>
         <div className="fields">
           {FIELDS.map((field) => {
@@ -637,7 +639,7 @@ async function loadTemplate(eventId: string): Promise<TemplateRecord> {
     throw new Error("Tu sesión no tiene acceso al panel.");
   }
   if (!listed.ok) {
-    throw new Error(await errorMessage(listed));
+    throw failureFromBody(await listed.json().catch(() => null), listed.status);
   }
   const body = (await listed.json()) as { items: TemplateRecord[] };
   const existing = body.items.find((item) => item.isDefault) ?? body.items[0];
@@ -651,17 +653,9 @@ async function loadTemplate(eventId: string): Promise<TemplateRecord> {
     body: JSON.stringify({ name: "General" }),
   });
   if (!created.ok) {
-    throw new Error(await errorMessage(created));
+    throw failureFromBody(await created.json().catch(() => null), created.status);
   }
   return (await created.json()) as TemplateRecord;
-}
-
-async function errorMessage(response: Response): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { message?: string; details?: { field?: string; message: string }[] } | null;
-  if (body?.details && body.details.length > 0) {
-    return body.details.map((detail) => (detail.field ? `${detail.field}: ${detail.message}` : detail.message)).join(" ");
-  }
-  return body?.message ?? "No se pudo guardar.";
 }
 
 function isQr(layer: LayoutLayer): layer is QrLayer {

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { FormAlert } from "../admin/FormAlert";
+import { failureFromBody } from "../admin/form-feedback";
 
 const ACTIONS: { value: string; label: string }[] = [
   { value: "", label: "Todas" },
@@ -32,7 +34,7 @@ export function AuditPage() {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Page | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     document.title = "Registro de auditoría";
@@ -68,12 +70,11 @@ export function AuditPage() {
         return;
       }
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { details?: { message: string }[] } | null;
-        setError(body?.details?.[0]?.message ?? "No se pudo cargar el registro.");
+        setError(failureFromBody(await response.json().catch(() => null), response.status));
         setResult(null);
         return;
       }
-      setError("");
+      setError(null);
       setResult((await response.json()) as Page);
     });
     return () => {
@@ -128,7 +129,7 @@ export function AuditPage() {
                 <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
               </label>
             </form>
-            <p className="status" role={error ? "alert" : "status"}>{error}</p>
+            <FormAlert error={error} />
             {result && result.items.length === 0 ? <p role="status">No hay registros con esos filtros.</p> : null}
             {result && result.items.length > 0 ? (
               <table>

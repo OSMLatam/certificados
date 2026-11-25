@@ -10,7 +10,7 @@ import { EventsService } from "./events.service";
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usa el formato YYYY-MM-DD.");
 const roleList = z
   .array(z.string().trim().min(1).max(50))
-  .min(1)
+  .min(1, "Elige al menos un rol.")
   .refine((roles) => new Set(roles).size === roles.length, "Los roles vienen repetidos.");
 
 const eventBody = z.object({

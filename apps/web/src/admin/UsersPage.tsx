@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
+import { FormAlert, FormSuccess } from "./FormAlert";
 
 type PanelUser = {
   id: string;
@@ -21,12 +22,13 @@ export function UsersPage() {
 
 function UsersBody() {
   const [items, setItems] = useState<PanelUser[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const [success, setSuccess] = useState("");
 
   function reload() {
     void api<{ items: PanelUser[] }>("/api/v1/admin/users?pageSize=100").then(
       (page) => setItems(page.items),
-      (reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudieron cargar los usuarios."),
+      (reason: unknown) => setError(reason),
     );
   }
 
@@ -36,7 +38,8 @@ function UsersBody() {
     <>
       <h1>Usuarios del panel</h1>
       <p>La cuenta aparece cuando la persona entra por primera vez con OpenStreetMap.</p>
-      {error ? <p role="alert">{error}</p> : null}
+      <FormAlert error={error} />
+      <FormSuccess message={success} />
       <table>
         <caption>Cuentas que ya iniciaron sesión.</caption>
         <thead>
@@ -50,7 +53,19 @@ function UsersBody() {
         </thead>
         <tbody>
           {items.map((user) => (
-            <UserRow key={user.id} user={user} onSaved={reload} onError={setError} />
+            <UserRow
+              key={user.id}
+              user={user}
+              onSaved={() => {
+                setSuccess("Cambios guardados.");
+                setError(null);
+                reload();
+              }}
+              onError={(reason) => {
+                setSuccess("");
+                setError(reason);
+              }}
+            />
           ))}
         </tbody>
       </table>
@@ -58,7 +73,15 @@ function UsersBody() {
   );
 }
 
-function UserRow({ user, onSaved, onError }: { user: PanelUser; onSaved: () => void; onError: (message: string) => void }) {
+function UserRow({
+  user,
+  onSaved,
+  onError,
+}: {
+  user: PanelUser;
+  onSaved: () => void;
+  onError: (error: unknown) => void;
+}) {
   const [role, setRole] = useState(user.role ?? "");
   const [active, setActive] = useState(user.isActive);
 
@@ -84,11 +107,11 @@ function UserRow({ user, onSaved, onError }: { user: PanelUser; onSaved: () => v
         <button
           type="button"
           onClick={() => {
-            onError("");
+            onError(null);
             void api(`/api/v1/admin/users/${user.id}`, {
               method: "PATCH",
               body: JSON.stringify({ role: role === "" ? null : role, isActive: active }),
-            }).then(onSaved, (reason: unknown) => onError(reason instanceof Error ? reason.message : "No se pudo guardar."));
+            }).then(onSaved, (reason: unknown) => onError(reason));
           }}
         >
           Guardar

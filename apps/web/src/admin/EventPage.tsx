@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
+import { FormAlert, FormSuccess } from "./FormAlert";
+import { invalidFormMessage } from "./form-feedback";
 
 type EventDetail = {
   id: string;
@@ -45,7 +47,8 @@ export function EventPage({ eventId }: { eventId: string }) {
 function EventBody({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [people, setPeople] = useState<Participant[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const [success, setSuccess] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
@@ -57,7 +60,7 @@ function EventBody({ eventId }: { eventId: string }) {
 
   function reload() {
     void api<EventDetail>(`/api/v1/admin/events/${eventId}`).then(setEvent, (reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "No se pudo abrir el evento.");
+      setError(reason);
     });
     void api<{ items: Participant[] }>(`/api/v1/admin/events/${eventId}/participants?pageSize=100`).then(
       (page) => setPeople(page.items),
@@ -67,15 +70,17 @@ function EventBody({ eventId }: { eventId: string }) {
 
   useEffect(reload, [eventId]);
 
-  function fail(reason: unknown, fallback: string) {
-    setError(reason instanceof Error ? reason.message : fallback);
+  function fail(reason: unknown) {
+    setSuccess("");
+    setError(reason);
   }
 
   function changeStatus(status: "draft" | "active") {
-    setError("");
+    setError(null);
+    setSuccess("");
     void api(`/api/v1/admin/events/${eventId}`, { method: "PATCH", body: JSON.stringify({ status }) }).then(
       () => reload(),
-      (reason: unknown) => fail(reason, "No se pudo cambiar el estado."),
+      (reason: unknown) => fail(reason),
     );
   }
 
@@ -83,17 +88,19 @@ function EventBody({ eventId }: { eventId: string }) {
     if (!window.confirm("El evento deja de listarse. Los enlaces públicos siguen abriendo.")) {
       return;
     }
-    setError("");
+    setError(null);
+    setSuccess("");
     void api(`/api/v1/admin/events/${eventId}`, { method: "DELETE" }).then(
       () => window.location.assign("/admin/events"),
-      (reason: unknown) => fail(reason, "No se pudo retirar el evento."),
+      (reason: unknown) => fail(reason),
     );
   }
 
   return (
     <>
       <h1>{event?.name ?? "Evento"}</h1>
-      {error ? <p role="alert">{error}</p> : null}
+      <FormAlert error={error} />
+      <FormSuccess message={success} />
       {event ? (
         <>
           <p>
@@ -136,10 +143,14 @@ function EventBody({ eventId }: { eventId: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setError("");
+                        setError(null);
+                        setSuccess("");
                         void api(`/api/v1/admin/certificates/${certificate.id}/retry-issue`, { method: "POST" }).then(
-                          () => reload(),
-                          (reason: unknown) => fail(reason, "No se pudo reintentar."),
+                          () => {
+                            setSuccess("El certificado volvió a quedar pendiente.");
+                            reload();
+                          },
+                          (reason: unknown) => fail(reason),
                         );
                       }}
                     >
@@ -154,15 +165,19 @@ function EventBody({ eventId }: { eventId: string }) {
                         const input = submit.currentTarget.elements.namedItem("file");
                         const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
                         if (!file) {
-                          setError("Elige el archivo del certificado.");
+                          setError(new Error("Elige el archivo del certificado."));
                           return;
                         }
                         const body = new FormData();
                         body.set("file", file);
-                        setError("");
+                        setError(null);
+                        setSuccess("");
                         void api(`/api/v1/admin/certificates/${certificate.id}/pregenerated`, { method: "POST", body }).then(
-                          () => reload(),
-                          (reason: unknown) => fail(reason, "No se pudo subir el archivo."),
+                          () => {
+                            setSuccess("Archivo guardado.");
+                            reload();
+                          },
+                          (reason: unknown) => fail(reason),
                         );
                       }}
                     >
@@ -179,9 +194,22 @@ function EventBody({ eventId }: { eventId: string }) {
       </ul>
       <form
         className="stack"
+        noValidate
         onSubmit={(submit) => {
           submit.preventDefault();
-          setError("");
+          const invalid = invalidFormMessage(submit.currentTarget);
+          if (invalid) {
+            setSuccess("");
+            setError(new Error(invalid));
+            return;
+          }
+          if (roles.length === 0) {
+            setSuccess("");
+            setError(new Error("Elige al menos un rol."));
+            return;
+          }
+          setError(null);
+          setSuccess("");
           const body: Record<string, unknown> = { fullName, email, roles };
           if (activityTitle.trim()) {
             body.activityTitle = activityTitle.trim();
@@ -200,9 +228,10 @@ function EventBody({ eventId }: { eventId: string }) {
               setEmail("");
               setActivityTitle("");
               setDocNumber("");
+              setSuccess("Participante agregado.");
               reload();
             },
-            (reason: unknown) => fail(reason, "No se pudo dar de alta."),
+            (reason: unknown) => fail(reason),
           );
         }}
       >
@@ -250,15 +279,20 @@ function EventBody({ eventId }: { eventId: string }) {
           const input = submit.currentTarget.elements.namedItem("csv");
           const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
           if (!file) {
-            setError("Elige un archivo CSV.");
+            setSuccess("");
+            setError(new Error("Elige un archivo CSV."));
             return;
           }
           const body = new FormData();
           body.set("file", file);
-          setError("");
-          void api(`/api/v1/admin/events/${eventId}/participants/import`, { method: "POST", body }).then(
-            () => reload(),
-            (reason: unknown) => fail(reason, "No se pudo importar el CSV."),
+          setError(null);
+          setSuccess("");
+          void api<{ participantCount: number }>(`/api/v1/admin/events/${eventId}/participants/import`, { method: "POST", body }).then(
+            (result) => {
+              setSuccess(`Se importaron ${result.participantCount} participantes.`);
+              reload();
+            },
+            (reason: unknown) => fail(reason),
           );
         }}
       >
@@ -279,16 +313,21 @@ function EventBody({ eventId }: { eventId: string }) {
           const csv = csvInput instanceof HTMLInputElement ? csvInput.files?.[0] : undefined;
           const zip = zipInput instanceof HTMLInputElement ? zipInput.files?.[0] : undefined;
           if (!csv || !zip) {
-            setError("Elige la hoja CSV y el ZIP.");
+            setSuccess("");
+            setError(new Error("Elige la hoja CSV y el ZIP."));
             return;
           }
           const body = new FormData();
           body.set("csv", csv);
           body.set("zip", zip);
-          setError("");
-          void api(`/api/v1/admin/events/${eventId}/pregenerated/import`, { method: "POST", body }).then(
-            () => reload(),
-            (reason: unknown) => fail(reason, "No se pudo importar el lote."),
+          setError(null);
+          setSuccess("");
+          void api<{ participantCount: number }>(`/api/v1/admin/events/${eventId}/pregenerated/import`, { method: "POST", body }).then(
+            (result) => {
+              setSuccess(`Se importaron ${result.participantCount} participantes.`);
+              reload();
+            },
+            (reason: unknown) => fail(reason),
           );
         }}
       >
@@ -304,9 +343,17 @@ function EventBody({ eventId }: { eventId: string }) {
       </form>
       <form
         className="stack"
+        noValidate
         onSubmit={(submit) => {
           submit.preventDefault();
-          setError("");
+          const invalid = invalidFormMessage(submit.currentTarget);
+          if (invalid) {
+            setSuccess("");
+            setError(new Error(invalid));
+            return;
+          }
+          setError(null);
+          setSuccess("");
           void api(`/api/v1/admin/events/${eventId}/venues`, {
             method: "POST",
             body: JSON.stringify({ name: venueName, code: venueCode }),
@@ -314,9 +361,10 @@ function EventBody({ eventId }: { eventId: string }) {
             () => {
               setVenueName("");
               setVenueCode("");
+              setSuccess("Sede agregada.");
               reload();
             },
-            (reason: unknown) => fail(reason, "No se pudo crear la sede."),
+            (reason: unknown) => fail(reason),
           );
         }}
       >

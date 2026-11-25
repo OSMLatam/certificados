@@ -1,3 +1,5 @@
+import { failureFromBody } from "./form-feedback";
+
 export type Me = {
   id: string;
   role: "admin" | "editor" | null;
@@ -12,11 +14,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   const response = await fetch(path, { ...init, headers, credentials: "include" });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { details?: { message: string }[] } | null;
-    const message =
-      body?.details?.[0]?.message ??
-      (response.status === 401 ? "Inicia sesión para usar el panel." : response.status === 403 ? "Tu sesión no tiene acceso." : "No se pudo completar.");
-    throw new Error(message);
+    throw failureFromBody(await response.json().catch(() => null), response.status);
   }
   if (response.status === 204) {
     return undefined as T;

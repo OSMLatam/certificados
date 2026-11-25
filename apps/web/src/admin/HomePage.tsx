@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { FormAlert } from "./FormAlert";
 import { AdminShell } from "./AdminShell";
 
 type Summary = { events: number; participants: number; certificates: { pending: number; issued: number; failed: number } };
@@ -14,18 +15,16 @@ export function HomePage() {
 
 function HomeBody() {
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
-    void api<Summary>("/api/v1/admin/summary").then(setSummary, (reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "No se pudieron cargar los conteos.");
-    });
+    void api<Summary>("/api/v1/admin/summary").then(setSummary, (reason: unknown) => setError(reason));
   }, []);
 
   return (
     <>
       <h1>Panel</h1>
-      {error ? <p role="alert">{error}</p> : null}
+      <FormAlert error={error} />
       {summary ? (
         <ul>
           <li>{summary.events} eventos</li>
