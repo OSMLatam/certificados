@@ -111,11 +111,11 @@ function EventBody({ eventId }: { eventId: string }) {
           <div className="actions">
             {event.status === "draft" ? (
               <button type="button" className="primary" onClick={() => changeStatus("active")}>
-                Activar evento
+                Publicar
               </button>
             ) : (
               <button type="button" onClick={() => changeStatus("draft")}>
-                Volver a borrador
+                Pasar a borrador
               </button>
             )}
             <button type="button" onClick={withdraw}>
@@ -139,6 +139,31 @@ function EventBody({ eventId }: { eventId: string }) {
                   {certificate.roleCode}: {STATUS[certificate.status] ?? certificate.status}
                   {certificate.issueAttempts > 0 ? ` · ${certificate.issueAttempts} intentos` : ""} ·{" "}
                   <a href={`/c/${certificate.slug}`}>/c/{certificate.slug}</a>
+                  {certificate.status !== "revoked" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const reason = window.prompt("Motivo de la revocación. Puedes dejarlo vacío.");
+                        if (reason === null) {
+                          return;
+                        }
+                        setError(null);
+                        setSuccess("");
+                        void api(`/api/v1/admin/certificates/${certificate.id}/revoke`, {
+                          method: "POST",
+                          body: JSON.stringify(reason.trim() ? { revokeReason: reason.trim() } : {}),
+                        }).then(
+                          () => {
+                            setSuccess("Certificado revocado.");
+                            reload();
+                          },
+                          (failure: unknown) => fail(failure),
+                        );
+                      }}
+                    >
+                      Revocar
+                    </button>
+                  ) : null}
                   {certificate.status === "failed" ? (
                     <button
                       type="button"

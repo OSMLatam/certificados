@@ -89,6 +89,50 @@ export class IssueService {
     return { body, mimeType: certificate.storedFile.mimeType, filename: `${slug}.${extension}` };
   }
 
+  async revoke(
+    adminUserId: string,
+    id: string,
+    revokeReason: string | undefined,
+    ipAddress: string | null,
+  ): Promise<{ id: string; status: "revoked" }> {
+    const reason = revokeReason?.trim() ?? "";
+    const result = await this.prisma.$transaction(async (tx) => {
+      const certificate = await tx.certificate.findUnique({ where: { id } });
+      if (!certificate) {
+        return { error: "missing" as const };
+      }
+      if (certificate.status === "revoked") {
+        return { error: "status" as const };
+      }
+      await tx.certificate.update({
+        where: { id },
+        data: { status: "revoked", revokedAt: new Date(), revokeReason: reason || null },
+      });
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          action: "certificate_revoke",
+          entityType: "certificate",
+          entityId: id,
+          ipAddress,
+          metadata: reason ? { revoke_reason: reason } : {},
+        },
+      });
+      return { error: null };
+    });
+    if (result.error === "missing") {
+      throw new NotFoundException();
+    }
+    if (result.error === "status") {
+      throw new ConflictException({
+        statusCode: 409,
+        error: "Conflict",
+        message: "Ese certificado ya está revocado.",
+      });
+    }
+    return { id, status: "revoked" };
+  }
+
   async retry(adminUserId: string, id: string, ipAddress: string | null): Promise<{ id: string; status: "pending" }> {
     const result = await this.prisma.$transaction(async (tx) => {
       await lockCertificate(tx, id);

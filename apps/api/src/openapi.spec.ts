@@ -36,13 +36,14 @@ describe("openapi", () => {
       "/api/v1/admin/events/{id}/participants/import",
       "/api/v1/admin/events/{id}/pregenerated/import",
       "/api/v1/admin/certificates/{id}/retry-issue",
+      "/api/v1/admin/certificates/{id}/revoke",
       "/api/v1/public/search",
       "/api/v1/public/certificates/{slug}",
       "/api/v1/public/certificates/{slug}/file",
     ]) {
       assert.equal(paths.includes(required), true, required);
     }
-    const later = paths.filter((item) => /badge|revoke|legal|send-link|\/me/.test(item) && item !== "/api/v1/admin/auth/me");
+    const later = paths.filter((item) => /badge|legal|send-link|\/me/.test(item) && item !== "/api/v1/admin/auth/me");
     assert.deepEqual(later, []);
   });
 

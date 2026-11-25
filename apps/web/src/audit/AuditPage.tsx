@@ -9,6 +9,7 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "event_status_change", label: "Cambio de estado del evento" },
   { value: "event_soft_delete", label: "Evento retirado" },
   { value: "certificate_retry_issue", label: "Reintento de generación" },
+  { value: "certificate_revoke", label: "Revocación de certificado" },
   { value: "template_export", label: "Exportación de plantilla" },
   { value: "template_import", label: "Importación de plantilla" },
   { value: "user_role_change", label: "Cambio de rol de panel" },

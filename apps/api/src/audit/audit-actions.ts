@@ -8,6 +8,7 @@ export const AUDIT_ACTIONS = [
   "certificate_retry_issue",
   "template_export",
   "template_import",
+  "certificate_revoke",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

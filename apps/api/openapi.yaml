@@ -874,6 +874,46 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/admin/certificates/{id}/revoke:
+    post:
+      tags: [Admin Certificates]
+      operationId: revokeCertificate
+      summary: Revoca un certificado pendiente, fallido o emitido
+      security:
+        - session: []
+      parameters:
+        - $ref: "#/components/parameters/CertificateId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revokeReason:
+                  type: string
+                  maxLength: 500
+      responses:
+        "200":
+          description: El permalink deja de acreditar el certificado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [revoked]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/admin/certificates/{id}/retry-issue:
     post:
       tags: [Admin Certificates]
@@ -1258,6 +1298,7 @@ components:
         - certificate_retry_issue
         - template_export
         - template_import
+        - certificate_revoke
     AuditEntry:
       type: object
       required: [id, createdAt, action, entityType, entityId, ipAddress, metadata, actor]
