@@ -159,7 +159,7 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 | venue_id | UUID FK | NULL si no aplica; **metadato**; en alta/CSV el valor canónico del certificado va en `certificates.venue_id` |
 
 | full_name | VARCHAR(255) | Obligatorio (sale en el certificado) |
-| email | VARCHAR(255) | Obligatorio (osm.lat y AC3); almacenar **normalizado** (`trim` + `lower`) |
+| email | VARCHAR(255) | NULL si la persona solo tiene documento; si viene, almacenar **normalizado** (`trim` + `lower`) |
 | country_code | CHAR(2) | País del documento (obligatorio en AC3) |
 | doc_type_code | VARCHAR(10) | Obligatorio en AC3; opcional en osm.lat |
 | doc_number | VARCHAR(100) | Obligatorio en AC3; opcional en osm.lat; almacenar **normalizado** (ver abajo) |
@@ -170,17 +170,19 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 
 **Reglas por instancia:**
 
-- **osm.lat:** `full_name` + `email` obligatorios; documento opcional.
-- **AC3:** `full_name` + `email` + `country_code` + `doc_type_code` + `doc_number` obligatorios.
+- **osm.lat:** `full_name` obligatorio, y **al menos uno** de correo válido o documento completo (país + tipo + número).
+- **AC3:** lo anterior, y el documento sigue siendo obligatorio.
 
 **Identidad y unicidad (cerrado):**
 
-- Cada persona en un evento tiene **su propio email**. Un email identifica a **un** participante del evento.
-- **UNIQUE** `(event_id, email)` — alta individual, CSV o pregenerados: si el email ya existe en el evento → **rechazar** (error de validación; en CSV atómico → falla todo el lote).
-- **Dos correos en el mismo evento = dos participantes.** No se unifican por nombre. Si además hay documento, la búsqueda por documento **puede listar ambas** filas (el doc **no** es UNIQUE). Esperado: el editor usa **un** email por persona y evento.
-- Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo email (no otro participante).
-- Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar; **no** es clave de unicidad alternativa. Si llega el mismo email con documento distinto al ya guardado → **rechazar** (conflicto de datos).
-- Búsqueda pública: **excluir** `erased_at IS NOT NULL`. El email original queda libre (el UNIQUE usa el email anonimizado).
+- Cada participante necesita un correo válido, un documento completo, o los dos. Si no tiene ninguno, el alta y el CSV responden «Falta el correo o el documento: se necesita al menos uno». Un correo presente pero mal formado sigue siendo error.
+- Un correo identifica a **un** participante del evento. **UNIQUE** `(event_id, email)` cuando el correo no es NULL. Dos filas sin correo **no** chocan entre sí: en PostgreSQL los NULL del índice no son iguales.
+- Sin correo, la persona se identifica por **UNIQUE** `(event_id, country_code, doc_type_code, doc_number) WHERE email IS NULL`. El mismo documento en otra fila sin correo es la misma persona (otro rol suma un certificado).
+- **Dos correos en el mismo evento = dos participantes.** No se unifican por nombre. Si además hay documento, la búsqueda por documento **puede listar ambas** filas (el documento **no** es único entre quienes sí tienen correo).
+- En un mismo CSV, el mismo correo con documentos distintos **no se importa**. El informe dice «El correo x@y aparece en N personas distintas; quien lo busque verá todos sus certificados».
+- Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo correo o mismo documento (no otro participante).
+- Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar. Si llega el mismo correo con documento distinto al ya guardado → **rechazar** (conflicto de datos).
+- Búsqueda pública: sin cambios, por correo o por documento. Quien no tiene correo solo se encuentra por documento. **Excluir** `erased_at IS NOT NULL`. El email original queda libre (el UNIQUE usa el email anonimizado).
 - **Supresión ARCO:** [HU-8.4](./02-historias-de-usuario.md#hu-84--supresión-y-rectificación-arco-ops).
 - **Normalización de `doc_number`:** ver [§3.2](#32-normalización-de-doc_number-decisión-cerrada). La estrategia sale de `country_identity_config.normalize` (`digits` \| `alnum` \| `raw`), no de un `if` por país.
 - **País en búsqueda por documento:** siempre obligatorio en el formulario cuando se busca por documento (forma parte del índice `(event_id, country_code, doc_type_code, doc_number)`). En AC3 el país también es obligatorio en el alta. En osm.lat, si solo se busca por email, el país no aplica.
@@ -696,7 +698,7 @@ Detalle de tokens y snapshot: [08 §2.5](./08-datos-legales-ac3-plantilla.md).
 
 **Import atómico (igual que pregenerados):** validar **todas** las filas; si hay error → no escribir nada; informe de fallos. Lote válido → escribir todo. Imports posteriores = incremental (nuevas altas; rechazar duplicados ya en BD).
 
-**Email duplicado en el lote o ya en BD (mismo evento, mismo email, mismo rol):** rechazar. **Mismo email + otro rol:** OK (otro certificado). **Mismo email con documento distinto al del participante existente:** rechazar.
+**Correo duplicado en el lote o ya en BD (mismo evento, mismo correo, mismo rol):** rechazar. **Mismo correo + otro rol:** OK (otro certificado). **Mismo correo con documentos distintos en el lote:** no importar. **Mismo correo con documento distinto al del participante existente:** rechazar. **Fila sin correo y con documento:** alta válida; sin correo ni documento: error.
 
 **`role` ∉ `events.allowed_roles` (o ausente del catálogo `roles`):** error de validación de **esa fila**; por atomicidad **falla todo el lote**. Informe: campo `role`, valor rechazado. Misma regla en alta individual (HU-6.1 → 400).
 
@@ -712,7 +714,7 @@ Carlos López;carlos@example.org;CO;CE;987654321;ponente;Mapping con OpenStreetM
 | Columna | Obligatorio | Notas |
 |---------|-------------|-------|
 | full_name | Sí | |
-| email | Sí | Obligatorio en osm.lat y AC3 (recipient OB + envío de enlace) |
+| email | No, si hay documento completo | Vacío permitido. Si viene, tiene que ser un correo válido. En AC3 el documento sigue siendo obligatorio |
 | country_code | Si hay doc / siempre en AC3 | ISO alpha-2 |
 | doc_type | Si hay doc / siempre en AC3 | CC, CE, TI… |
 | doc_number | Si hay doc / siempre en AC3 | |
@@ -784,6 +786,12 @@ CREATE INDEX idx_certificates_event_status ON certificates(event_id, status);
 CREATE UNIQUE INDEX idx_certificates_participant_role_active
   ON certificates(participant_id, role_code) WHERE status <> 'revoked';
 CREATE UNIQUE INDEX idx_participants_event_email ON participants(event_id, email);
+CREATE UNIQUE INDEX idx_participants_event_document_without_email
+  ON participants(event_id, country_code, doc_type_code, doc_number)
+  WHERE email IS NULL
+    AND country_code IS NOT NULL
+    AND doc_type_code IS NOT NULL
+    AND doc_number IS NOT NULL;
 CREATE INDEX idx_participants_event_doc ON participants(event_id, country_code, doc_type_code, doc_number);
 CREATE UNIQUE INDEX idx_badge_assertions_slug ON badge_assertions(slug);
 CREATE INDEX idx_badge_assertions_certificate ON badge_assertions(certificate_id);

@@ -1512,7 +1512,7 @@ components:
           nullable: true
     Participant:
       type: object
-      required: [id, eventId, fullName, email, certificates]
+      required: [id, eventId, fullName, certificates]
       properties:
         id:
           type: string
@@ -1525,6 +1525,8 @@ components:
         email:
           type: string
           format: email
+          nullable: true
+          description: Ausente cuando la persona se identifica solo por documento.
         activityTitle:
           type: string
           nullable: true
@@ -1550,12 +1552,13 @@ components:
             $ref: "#/components/schemas/ParticipantCertificate"
     ParticipantWrite:
       type: object
-      required: [fullName, email, roles]
+      required: [fullName, roles]
       properties:
         fullName:
           type: string
         email:
           type: string
+          description: Opcional si countryCode, docTypeCode y docNumber vienen completos.
         roles:
           type: array
           minItems: 1

@@ -4,6 +4,12 @@ export {
   normalizeEmail,
   NORMALIZE_STRATEGIES,
 } from "./lib/normalize";
+export {
+  MISSING_PARTICIPANT_IDENTITY,
+  parseParticipantIdentity,
+  repeatedEmailMessage,
+} from "./lib/participant-identity";
+export type { IdentityDocument, IdentityIssue, ParticipantIdentity, ParticipantIdentityInput } from "./lib/participant-identity";
 export type { NormalizeStrategy } from "./lib/normalize";
 export {
   createPermalinkSlug,

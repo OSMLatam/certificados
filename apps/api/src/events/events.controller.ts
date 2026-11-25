@@ -41,7 +41,7 @@ const venueBody = z.object({
 
 const participantBody = z.object({
   fullName: z.string().trim().min(1).max(255),
-  email: z.string().trim().min(3).max(255),
+  email: z.string().trim().max(255).optional(),
   roles: roleList,
   venueCode: z.string().trim().min(1).max(20).optional(),
   countryCode: z.string().trim().min(2).max(2).optional(),

@@ -75,8 +75,8 @@ describe("pregenerated import", () => {
       ]);
       const imported = await pregenerated.importZip(event.id, Buffer.from(sheet), zip, "lote.csv", admin.id, "127.0.0.1");
       assert.deepEqual(imported, { rowCount: 2, participantCount: 1, certificateCount: 2 });
-      const person = await prisma.participant.findUniqueOrThrow({
-        where: { eventId_email: { eventId: event.id, email: "ana@mail.com" } },
+      const person = await prisma.participant.findFirstOrThrow({
+        where: { eventId: event.id, email: "ana@mail.com" },
         include: { certificates: { include: { storedFile: true } } },
       });
       assert.equal(person.venueId, venue.id);

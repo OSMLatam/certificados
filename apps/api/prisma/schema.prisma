@@ -137,7 +137,8 @@ model Participant {
   eventId       String    @map("event_id") @db.Uuid
   venueId       String?   @map("venue_id") @db.Uuid
   fullName      String    @map("full_name") @db.VarChar(255)
-  email         String    @db.VarChar(255)
+  /// Null when the person is identified only by document. Unique with event_id when present; NULL does not collide with NULL.
+  email         String?   @db.VarChar(255)
   countryCode   String?   @map("country_code") @db.Char(2)
   docTypeCode   String?   @map("doc_type_code") @db.VarChar(10)
   docNumber     String?   @map("doc_number") @db.VarChar(100)

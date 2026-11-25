@@ -122,7 +122,7 @@ certificados/
 | `auth` | Login, logout, session guard (tabla `admin_sessions`), roles |
 | `events` | CRUD eventos `draft`/`active` |
 | `venues` | Sedes por evento |
-| `participants` | Alta individual + UNIQUE email por evento |
+| `participants` | Alta individual; correo o documento; UNIQUE email por evento cuando el correo existe |
 | `templates` | Plantillas, layout JSONB, fondo → `stored_files` |
 | `certificates` | Slug, estados, pregenerados, emisión con lock |
 | `pdf` | HTML template → Puppeteer → buffer |
@@ -703,7 +703,7 @@ Entidades mínimas (nombres alineados con [03-modelo-de-datos.md](./03-modelo-de
 model Role { id, code, label, displayOrder, isActive, ... }
 model Event { id, name, year, startDate, endDate, countryCode, allowedRoles Json, status, pregeneratedOnly, defaultTemplateId?, ... }
 model Venue { ... }
-model Participant { id, eventId, email /* unique per event, normalized */, ... }
+model Participant { id, eventId, email /* nullable; unique per event when set */, ... }
 model CertificateTemplate { id, eventId, roleCode?, layout Json, backgroundFileId /* StoredFile */, ... }
 model Certificate { id, slug /* nanoid 12 */, status /* pending|issued|failed|revoked */, mode, issueAttempts, lastIssueError?, lastIssueAttemptAt?, legalSnapshot Json?, storedFileId, ... }
 model StoredFile { id, storageKey, mimeType, checksumSha256, ... }
@@ -749,7 +749,7 @@ https://api.badgr.io/o/auth?badge={assertion_url}
 
 ## 16. CI (GitHub Actions)
 
-`.github/workflows/ci.yml` corre en cada push y pull request. Instala las dependencias con pnpm 9.15.9, usa Postgres 16 y MinIO como servicios del flujo, aplica las migraciones, carga el seed y ejecuta `pnpm lint` y `pnpm test` (unitarias e integración). Chrome y Poppler están en el runner porque las pruebas del PDF rasterizan a 150 dpi.
+`.github/workflows/ci.yml` corre en cada push y pull request. Instala las dependencias con pnpm 9.15.9, compila `@certificados/shared` (el seed, el lint y las pruebas importan `dist/`), usa Postgres 16 y MinIO como servicios del flujo, aplica las migraciones, carga el seed y ejecuta `pnpm lint` y `pnpm test` (unitarias e integración). Chrome y Poppler están en el runner porque las pruebas del PDF rasterizan a 150 dpi.
 
 ---
 

@@ -60,7 +60,7 @@ Objetivo: organizar un evento piloto sin leer toda la especificación.
 3. **Crear evento** — `draft` / `active`; evento `generated` se crea en `draft` y **no** se activa sin plantilla default; qué pasa al desactivar (`active`→`draft`: sale de búsqueda, permalinks vivos).
 4. **Sedes** — 0 / 1 / N; inferencia; sede = texto en certificado, no identidad.
 5. **Plantilla visual** — fondo, capas, preview; A4 @ 150 DPI; fuentes abiertas. El lienzo **no** es totalmente accesible con teclado (HU-1.6); la paleta sí.
-6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable.
+6. **Participantes** — alta individual; CSV atómico (todo o nada) + incremental; plantilla descargable. El correo puede ir vacío si la fila trae país, tipo y número. Sin correo ni documento, el lote no se importa. Un mismo correo con cédulas distintas tampoco.
 7. **Pregenerados** — 1:1 y sheet+ZIP; CSV↔ZIP 1:1 (falta/sobrante tumba el lote); rol ∈ `allowed_roles`; mismas reglas atómicas.
 8. **Multi-rol** — una fila/certificado por rol.
 9. **Permalinks** — cómo compartir `/c/{slug}`; emisión lazy; **no** hay ZIP de PDFs ni “emitir todos”; si hace falta papel el día del evento, imprimir **pregenerados** fuera y luego subirlos. Verificación = sitio oficial + SHA-256 del archivo (no “firma digital” de la rúbrica); `/file` pending/failed → 409. **F3:** botón enviar/reenviar enlace (tope 15 min). Si no llega el correo: no hay magia de rebotes; copiar el permalink o corregir el email.

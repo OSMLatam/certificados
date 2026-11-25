@@ -57,15 +57,15 @@ describe("participant csv import", () => {
         "127.0.0.1",
       );
       assert.deepEqual(imported, { rowCount: 4, participantCount: 3, certificateCount: 4 });
-      const ana = await prisma.participant.findUniqueOrThrow({
-        where: { eventId_email: { eventId: event.id, email: "ana@example.org" } },
+      const ana = await prisma.participant.findFirstOrThrow({
+        where: { eventId: event.id, email: "ana@example.org" },
         include: { certificates: true },
       });
       assert.equal(ana.docNumber, "1234567890");
       assert.equal(ana.certificates.length, 2);
       assert.ok(ana.certificates.every((certificate) => certificate.status === "pending" && certificate.templateId === template.id && certificate.venueId === venue.id));
-      const carlos = await prisma.participant.findUniqueOrThrow({
-        where: { eventId_email: { eventId: event.id, email: "carlos@example.org" } },
+      const carlos = await prisma.participant.findFirstOrThrow({
+        where: { eventId: event.id, email: "carlos@example.org" },
       });
       assert.equal(carlos.activityTitle, "Mapping con OpenStreetMap");
 
@@ -128,6 +128,37 @@ describe("participant csv import", () => {
       const noTemplate = `${header}\nAda Lovelace;ada@example.org;;;;asistente;;\n`;
       await expectIssue(() => participants.importCsv(bare.id, Buffer.from(noTemplate), "vacio.csv", admin.id, null), "role");
       assert.equal(await prisma.participant.count({ where: { eventId: bare.id } }), 0);
+
+      const documentsOnly = `${header}\nLucía Pérez;;CO;CC;1020304050;asistente;;\nPedro Gómez;;CO;CC;1020304051;asistente;;\n`;
+      const withoutEmail = await participants.importCsv(event.id, Buffer.from(documentsOnly), "documentos.csv", admin.id, "127.0.0.1");
+      assert.equal(withoutEmail.participantCount, 2);
+      const lucia = await prisma.participant.findFirstOrThrow({ where: { eventId: event.id, fullName: "Lucía Pérez" } });
+      const pedro = await prisma.participant.findFirstOrThrow({ where: { eventId: event.id, fullName: "Pedro Gómez" } });
+      assert.equal(lucia.email, null);
+      assert.equal(lucia.docNumber, "1020304050");
+      assert.equal(pedro.email, null);
+      assert.equal(pedro.docNumber, "1020304051");
+      const luciaAgain = `${header}\nLucía Pérez;;CO;CC;1020304050;voluntario;;\n`;
+      const extraRole = await participants.importCsv(event.id, Buffer.from(luciaAgain), "lucia.csv", admin.id, null);
+      assert.equal(extraRole.certificateCount, 1);
+      assert.equal(await prisma.participant.count({ where: { eventId: event.id, email: null } }), 2);
+      assert.equal(await prisma.certificate.count({ where: { participantId: lucia.id } }), 2);
+
+      const neither = `${header}\nSin Datos;;;;;;asistente;;\n`;
+      await expectIssue(
+        () => participants.importCsv(event.id, Buffer.from(neither), "vacio-id.csv", admin.id, null),
+        "email",
+        undefined,
+        "Falta el correo o el documento: se necesita al menos uno",
+      );
+      const repeated = `${header}\nUno;mismo@example.org;CO;CC;1111111111;asistente;;\nDos;mismo@example.org;CO;CC;2222222222;asistente;;\n`;
+      await expectIssue(
+        () => participants.importCsv(event.id, Buffer.from(repeated), "repetido.csv", admin.id, null),
+        "email",
+        undefined,
+        "El correo mismo@example.org aparece en 2 personas distintas; quien lo busque verá todos sus certificados",
+      );
+      assert.equal(await prisma.participant.count({ where: { eventId: event.id, email: "mismo@example.org" } }), 0);
     } finally {
       for (const eventId of createdEventIds) {
         await prisma.certificate.deleteMany({ where: { eventId } });
@@ -146,13 +177,16 @@ describe("participant csv import", () => {
   });
 });
 
-async function expectIssue(run: () => Promise<unknown>, field: string, value?: string): Promise<void> {
+async function expectIssue(run: () => Promise<unknown>, field: string, value?: string, message?: string): Promise<void> {
   await assert.rejects(run, (error: unknown) => {
     assert.ok(error instanceof BadRequestException);
-    const body = error.getResponse() as { details?: { field: string; value?: string }[] };
+    const body = error.getResponse() as { details?: { field: string; value?: string; message?: string }[] };
     assert.equal(body.details?.[0]?.field, field);
     if (value !== undefined) {
       assert.equal(body.details?.[0]?.value, value);
+    }
+    if (message !== undefined) {
+      assert.equal(body.details?.[0]?.message, message);
     }
     return true;
   });

@@ -116,6 +116,27 @@ describe("events, venues and participants", () => {
       "roles",
     );
 
+    const documentOnly = await participants.create(draft.id, {
+      fullName: "Sin Correo",
+      email: "",
+      roles: ["asistente"],
+      countryCode: "CO",
+      docTypeCode: "CC",
+      docNumber: "10203040",
+    });
+    assert.equal(documentOnly.email, null);
+    assert.equal(documentOnly.docNumber, "10203040");
+    assert.equal(documentOnly.certificates.length, 1);
+    await expectField(
+      () =>
+        participants.create(draft.id, {
+          fullName: "Nadie",
+          email: "",
+          roles: ["asistente"],
+        }),
+      "email",
+    );
+
     const pregenerated = await events.create(admin.id, {
       name: "SOTM precargado",
       year: 2026,

@@ -4,7 +4,6 @@ import { Prisma } from "@prisma/client";
 import {
   createPermalinkSlug,
   isNormalizeStrategy,
-  normalizeEmail,
   parsePregeneratedCsv,
   pregeneratedCsvTemplate,
   SLUG_GENERATION_ATTEMPTS,
@@ -79,7 +78,7 @@ export class PregeneratedService {
       }
     }
 
-    const inspected = new Map<string, { bytes: Buffer; mimeType: string }>();
+    const inspected = new Map<number, { bytes: Buffer; mimeType: string }>();
     for (const row of parsed.rows) {
       const bytes = files.get(row.filename);
       if (!bytes) {
@@ -90,7 +89,7 @@ export class PregeneratedService {
         issues.push({ row: row.row, field: "filename", message: file.message, value: row.filename });
         continue;
       }
-      inspected.set(`${normalizeEmail(row.email)}|${row.role.trim().toLowerCase()}`, { bytes, mimeType: file.info.mimeType });
+      inspected.set(row.row, { bytes, mimeType: file.info.mimeType });
     }
 
     const planned = await this.plan(event.id, event.allowedRoles, parsed.rows.map(asParticipant));
@@ -104,7 +103,7 @@ export class PregeneratedService {
     const stored: { id: string; key: string; bytes: Buffer; mimeType: string; checksum: string; participantKey: string; role: string; venueId: string | null }[] = [];
     for (const person of planned.people) {
       for (const certificate of person.certificates) {
-        const file = inspected.get(`${person.email}|${certificate.roleCode}`);
+        const file = inspected.get(certificate.sourceRow);
         if (!file) {
           throw report([{ row: 0, field: "file", message: missingInZip() }]);
         }
@@ -116,7 +115,7 @@ export class PregeneratedService {
           bytes: file.bytes,
           mimeType: file.mimeType,
           checksum,
-          participantKey: person.email,
+          participantKey: person.key,
           role: certificate.roleCode,
           venueId: certificate.venueId,
         });
@@ -154,7 +153,7 @@ export class PregeneratedService {
                   docNumber: person.document?.docNumber ?? null,
                 },
               });
-          participantIds.set(person.email, saved.id);
+          participantIds.set(person.key, saved.id);
         }
         for (const file of stored) {
           const record = await tx.storedFile.create({
@@ -256,13 +255,12 @@ export class PregeneratedService {
 
   private async plan(eventId: string, allowedRoles: Prisma.JsonValue, rows: ParticipantCsvRow[]) {
     const roles = [...new Set(rows.map((row) => row.role.trim().toLowerCase()).filter((role) => role.length > 0))];
-    const emails = [...new Set(rows.map((row) => normalizeEmail(row.email)).filter((email) => email.length > 0))];
     const [catalog, venues, identity, existing] = await Promise.all([
       this.prisma.role.findMany({ where: { code: { in: roles }, isActive: true }, select: { code: true } }),
       this.prisma.venue.findMany({ where: { eventId }, select: { id: true, code: true } }),
       this.prisma.countryIdentityConfig.findMany(),
       this.prisma.participant.findMany({
-        where: { eventId, email: { in: emails } },
+        where: { eventId },
         include: { certificates: { select: { roleCode: true, status: true } } },
       }),
     ]);

@@ -3,8 +3,8 @@ import { Prisma, type Certificate } from "@prisma/client";
 import {
   createPermalinkSlug,
   isNormalizeStrategy,
-  normalizeEmail,
   parseParticipantCsv,
+  parseParticipantIdentity,
   participantCsvTemplate,
   SLUG_GENERATION_ATTEMPTS,
 } from "@certificados/shared";
@@ -15,11 +15,11 @@ import { EventAccess } from "../events/event-access";
 import { resolveCertificateTemplate, resolveVenueId } from "../events/event-rules";
 import { PrismaService } from "../prisma/prisma.service";
 import { planParticipantImport, type ImportIssue } from "./csv-import";
-import { documentPresence, documentsConflict, normalizeDocument, type StoredDocument } from "./document-rules";
+import { documentsConflict, normalizeDocument, type StoredDocument } from "./document-rules";
 
 export type ParticipantBody = {
   fullName: string;
-  email: string;
+  email?: string;
   roles: string[];
   venueCode?: string;
   countryCode?: string;
@@ -82,8 +82,7 @@ export class ParticipantsService {
       throw validationFailed([{ field: "venueCode", message: "Esa sede no existe en el evento." }]);
     }
 
-    const email = normalizeEmail(body.email);
-    const document = await this.resolveDocument(body);
+    const { email, document } = await this.resolveIdentity(body);
     const templates = await this.prisma.certificateTemplate.findMany({
       where: { eventId, roleCode: { in: roles } },
       select: { id: true, roleCode: true },
@@ -105,12 +104,22 @@ export class ParticipantsService {
       return { roleCode, ...resolved };
     });
 
-    const existing = await this.prisma.participant.findUnique({
-      where: { eventId_email: { eventId, email } },
+    const existing = await this.prisma.participant.findFirst({
+      where: email
+        ? { eventId, email }
+        : {
+            eventId,
+            email: null,
+            countryCode: document?.countryCode,
+            docTypeCode: document?.docTypeCode,
+            docNumber: document?.docNumber,
+          },
       include: { certificates: true },
     });
     if (existing?.erasedAt) {
-      throw new ConflictException("Ese correo pertenece a un participante suprimido.");
+      throw new ConflictException(
+        email ? "Ese correo pertenece a un participante suprimido." : "Ese documento pertenece a un participante suprimido.",
+      );
     }
     const storedDocument = storedDoc(existing);
     if (documentsConflict(storedDocument, document)) {
@@ -128,7 +137,7 @@ export class ParticipantsService {
       throw validationFailed([
         {
           field: "roles",
-          message: `Este correo ya tiene certificado para: ${duplicated.map((item) => item.roleCode).join(", ")}.`,
+          message: `${email ? "Este correo" : "Este documento"} ya tiene certificado para: ${duplicated.map((item) => item.roleCode).join(", ")}.`,
         },
       ]);
     }
@@ -194,7 +203,6 @@ export class ParticipantsService {
     }
 
     const roles = [...new Set(parsed.rows.map((row) => row.role.trim().toLowerCase()).filter((role) => role.length > 0))];
-    const emails = [...new Set(parsed.rows.map((row) => normalizeEmail(row.email)).filter((email) => email.length > 0))];
     const [catalog, venues, templates, identity, existing] = await Promise.all([
       this.prisma.role.findMany({ where: { code: { in: roles }, isActive: true }, select: { code: true } }),
       this.prisma.venue.findMany({ where: { eventId }, select: { id: true, code: true } }),
@@ -204,7 +212,7 @@ export class ParticipantsService {
       }),
       this.prisma.countryIdentityConfig.findMany(),
       this.prisma.participant.findMany({
-        where: { eventId, email: { in: emails } },
+        where: { eventId },
         include: { certificates: { select: { roleCode: true, status: true } } },
       }),
     ]);
@@ -302,48 +310,42 @@ export class ParticipantsService {
     return participantCsvTemplate();
   }
 
-  private async resolveDocument(body: ParticipantBody): Promise<StoredDocument | null> {
-    const presence = documentPresence(body);
-    if (presence === "partial") {
-      throw validationFailed([
-        { field: "docNumber", message: "El documento necesita país, tipo y número." },
-      ]);
+  private async resolveIdentity(body: ParticipantBody): Promise<{ email: string | null; document: StoredDocument | null }> {
+    const identity = parseParticipantIdentity({
+      email: body.email,
+      countryCode: body.countryCode,
+      docTypeCode: body.docTypeCode,
+      docNumber: body.docNumber,
+    });
+    if (!identity.ok) {
+      throw validationFailed(identity.issues);
     }
-    if (presence === "absent") {
+    if (!identity.document) {
       if (this.env.INSTANCE === "ac3") {
-        throw validationFailed([
-          { field: "docNumber", message: "En AC3 el documento es obligatorio." },
-        ]);
+        throw validationFailed([{ field: "docNumber", message: "En AC3 el documento es obligatorio." }]);
       }
-      return null;
+      return { email: identity.email, document: null };
     }
     const rule = await this.prisma.countryIdentityConfig.findUnique({
       where: {
         countryCode_docTypeCode: {
-          countryCode: body.countryCode!.trim().toUpperCase(),
-          docTypeCode: body.docTypeCode!.trim().toUpperCase(),
+          countryCode: identity.document.countryCode,
+          docTypeCode: identity.document.docTypeCode,
         },
       },
     });
-    const normalized = normalizeDocument(
-      {
-        countryCode: body.countryCode!,
-        docTypeCode: body.docTypeCode!,
-        docNumber: body.docNumber!,
-      },
-      rule,
-    );
+    const normalized = normalizeDocument(identity.document, rule);
     if (!normalized.ok) {
       throw validationFailed([{ field: normalized.field, message: normalized.message }]);
     }
-    return normalized.value;
+    return { email: identity.email, document: normalized.value };
   }
 
   private toParticipant(row: {
     id: string;
     eventId: string;
     fullName: string;
-    email: string;
+    email: string | null;
     activityTitle: string | null;
     countryCode: string | null;
     docTypeCode: string | null;

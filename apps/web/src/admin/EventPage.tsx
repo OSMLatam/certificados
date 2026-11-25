@@ -36,7 +36,9 @@ type Venue = {
 type Participant = {
   id: string;
   fullName: string;
-  email: string;
+  email: string | null;
+  docTypeCode: string | null;
+  docNumber: string | null;
   certificates: Certificate[];
 };
 
@@ -146,7 +148,8 @@ function EventBody({ eventId }: { eventId: string }) {
       <ul>
         {people.map((person) => (
           <li key={person.id}>
-            {person.fullName} · {person.email}
+            {person.fullName}
+            {person.email ? ` · ${person.email}` : person.docTypeCode && person.docNumber ? ` · ${person.docTypeCode} ${person.docNumber}` : ""}
             <ul>
               {person.certificates.map((certificate) => (
                 <li key={certificate.id}>
@@ -255,15 +258,16 @@ function EventBody({ eventId }: { eventId: string }) {
         }}
       >
         <h2>Alta individual</h2>
+        <p>Hace falta un correo válido o un documento completo (país, tipo y número).</p>
         <label htmlFor="person-name">Nombre</label>
         <input id="person-name" value={fullName} onChange={(input) => setFullName(input.target.value)} required />
         <label htmlFor="person-email">Correo</label>
-        <input id="person-email" type="email" value={email} onChange={(input) => setEmail(input.target.value)} required />
+        <input id="person-email" type="email" value={email} onChange={(input) => setEmail(input.target.value)} />
         <label htmlFor="activity-title">Actividad o charla</label>
         <input id="activity-title" value={activityTitle} onChange={(input) => setActivityTitle(input.target.value)} />
         <fieldset>
           <legend>Documento</legend>
-          <p>País, tipo y número permiten buscar el certificado. Puedes dejar el número vacío.</p>
+          <p>Si dejas el correo vacío, estos tres datos identifican a la persona. También sirven para buscar el certificado.</p>
           <label htmlFor="doc-country">País</label>
           <input
             id="doc-country"

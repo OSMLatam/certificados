@@ -56,7 +56,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **PDF** | A4 **landscape** @ **150 DPI** (canvas 1754×1240 px) en v1.0; tipografías abiertas embebidas; Puppeteer HTML→PDF. El campo `layout.canvas.orientation` existe por forward-compat; el editor **no** ofrece retrato en v1.0. |
 | **OAuth OSM** | Solo scopes de lectura de identidad (`read_prefs` o mínimo equivalente); sin escritura en OSM. |
 | **Sesión admin** | Cookie `cert_session` + tabla **`admin_sessions`** en PostgreSQL (F1/F2 sin Redis). |
-| **Email participante** | Obligatorio; **UNIQUE `(event_id, email)`** normalizado (`trim`+`lower`); duplicado → rechazar. Misma persona + otro rol = OK. |
+| **Email participante** | Opcional si hay documento completo (país + tipo + número). Al menos uno de los dos; si falta ambos: «Falta el correo o el documento: se necesita al menos uno». Correo presente se normaliza (`trim`+`lower`) y es **UNIQUE `(event_id, email)`**; NULL no choca con NULL. Sin correo, unicidad por evento + documento. El mismo correo con documentos distintos en un CSV no se importa. Misma persona + otro rol = OK. Búsqueda pública sin cambios: sin correo solo se encuentra por documento. |
 | **Documento** | Al guardar y buscar: `trim` + estrategia `country_identity_config.normalize` (`digits` \| `alnum` \| `raw`); validar regex **después**. Sin `if` por país. País obligatorio en búsqueda por documento. Detalle: [03 §3.2](./03-modelo-de-datos.md). |
 | **CSV import (participantes y pregenerados)** | Atómico; solo CSV (no ODS nativo); error → 0 filas + informe; luego incremental. |
 | **Contrato `/c/`** | SPA HTML verify; API metadata (lazy issue); binario `…/file`. **`/file` en `pending`/`failed` → 409** (no emite). |
