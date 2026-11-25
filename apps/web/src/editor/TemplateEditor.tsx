@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FormAlert } from "../admin/FormAlert";
+import { CopySourceSelect } from "./CopySourceSelect";
 import { rolesWithoutTemplate, templateLabel } from "./template-choice";
+import type { TemplateSource } from "./template-sources";
 import { failureFromBody } from "../admin/form-feedback";
 import type Konva from "konva";
 import { Image as KonvaImage, Layer, Rect, Stage, Text, Group } from "react-konva";
@@ -59,16 +61,6 @@ type TemplateRecord = {
   layout: Layout;
 };
 
-type Source = {
-  eventId: string;
-  eventName: string;
-  year: number;
-  templateId: string;
-  name: string;
-  roleCode: string | null;
-  hasBackground: boolean;
-};
-
 type Pending =
   | { kind: "import"; file: File }
   | { kind: "copy"; sourceTemplateId: string };
@@ -86,7 +78,6 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
   const [background, setBackground] = useState<HTMLImageElement | null>(null);
   const [previewBackground, setPreviewBackground] = useState<HTMLImageElement | null>(null);
   const [eventDate, setEventDate] = useState("");
-  const [sources, setSources] = useState<Source[]>([]);
   const [pending, setPending] = useState<Pending | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -254,12 +245,8 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
     setStatus("Vista previa. Confirma para guardar o cancela para descartar.");
   }
 
-  async function stageCopy(sourceTemplateId: string) {
+  async function stageCopy(source: TemplateSource) {
     if (!template || !layout) {
-      return;
-    }
-    const source = sources.find((item) => item.templateId === sourceTemplateId);
-    if (!source) {
       return;
     }
     setError(null);
@@ -522,31 +509,12 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
           }}
         />
         <label htmlFor="copy-template">Copiar de otro evento</label>
-        <select
-          id="copy-template"
-          defaultValue=""
-          onFocus={() => {
-            if (sources.length === 0) {
-              void fetch("/api/v1/admin/template-sources", { credentials: "include" })
-                .then((response) => response.json())
-                .then((body: { items: Source[] }) => setSources(body.items.filter((item) => item.eventId !== eventId)))
-                .catch(() => setError("No se pudieron cargar las plantillas."));
-            }
-          }}
-          onChange={(event) => {
-            if (event.target.value) {
-              void stageCopy(event.target.value);
-              event.target.value = "";
-            }
-          }}
-        >
-          <option value="">Elige una plantilla</option>
-          {sources.map((source) => (
-            <option key={source.templateId} value={source.templateId}>
-              {source.eventName} ({source.year}) — {source.roleCode ?? "general"}
-            </option>
-          ))}
-        </select>
+        <CopySourceSelect
+          eventId={eventId}
+          templateId={template?.id ?? null}
+          disabled={pending !== null || !template}
+          onChoose={(source) => void stageCopy(source)}
+        />
         {pending ? (
           <div className="actions">
             <button type="button" className="primary" onClick={() => void confirmPending()}>
