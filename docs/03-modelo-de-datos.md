@@ -176,10 +176,12 @@ Persona en el contexto de un evento (datos de contacto/identidad).
 **Identidad y unicidad (cerrado):**
 
 - Cada participante necesita un correo válido, un documento completo, o los dos. Si no tiene ninguno, el alta y el CSV responden «Falta el correo o el documento: se necesita al menos uno». Un correo presente pero mal formado sigue siendo error.
-- Un correo identifica a **un** participante del evento. **UNIQUE** `(event_id, email)` cuando el correo no es NULL. Dos filas sin correo **no** chocan entre sí: en PostgreSQL los NULL del índice no son iguales.
-- Sin correo, la persona se identifica por **UNIQUE** `(event_id, country_code, doc_type_code, doc_number) WHERE email IS NULL`. El mismo documento en otra fila sin correo es la misma persona (otro rol suma un certificado).
-- **Dos correos en el mismo evento = dos participantes.** No se unifican por nombre. Si además hay documento, la búsqueda por documento **puede listar ambas** filas (el documento **no** es único entre quienes sí tienen correo).
-- En un mismo CSV, el mismo correo con documentos distintos **no se importa**. El informe dice «El correo x@y aparece en N personas distintas; quien lo busque verá todos sus certificados».
+- Un correo identifica a **un** participante del evento. **UNIQUE** `(event_id, email)` cuando el correo no es NULL. Dos filas sin correo **no** chocan entre sí: en PostgreSQL los NULL del índice no son iguales. El correo se compara sin espacios y en minúsculas.
+- El documento (país + tipo + número normalizado) identifica a la misma persona **aunque ya tenga correo**. El índice parcial `WHERE email IS NULL` sigue existiendo y no cubre a quien ya tiene correo: la aplicación rechaza un documento repetido al importar. Los duplicados ya guardados no se corrigen solos; el script de solo lectura del runbook los lista.
+- Si el correo de la fila es de una persona y el documento de otra, la fila se rechaza. No se crea una segunda persona ni se cambia el nombre.
+- El nombre se compara sin tildes, en minúsculas y con espacios colapsados. Si coincide con la persona ya guardada, el nombre escrito no se reescribe. Si no coincide, la fila se rechaza.
+- Se puede completar el dato que faltaba (correo o documento) cuando el nombre coincide y ese dato no es de otra persona. Eso escribe `participant_update` con los campos, sin los valores.
+- En un mismo CSV, el mismo correo con documentos distintos **no se importa**. El informe dice «El correo x@y aparece en N personas distintas; quien lo busque verá todos sus certificados». El mismo correo o el mismo documento con nombres distintos dentro del archivo usa «El mismo correo aparece con nombres distintos» o «El mismo documento aparece con nombres distintos».
 - Varios roles de la misma persona = **varias filas CSV / varios certificados**, mismo correo o mismo documento (no otro participante).
 - Documento (cuando existe): validar formato vía `country_identity_config` **después** de normalizar. Si llega el mismo correo con documento distinto al ya guardado → **rechazar** (conflicto de datos).
 - Búsqueda pública: sin cambios, por correo o por documento. Quien no tiene correo solo se encuentra por documento. **Excluir** `erased_at IS NOT NULL`. El email original queda libre (el UNIQUE usa el email anonimizado).
@@ -406,7 +408,7 @@ Registro persistente de **acciones sensibles** del panel ([HU-7.5](./02-historia
 
 #### 5.2.1. Catálogo de `action` (cerrado)
 
-No hay fila por cada PATCH de título de evento ni por alta individual de participante.
+No hay fila por cada PATCH de título de evento ni por alta individual de participante. Sí hay `participant_update` cuando un alta o una importación completa el correo o el documento que faltaba.
 
 **Fase 1**
 
@@ -417,6 +419,7 @@ No hay fila por cada PATCH de título de evento ni por alta individual de partic
 | `event_status_change` | PATCH `status` del evento | `event` | `old_status`, `new_status` |
 | `event_soft_delete` | Soft-delete del evento | `event` | |
 | `participant_csv_import` | CSV participantes **aceptado** | `event` | `row_count`, `filename` (basename) |
+| `participant_update` | Se completa el correo o el documento que faltaba | `participant` | `fields` (`email` y/o `document`; sin el valor). No pide migración: `action` es VARCHAR(50). |
 | `pregenerated_import` | Import sheet+ZIP **aceptado** | `event` | `row_count`, `filename` |
 | `certificate_retry_issue` | `POST …/retry-issue` | `certificate` | `previous_attempts` |
 | `template_export` | Exportación ZIP de una plantilla | `certificate_template` | `filename` |
@@ -698,7 +701,7 @@ Detalle de tokens y snapshot: [08 §2.5](./08-datos-legales-ac3-plantilla.md).
 
 **Import atómico (igual que pregenerados):** validar **todas** las filas; si hay error → no escribir nada; informe de fallos. Lote válido → escribir todo. Imports posteriores = incremental (nuevas altas; rechazar duplicados ya en BD).
 
-**Correo duplicado en el lote o ya en BD (mismo evento, mismo correo, mismo rol):** rechazar. **Mismo correo + otro rol:** OK (otro certificado). **Mismo correo con documentos distintos en el lote:** no importar. **Mismo correo con documento distinto al del participante existente:** rechazar. **Fila sin correo y con documento:** alta válida; sin correo ni documento: error.
+**Correo duplicado en el lote o ya en BD (mismo evento, mismo correo, mismo rol):** rechazar. **Mismo correo o mismo documento + otro rol y el mismo nombre:** OK (otro certificado, sin cambiar el nombre). **Mismo correo o mismo documento + nombre distinto:** rechazar. **Correo de una persona y documento de otra:** rechazar. **Completar el correo o el documento que faltaba, con el mismo nombre:** OK, con `participant_update`. **Mismo correo con documentos distintos en el lote:** no importar. **Mismo correo con documento distinto al del participante existente:** rechazar. **Fila sin correo y con documento:** alta válida; sin correo ni documento: error.
 
 **`role` ∉ `events.allowed_roles` (o ausente del catálogo `roles`):** error de validación de **esa fila**; por atomicidad **falla todo el lote**. Informe: campo `role`, valor rechazado. Misma regla en alta individual (HU-6.1 → 400).
 

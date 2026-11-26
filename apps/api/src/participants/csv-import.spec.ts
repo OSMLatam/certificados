@@ -17,6 +17,22 @@ const row = (overrides: Partial<ParticipantCsvRow> = {}): ParticipantCsvRow => (
   ...overrides,
 });
 
+const digits = new Map([["CO|CC", { normalize: "digits" as const, validationRegex: "^[0-9]{6,10}$" }]]);
+
+const stored = (overrides: Record<string, unknown> = {}) => ({
+  id: "person-1",
+  email: "ana@mail.com",
+  fullName: "Ana García",
+  activityTitle: null,
+  venueId: null,
+  erasedAt: null,
+  countryCode: null,
+  docTypeCode: null,
+  docNumber: null,
+  roles: [] as string[],
+  ...overrides,
+});
+
 const context = {
   instance: "osm_lat" as const,
   allowedRoles: new Set(["asistente", "voluntario"]),
@@ -173,6 +189,117 @@ describe("planParticipantImport", () => {
     assert.equal(planned.ok, false);
     if (!planned.ok) {
       assert.equal(planned.issues[0]?.field, "doc_number");
+    }
+  });
+
+  it("treats accent and spacing differences as the same name inside one file", () => {
+    const planned = planParticipantImport({
+      ...context,
+      rows: [row({ fullName: "Ana  Pérez" }), row({ row: 3, fullName: "ana perez", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, true);
+    if (planned.ok) {
+      assert.equal(planned.people.length, 1);
+      assert.equal(planned.people[0]?.fullName, "Ana  Pérez");
+      assert.deepEqual(
+        planned.people[0]?.certificates.map((certificate) => certificate.roleCode),
+        ["asistente", "voluntario"],
+      );
+    }
+  });
+
+  it("rejects a different name for an email already stored", () => {
+    const planned = planParticipantImport({
+      ...context,
+      existing: [stored({ fullName: "Cami Soto", email: "cami@example.org" })],
+      rows: [row({ row: 2, fullName: "Camila Soto Lara", email: "cami@example.org", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, false);
+    if (!planned.ok) {
+      assert.equal(
+        planned.issues[0]?.message,
+        'Fila 2: ya existe una persona con este documento (o correo) llamada "Cami Soto"; aquí viene como "Camila Soto Lara". Corrige el nombre para que coincida, o corrige primero a la persona existente.',
+      );
+    }
+  });
+
+  it("rejects a different name for a document already stored", () => {
+    const planned = planParticipantImport({
+      ...context,
+      identityRules: digits,
+      existing: [stored({ fullName: "Cami Soto", email: null, countryCode: "CO", docTypeCode: "CC", docNumber: "1000000102" })],
+      rows: [row({ row: 2, fullName: "Camila Soto Lara", email: "", countryCode: "CO", docType: "CC", docNumber: "1000000102", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, false);
+    if (!planned.ok) {
+      assert.match(planned.issues[0]?.message ?? "", /Fila 2: ya existe una persona/);
+    }
+  });
+
+  it("adds a role when the same document arrives without an email", () => {
+    const planned = planParticipantImport({
+      ...context,
+      identityRules: digits,
+      existing: [stored({ email: "eva@example.org", countryCode: "CO", docTypeCode: "CC", docNumber: "1000000103", roles: ["asistente"] })],
+      rows: [row({ fullName: "Ana García", email: "", countryCode: "CO", docType: "CC", docNumber: "1000000103", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, true);
+    if (planned.ok) {
+      assert.equal(planned.people.length, 1);
+      assert.equal(planned.people[0]?.existingId, "person-1");
+      assert.equal(planned.people[0]?.email, "eva@example.org");
+      assert.deepEqual(planned.people[0]?.completedFields, []);
+    }
+  });
+
+  it("rejects a row whose email and document belong to different people", () => {
+    const planned = planParticipantImport({
+      ...context,
+      identityRules: digits,
+      existing: [
+        stored({ id: "eva", fullName: "Eva Luna", email: "eva@example.org", countryCode: "CO", docTypeCode: "CC", docNumber: "1000000104" }),
+        stored({ id: "otra", fullName: "Otra Persona", email: "otra@example.org", countryCode: "CO", docTypeCode: "CC", docNumber: "1000000105" }),
+      ],
+      rows: [row({ row: 4, fullName: "Eva Luna", email: "eva@example.org", countryCode: "CO", docType: "CC", docNumber: "1000000105", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, false);
+    if (!planned.ok) {
+      assert.equal(
+        planned.issues[0]?.message,
+        'Fila 4: el correo pertenece a "Eva Luna" y el documento a "Otra Persona". Revisa los datos.',
+      );
+    }
+  });
+
+  it("adds another role when the stored name matches", () => {
+    const planned = planParticipantImport({
+      ...context,
+      existing: [stored({ roles: ["asistente"] })],
+      rows: [row({ role: "voluntario" })],
+    });
+    assert.equal(planned.ok, true);
+    if (planned.ok) {
+      assert.equal(planned.people[0]?.existingId, "person-1");
+      assert.equal(planned.people[0]?.fullName, "Ana García");
+      assert.deepEqual(
+        planned.people[0]?.certificates.map((certificate) => certificate.roleCode),
+        ["voluntario"],
+      );
+    }
+  });
+
+  it("completes a missing email without rewriting the name", () => {
+    const planned = planParticipantImport({
+      ...context,
+      identityRules: digits,
+      existing: [stored({ fullName: "Eva Luna", email: null, countryCode: "CO", docTypeCode: "CC", docNumber: "1000000107", roles: ["asistente"] })],
+      rows: [row({ fullName: "eva  luna", email: "eva@example.org", countryCode: "CO", docType: "CC", docNumber: "1000000107", role: "voluntario" })],
+    });
+    assert.equal(planned.ok, true);
+    if (planned.ok) {
+      assert.equal(planned.people[0]?.fullName, "Eva Luna");
+      assert.equal(planned.people[0]?.email, "eva@example.org");
+      assert.deepEqual(planned.people[0]?.completedFields, ["email"]);
     }
   });
 });

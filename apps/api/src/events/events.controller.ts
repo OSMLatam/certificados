@@ -106,8 +106,11 @@ export class EventsController {
 
   @Post(":id/participants")
   @HttpCode(201)
-  createParticipant(@Param("id") id: string, @Body() body: unknown) {
-    return this.participants.create(id, parse(participantBody, body));
+  createParticipant(@Req() request: RequestWithIp, @Param("id") id: string, @Body() body: unknown) {
+    return this.participants.create(id, parse(participantBody, body), {
+      adminUserId: request.adminUser!.id,
+      ipAddress: request.ip ?? null,
+    });
   }
 
   @Get(":id/participants/import/template")

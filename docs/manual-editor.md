@@ -106,6 +106,7 @@ Si los ponentes llevan otro diseño, elige el rol en **Nueva plantilla para el r
 - **Correo o documento**: hace falta **al menos uno** de los dos. El documento son tres datos: país, tipo y número.
   - Sin correo ni documento, la persona no se puede cargar.
   - Un mismo correo no puede repetirse en personas distintas: quien lo busque vería los certificados de todas. **Nunca uses un correo de relleno** (como `a@b.co`) para varias personas: deja el correo vacío y usa el documento.
+  - El mismo correo o el mismo documento, en este archivo o en uno ya guardado, son la misma persona. «Ana Pérez» y «ana perez» cuentan como el mismo nombre. Si el nombre no coincide, la fila se rechaza y el nombre guardado no cambia. Si faltaba el correo o el documento y el nombre coincide, se completa.
 - **Rol**: uno de los roles admitidos del evento. Si una persona tiene dos roles (por ejemplo, ponente y asistente), recibe un certificado por cada rol.
 - **Actividad**: solo si aplica, el título de la charla o el taller.
 
@@ -230,6 +231,8 @@ Si se retiró un evento por error, solo quien administra el servidor puede recup
 | «El correo no es válido.» | Revisa el correo de esa fila, o déjalo vacío si la fila trae el documento. |
 | «Falta el correo o el documento: se necesita al menos uno» | La fila no tiene ninguno de los dos: agrega al menos uno. |
 | «El correo … aparece en N personas distintas; quien lo busque verá todos sus certificados» | Hay un correo repetido o de relleno. Usa el correo real de cada persona, o déjalo vacío y usa el documento. |
+| «Fila N: ya existe una persona con este documento (o correo) llamada "…" ; aquí viene como "…". Corrige el nombre para que coincida, o corrige primero a la persona existente.» | El correo o el documento ya están guardados con otro nombre. Iguala el nombre del archivo al que ya está, o corrige primero a la persona existente. La importación no cambia el nombre. En el alta individual sale la misma frase, sin «Fila N». |
+| «Fila N: el correo pertenece a "…" y el documento a "…". Revisa los datos.» | El correo es de una persona y el documento de otra. Corrige cuál dato corresponde a quién. |
 | Salen signos raros en vez de tildes | Guarda el CSV como **CSV UTF-8**. |
 | No puedo publicar | Falta la plantilla predeterminada: abre **Editar plantillas**. |
 | Una persona no encuentra su certificado | Verifica que el evento esté **publicado** y que busque con el mismo correo o documento que se cargó. |

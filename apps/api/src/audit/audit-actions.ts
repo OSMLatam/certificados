@@ -4,6 +4,7 @@ export const AUDIT_ACTIONS = [
   "event_status_change",
   "event_soft_delete",
   "participant_csv_import",
+  "participant_update",
   "pregenerated_import",
   "certificate_retry_issue",
   "template_export",

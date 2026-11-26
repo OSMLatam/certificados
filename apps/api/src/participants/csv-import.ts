@@ -28,6 +28,7 @@ export type PlannedParticipant = {
   venueId: string | null;
   document: StoredDocument | null;
   certificates: PlannedCertificate[];
+  completedFields: Array<"email" | "document">;
 };
 
 export type ExistingParticipant = {
@@ -176,37 +177,32 @@ export function planParticipantImport(input: {
     }
   }
 
-  const existingByKey = new Map<string, ExistingParticipant>();
-  for (const person of input.existing) {
-    const key = participantKey(person.email, storedDoc(person));
-    if (key) {
-      existingByKey.set(key, person);
-    }
-  }
+  const indexed = indexExisting(input.existing);
   const people: PlannedParticipant[] = [];
-  for (const [key, group] of groupByKey(drafts)) {
-    const email = group[0]?.email ?? null;
-    const current = existingByKey.get(key) ?? null;
-    if (current?.erasedAt) {
-      issues.push({
-        row: group[0]!.row.row,
-        field: email ? "email" : "doc_number",
-        message: email ? "Ese correo pertenece a un participante suprimido." : "Ese documento pertenece a un participante suprimido.",
-      });
-      continue;
-    }
-    const documents = group.map((item) => item.document).filter((item): item is StoredDocument => item !== null);
-    const distinctDocs = new Set(documents.map(documentKey));
-    if (email && distinctDocs.size > 1) {
+  for (const group of groupDrafts(drafts)) {
+    const emails = [...new Set(group.map((item) => item.email).filter((email): email is string => Boolean(email)))];
+    const documents = uniqueDocuments(group.map((item) => item.document));
+    const email = emails[0] ?? null;
+    const incoming = documents[0] ?? null;
+    if (emails.length === 1 && documents.length > 1) {
       issues.push({
         row: group[1]!.row.row,
         field: "email",
-        message: repeatedEmailMessage(email, distinctDocs.size),
+        message: repeatedEmailMessage(emails[0]!, documents.length),
       });
       continue;
     }
-    const names = new Set(group.map((item) => item.row.fullName).filter((name) => name.length > 0));
-    if (names.size > 1) {
+    if (emails.length > 1) {
+      const row = group.find((item) => item.email && item.email !== emails[0])?.row.row ?? group[0]!.row.row;
+      issues.push({
+        row,
+        field: "email",
+        message: line(row, "El mismo documento aparece con correos distintos. Revisa los datos."),
+      });
+      continue;
+    }
+    const normalizedNames = new Set(group.map((item) => normalizePersonName(item.row.fullName)).filter((name) => name.length > 0));
+    if (normalizedNames.size > 1) {
       issues.push({
         row: group[1]!.row.row,
         field: "full_name",
@@ -221,12 +217,67 @@ export function planParticipantImport(input: {
         message: email ? "El mismo correo aparece con actividades distintas." : "El mismo documento aparece con actividades distintas.",
       });
     }
-    const incoming = documents[0] ?? null;
-    if (documentsConflict(storedDoc(current), incoming)) {
+
+    const found = matchExisting(indexed, emails, documents);
+    const live = found.filter((person) => !person.erasedAt);
+    if (live.length === 0 && found.some((person) => person.erasedAt)) {
+      issues.push({
+        row: group[0]!.row.row,
+        field: email ? "email" : "doc_number",
+        message: email ? "Ese correo pertenece a un participante suprimido." : "Ese documento pertenece a un participante suprimido.",
+      });
+      continue;
+    }
+    if (live.length > 1) {
+      const emailOwner = live.find((person) => person.email !== null && emails.includes(person.email));
+      const documentOwner = live.find((person) => {
+        const document = storedDoc(person);
+        return document !== null && documents.some((item) => documentKey(item) === documentKey(document));
+      });
+      const row = group.find((item) => item.email && item.document)?.row.row ?? group[0]!.row.row;
+      const message =
+        emailOwner && documentOwner && emailOwner.id !== documentOwner.id
+          ? line(row, `el correo pertenece a "${emailOwner.fullName}" y el documento a "${documentOwner.fullName}". Revisa los datos.`)
+          : line(
+              row,
+              `este correo o documento ya está en más de una persona (${live.map((person) => `"${person.fullName}"`).join(" y ")}). Revísalas a mano antes de importar.`,
+            );
+      issues.push({ row, field: "email", message });
+      continue;
+    }
+    const current = live[0] ?? null;
+    if (current) {
+      const storedName = normalizePersonName(current.fullName);
+      const mismatch = group.find((item) => {
+        const incomingName = normalizePersonName(item.row.fullName);
+        return incomingName.length > 0 && incomingName !== storedName;
+      });
+      if (mismatch) {
+        const row = mismatch.row.row;
+        issues.push({
+          row,
+          field: "full_name",
+          message: line(
+            row,
+            `ya existe una persona con este documento (o correo) llamada "${current.fullName}"; aquí viene como "${mismatch.row.fullName.trim()}". Corrige el nombre para que coincida, o corrige primero a la persona existente.`,
+          ),
+        });
+      }
+    }
+    const stored = storedDoc(current);
+    if (documentsConflict(stored, incoming)) {
       issues.push({
         row: group.find((item) => item.document)?.row.row ?? group[0]!.row.row,
         field: "doc_number",
         message: "El documento no coincide con el que ya tiene este correo.",
+      });
+    }
+    if (current?.email && email && current.email !== email) {
+      const row = group.find((item) => item.email)?.row.row ?? group[0]!.row.row;
+      issues.push({
+        row,
+        field: "email",
+        message: "El correo no coincide con el que ya tiene este documento.",
       });
     }
 
@@ -249,15 +300,23 @@ export function planParticipantImport(input: {
       certificates.push(item.certificate);
     }
 
+    const completedFields: Array<"email" | "document"> = [];
+    if (current && !current.email && email) {
+      completedFields.push("email");
+    }
+    if (current && !stored && incoming) {
+      completedFields.push("document");
+    }
     people.push({
-      key,
+      key: current ? `id:${current.id}` : participantKey(email, incoming) ?? `row:${group[0]!.row.row}`,
       existingId: current?.id ?? null,
-      email,
-      fullName: group.find((item) => item.row.fullName.length > 0)?.row.fullName ?? current?.fullName ?? "",
+      email: current?.email ?? email,
+      fullName: current?.fullName ?? group.find((item) => item.row.fullName.trim().length > 0)?.row.fullName.trim() ?? "",
       activityTitle: activity === "conflict" ? current?.activityTitle ?? null : activity ?? current?.activityTitle ?? null,
       venueId: group.find((item) => item.venueId)?.venueId ?? current?.venueId ?? null,
-      document: incoming ?? storedDoc(current),
+      document: stored ?? incoming,
       certificates,
+      completedFields,
     });
   }
 
@@ -289,14 +348,111 @@ function resolveActivity(titles: string[]): string | null | "conflict" {
   return present[0] ?? null;
 }
 
-function groupByKey(drafts: Draft[]): Map<string, Draft[]> {
-  const groups = new Map<string, Draft[]>();
-  for (const draft of drafts) {
-    const group = groups.get(draft.key) ?? [];
-    group.push(draft);
-    groups.set(draft.key, group);
+/** Compare names without accents, case, or repeated spaces. The stored spelling stays as written. */
+export function normalizePersonName(value: string): string {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function line(row: number, sentence: string): string {
+  if (row > 0) {
+    return `Fila ${row}: ${sentence}`;
   }
-  return groups;
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
+function groupDrafts(drafts: Draft[]): Draft[][] {
+  const parent = drafts.map((_, index) => index);
+  const find = (index: number): number => {
+    if (parent[index] !== index) {
+      parent[index] = find(parent[index]!);
+    }
+    return parent[index]!;
+  };
+  const union = (left: number, right: number) => {
+    const a = find(left);
+    const b = find(right);
+    if (a !== b) {
+      parent[b] = a;
+    }
+  };
+  const emailFirst = new Map<string, number>();
+  const docFirst = new Map<string, number>();
+  drafts.forEach((draft, index) => {
+    if (draft.email) {
+      const previous = emailFirst.get(draft.email);
+      if (previous === undefined) {
+        emailFirst.set(draft.email, index);
+      } else {
+        union(previous, index);
+      }
+    }
+    if (draft.document) {
+      const key = documentKey(draft.document);
+      const previous = docFirst.get(key);
+      if (previous === undefined) {
+        docFirst.set(key, index);
+      } else {
+        union(previous, index);
+      }
+    }
+  });
+  const groups = new Map<number, Draft[]>();
+  drafts.forEach((draft, index) => {
+    const root = find(index);
+    const group = groups.get(root) ?? [];
+    group.push(draft);
+    groups.set(root, group);
+  });
+  return [...groups.values()];
+}
+
+function indexExisting(people: readonly ExistingParticipant[]) {
+  const byEmail = new Map<string, ExistingParticipant[]>();
+  const byDoc = new Map<string, ExistingParticipant[]>();
+  for (const person of people) {
+    if (person.email) {
+      const list = byEmail.get(person.email) ?? [];
+      list.push(person);
+      byEmail.set(person.email, list);
+    }
+    const document = storedDoc(person);
+    if (document) {
+      const key = documentKey(document);
+      const list = byDoc.get(key) ?? [];
+      list.push(person);
+      byDoc.set(key, list);
+    }
+  }
+  return { byEmail, byDoc };
+}
+
+function matchExisting(
+  indexed: ReturnType<typeof indexExisting>,
+  emails: readonly string[],
+  documents: readonly StoredDocument[],
+): ExistingParticipant[] {
+  const found = new Map<string, ExistingParticipant>();
+  for (const email of emails) {
+    for (const person of indexed.byEmail.get(email) ?? []) {
+      found.set(person.id, person);
+    }
+  }
+  for (const document of documents) {
+    for (const person of indexed.byDoc.get(documentKey(document)) ?? []) {
+      found.set(person.id, person);
+    }
+  }
+  return [...found.values()];
+}
+
+function uniqueDocuments(documents: Array<StoredDocument | null>): StoredDocument[] {
+  const seen = new Map<string, StoredDocument>();
+  for (const document of documents) {
+    if (document) {
+      seen.set(documentKey(document), document);
+    }
+  }
+  return [...seen.values()];
 }
 
 function storedDoc(existing: ExistingParticipant | null): StoredDocument | null {

@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import { config as loadDotenv } from "dotenv";
 import { BadRequestException } from "@nestjs/common";
 import { PARTICIPANT_CSV_HEADERS, participantCsvTemplate } from "@certificados/shared";
@@ -173,6 +173,186 @@ describe("participant csv import", () => {
         await prisma.adminUser.delete({ where: { id: adminId } });
       }
       await prisma.$disconnect();
+    }
+  });
+});
+
+describe("participant identity across imports", () => {
+  const prisma = new PrismaService();
+  const access = new EventAccess(prisma);
+  const events = new EventsService(prisma, access);
+  const participants = new ParticipantsService(env, prisma, access);
+  let sequence = 0;
+
+  after(async () => {
+    await prisma.$disconnect();
+  });
+
+  async function openEvent(label: string) {
+    sequence += 1;
+    const admin = await prisma.adminUser.create({
+      data: { osmId: BigInt(Date.now() + sequence), osmUsername: `${label}-${sequence}`, role: "admin" },
+    });
+    const event = await events.create(admin.id, {
+      name: label,
+      year: 2026,
+      startDate: "2026-11-22",
+      countryCode: "CO",
+      allowedRoles: ["asistente", "voluntario", "organizador"],
+    });
+    await prisma.certificateTemplate.create({
+      data: { eventId: event.id, roleCode: null, name: "General", layout: { layers: [] } },
+    });
+    const template = await prisma.certificateTemplate.findFirstOrThrow({ where: { eventId: event.id } });
+    await prisma.event.update({ where: { id: event.id }, data: { defaultTemplateId: template.id } });
+    return { admin, event };
+  }
+
+  async function closeEvent(eventId: string, adminId: string) {
+    const people = await prisma.participant.findMany({ where: { eventId }, select: { id: true } });
+    await prisma.certificate.deleteMany({ where: { eventId } });
+    if (people.length > 0) {
+      await prisma.auditLog.deleteMany({ where: { entityId: { in: people.map((person) => person.id) } } });
+    }
+    await prisma.participant.deleteMany({ where: { eventId } });
+    await prisma.venue.deleteMany({ where: { eventId } });
+    await prisma.event.update({ where: { id: eventId }, data: { defaultTemplateId: null } });
+    await prisma.certificateTemplate.deleteMany({ where: { eventId } });
+    await prisma.auditLog.deleteMany({ where: { entityId: eventId } });
+    await prisma.event.delete({ where: { id: eventId } });
+    await prisma.adminUser.delete({ where: { id: adminId } });
+  }
+
+  function csv(lines: string[]) {
+    return Buffer.from(`${header}\n${lines.join("\n")}\n`);
+  }
+
+  it("rejects a different name with the same email between imports", async () => {
+    const { admin, event } = await openEvent("identity-email");
+    try {
+      await participants.importCsv(event.id, csv(["Cami Soto;cami@example.org;CO;CC;1000000101;asistente;;"]), "uno.csv", admin.id, null);
+      const sentence =
+        'ya existe una persona con este documento (o correo) llamada "Cami Soto"; aquí viene como "Camila Soto Lara". Corrige el nombre para que coincida, o corrige primero a la persona existente.';
+      await expectIssue(
+        () => participants.importCsv(event.id, csv(["Camila Soto Lara;cami@example.org;CO;CC;1000000101;voluntario;;"]), "dos.csv", admin.id, null),
+        "full_name",
+        undefined,
+        `Fila 2: ${sentence}`,
+      );
+      await expectIssue(
+        () =>
+          participants.create(
+            event.id,
+            {
+              fullName: "Camila Soto Lara",
+              email: "cami@example.org",
+              roles: ["voluntario"],
+              countryCode: "CO",
+              docTypeCode: "CC",
+              docNumber: "1000000101",
+            },
+            { adminUserId: admin.id, ipAddress: null },
+          ),
+        "fullName",
+        undefined,
+        `Y${sentence.slice(1)}`,
+      );
+      const people = await prisma.participant.findMany({ where: { eventId: event.id }, include: { certificates: true } });
+      assert.equal(people.length, 1);
+      assert.equal(people[0]?.fullName, "Cami Soto");
+      assert.equal(people[0]?.certificates.length, 1);
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
+  it("rejects a different name with the same document between imports", async () => {
+    const { admin, event } = await openEvent("identity-document");
+    try {
+      await participants.importCsv(event.id, csv(["Cami Soto;;CO;CC;1000000102;asistente;;"]), "uno.csv", admin.id, null);
+      await expectIssue(
+        () => participants.importCsv(event.id, csv(["Camila Soto Lara;;CO;CC;1000000102;voluntario;;"]), "dos.csv", admin.id, null),
+        "full_name",
+      );
+      const people = await prisma.participant.findMany({ where: { eventId: event.id } });
+      assert.equal(people.length, 1);
+      assert.equal(people[0]?.fullName, "Cami Soto");
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
+  it("does not create a second person when the same document arrives without an email", async () => {
+    const { admin, event } = await openEvent("identity-document-email");
+    try {
+      await participants.importCsv(event.id, csv(["Eva Luna;eva@example.org;CO;CC;1000000103;asistente;;"]), "uno.csv", admin.id, null);
+      const added = await participants.importCsv(event.id, csv(["Eva Luna;;CO;CC;1000000103;voluntario;;"]), "dos.csv", admin.id, null);
+      assert.equal(added.participantCount, 1);
+      assert.equal(added.certificateCount, 1);
+      await expectIssue(
+        () => participants.importCsv(event.id, csv(["Otra Persona;;CO;CC;1000000103;organizador;;"]), "tres.csv", admin.id, null),
+        "full_name",
+      );
+      const people = await prisma.participant.findMany({ where: { eventId: event.id }, include: { certificates: true } });
+      assert.equal(people.length, 1);
+      assert.equal(people[0]?.email, "eva@example.org");
+      assert.equal(people[0]?.certificates.length, 2);
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
+  it("rejects a row whose email and document belong to different people", async () => {
+    const { admin, event } = await openEvent("identity-conflict");
+    try {
+      await participants.importCsv(
+        event.id,
+        csv(["Eva Luna;eva-a@example.org;CO;CC;1000000104;asistente;;", "Otra Persona;otra@example.org;CO;CC;1000000105;asistente;;"]),
+        "uno.csv",
+        admin.id,
+        null,
+      );
+      await expectIssue(
+        () => participants.importCsv(event.id, csv(["Eva Luna;eva-a@example.org;CO;CC;1000000105;voluntario;;"]), "dos.csv", admin.id, null),
+        "email",
+        undefined,
+        'Fila 2: el correo pertenece a "Eva Luna" y el documento a "Otra Persona". Revisa los datos.',
+      );
+      assert.equal(await prisma.participant.count({ where: { eventId: event.id } }), 2);
+      assert.equal(await prisma.certificate.count({ where: { eventId: event.id } }), 2);
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
+  it("adds another role when the name is the same", async () => {
+    const { admin, event } = await openEvent("identity-role");
+    try {
+      await participants.importCsv(event.id, csv(["Cami Soto;cami2@example.org;CO;CC;1000000106;asistente;;"]), "uno.csv", admin.id, null);
+      const added = await participants.importCsv(event.id, csv(["Cami Soto;cami2@example.org;CO;CC;1000000106;voluntario;;"]), "dos.csv", admin.id, null);
+      assert.equal(added.certificateCount, 1);
+      const people = await prisma.participant.findMany({ where: { eventId: event.id }, include: { certificates: true } });
+      assert.equal(people.length, 1);
+      assert.equal(people[0]?.fullName, "Cami Soto");
+      assert.equal(people[0]?.certificates.length, 2);
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
+  it("completes a missing email and records the field in the audit log", async () => {
+    const { admin, event } = await openEvent("identity-complete");
+    try {
+      await participants.importCsv(event.id, csv(["Eva Luna;;CO;CC;1000000107;asistente;;"]), "uno.csv", admin.id, null);
+      await participants.importCsv(event.id, csv(["Eva Luna;eva2@example.org;CO;CC;1000000107;voluntario;;"]), "dos.csv", admin.id, null);
+      const person = await prisma.participant.findFirstOrThrow({ where: { eventId: event.id } });
+      assert.equal(person.email, "eva2@example.org");
+      assert.equal(person.fullName, "Eva Luna");
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: person.id, action: "participant_update" } });
+      assert.deepEqual(audit.metadata, { fields: ["email"] });
+      assert.equal(JSON.stringify(audit.metadata).includes("eva2@example.org"), false);
+    } finally {
+      await closeEvent(event.id, admin.id);
     }
   });
 });

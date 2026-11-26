@@ -37,6 +37,9 @@ export function failureFromBody(body: unknown, status: number): ApiError {
 }
 
 export function formatDetail(detail: ApiDetail): string {
+  if (detail.row && detail.row > 0 && detail.message.startsWith(`Fila ${detail.row}:`)) {
+    return detail.message;
+  }
   const place = detail.row && detail.row > 0 ? `Fila ${detail.row}` : "";
   const field = detail.field && detail.field !== "file" && detail.field !== "body" ? detail.field : "";
   const head = [place, field].filter((part) => part.length > 0).join(", ");

@@ -25,6 +25,14 @@ describe("form feedback", () => {
     assert.equal(one.details[0]?.field, "roles");
     assert.equal(one.details[0]?.message, "Elige al menos un rol.");
 
+    const named = formatDetail({
+      row: 2,
+      field: "full_name",
+      message:
+        'Fila 2: ya existe una persona con este documento (o correo) llamada "Cami Soto"; aquí viene como "Camila Soto Lara". Corrige el nombre para que coincida, o corrige primero a la persona existente.',
+    });
+    assert.equal(named.startsWith("Fila 2: ya existe"), true);
+
     const signedOut = failureFromBody({ message: "Unauthorized", statusCode: 401 }, 401);
     assert.equal(signedOut.message, "Inicia sesión con tu cuenta de OpenStreetMap para entrar al panel");
   });

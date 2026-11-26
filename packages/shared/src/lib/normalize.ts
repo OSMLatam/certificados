@@ -6,9 +6,9 @@ export function isNormalizeStrategy(value: string): value is NormalizeStrategy {
   return (NORMALIZE_STRATEGIES as readonly string[]).includes(value);
 }
 
-/** trim + lower. One identity key for a participant inside one event, when the address is present. */
+/** No spaces, then lowercase. One identity key for a participant inside one event. */
 export function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 /**

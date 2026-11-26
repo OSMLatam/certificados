@@ -16,7 +16,8 @@ describe("normalizeDocNumber", () => {
 });
 
 describe("normalizeEmail", () => {
-  it("trims and lowercases", () => {
+  it("drops spaces and lowercases", () => {
     expect(normalizeEmail("  Ana@Mail.COM ")).toBe("ana@mail.com");
+    expect(normalizeEmail("Ana @ Mail.COM")).toBe("ana@mail.com");
   });
 });

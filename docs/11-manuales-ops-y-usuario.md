@@ -41,6 +41,13 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 15. **HU-10.5 /me (osm.lat)** — OAuth mapper, vínculo email, que no es acceso al panel admin.
 16. **ARCO / habeas data** — `PRIVACY_CONTACT_EMAIL`; verificar identidad del solicitante; rectificación = revoke+alta o edición `pending`; supresión = `POST …/participants/{id}/erase` (solo admin). Purgar `permalink_access_log` > 90 días.
 17. **Aviso de privacidad** — archivo `PRIVACY_NOTICE_FILE` (placeholder en [anexos/privacy-notice.placeholder.md](./anexos/privacy-notice.placeholder.md)); sustituir por instancia.
+18. **Identidades repetidas** — informe de solo lectura. No corrige filas. Lista, por evento, los correos o documentos compartidos por personas distintas (datos cargados antes de unificar la identidad). Sale con código 0 aunque haya repeticiones.
+
+```bash
+cd apps/api && node --import tsx --env-file=../../.env scripts/check-participant-identity.ts
+```
+
+En el servidor, con el entorno del contenedor ya cargado, el mismo comando desde `apps/api`. Quien opere revisa la lista a mano.
 
 ### 2.2. Fuera de este runbook
 

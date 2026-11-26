@@ -3,7 +3,7 @@ import { api } from "./api";
 import { AdminShell } from "./AdminShell";
 import { FormAlert, FormSuccess } from "./FormAlert";
 import { RevokeDialog } from "./RevokeDialog";
-import { invalidFormMessage } from "./form-feedback";
+import { ApiError, invalidFormMessage } from "./form-feedback";
 
 type EventDetail = {
   id: string;
@@ -58,6 +58,7 @@ function EventBody({ eventId }: { eventId: string }) {
   const [people, setPeople] = useState<Participant[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [personError, setPersonError] = useState<unknown>(null);
   const [success, setSuccess] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -88,6 +89,7 @@ function EventBody({ eventId }: { eventId: string }) {
 
   function fail(reason: unknown) {
     setSuccess("");
+    setPersonError(null);
     setError(reason);
   }
 
@@ -222,15 +224,18 @@ function EventBody({ eventId }: { eventId: string }) {
           const invalid = invalidFormMessage(submit.currentTarget);
           if (invalid) {
             setSuccess("");
-            setError(new Error(invalid));
+            setError(null);
+            setPersonError(new Error(invalid));
             return;
           }
           if (roles.length === 0) {
             setSuccess("");
-            setError(new Error("Elige al menos un rol."));
+            setError(null);
+            setPersonError(new Error("Elige al menos un rol."));
             return;
           }
           setError(null);
+          setPersonError(null);
           setSuccess("");
           const body: Record<string, unknown> = { fullName, email, roles };
           if (activityTitle.trim()) {
@@ -253,16 +258,50 @@ function EventBody({ eventId }: { eventId: string }) {
               setSuccess("Participante agregado.");
               reload();
             },
-            (reason: unknown) => fail(reason),
+            (reason: unknown) => {
+              setSuccess("");
+              setError(null);
+              setPersonError(reason);
+            },
           );
         }}
       >
         <h2>Alta individual</h2>
         <p>Hace falta un correo válido o un documento completo (país, tipo y número).</p>
+        {personError instanceof Error && !(personError instanceof ApiError) ? <p role="alert">{personError.message}</p> : null}
+        {otherPersonMessages(personError).map((message) => (
+          <p key={message} className="field-error" role="alert">
+            {message}
+          </p>
+        ))}
         <label htmlFor="person-name">Nombre</label>
-        <input id="person-name" value={fullName} onChange={(input) => setFullName(input.target.value)} required />
+        <input
+          id="person-name"
+          value={fullName}
+          onChange={(input) => setFullName(input.target.value)}
+          required
+          aria-invalid={personMessage(personError, "fullName") ? true : undefined}
+          aria-describedby={personMessage(personError, "fullName") ? "person-name-error" : undefined}
+        />
+        {personMessage(personError, "fullName") ? (
+          <p id="person-name-error" className="field-error" role="alert">
+            {personMessage(personError, "fullName")}
+          </p>
+        ) : null}
         <label htmlFor="person-email">Correo</label>
-        <input id="person-email" type="email" value={email} onChange={(input) => setEmail(input.target.value)} />
+        <input
+          id="person-email"
+          type="email"
+          value={email}
+          onChange={(input) => setEmail(input.target.value)}
+          aria-invalid={personMessage(personError, "email") ? true : undefined}
+          aria-describedby={personMessage(personError, "email") ? "person-email-error" : undefined}
+        />
+        {personMessage(personError, "email") ? (
+          <p id="person-email-error" className="field-error" role="alert">
+            {personMessage(personError, "email")}
+          </p>
+        ) : null}
         <label htmlFor="activity-title">Actividad o charla</label>
         <input id="activity-title" value={activityTitle} onChange={(input) => setActivityTitle(input.target.value)} />
         <fieldset>
@@ -285,7 +324,18 @@ function EventBody({ eventId }: { eventId: string }) {
             ))}
           </select>
           <label htmlFor="doc-number">Número</label>
-          <input id="doc-number" value={docNumber} onChange={(input) => setDocNumber(input.target.value)} />
+          <input
+            id="doc-number"
+            value={docNumber}
+            onChange={(input) => setDocNumber(input.target.value)}
+            aria-invalid={personMessage(personError, "docNumber") ? true : undefined}
+            aria-describedby={personMessage(personError, "docNumber") ? "doc-number-error" : undefined}
+          />
+          {personMessage(personError, "docNumber") ? (
+            <p id="doc-number-error" className="field-error" role="alert">
+              {personMessage(personError, "docNumber")}
+            </p>
+          ) : null}
         </fieldset>
         <fieldset>
           <legend>Roles</legend>
@@ -299,6 +349,11 @@ function EventBody({ eventId }: { eventId: string }) {
               {role}
             </label>
           ))}
+          {personMessage(personError, "roles") ? (
+            <p className="field-error" role="alert">
+              {personMessage(personError, "roles")}
+            </p>
+          ) : null}
         </fieldset>
         <button className="primary" type="submit">
           Agregar participante
@@ -441,4 +496,19 @@ function EventBody({ eventId }: { eventId: string }) {
       ) : null}
     </>
   );
+}
+
+function personMessage(error: unknown, field: string): string | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+  return error.details.find((detail) => detail.field === field)?.message ?? null;
+}
+
+function otherPersonMessages(error: unknown): string[] {
+  if (!(error instanceof ApiError)) {
+    return [];
+  }
+  const shown = new Set(["fullName", "email", "docNumber", "roles"]);
+  return error.details.filter((detail) => !shown.has(detail.field ?? "")).map((detail) => detail.message);
 }

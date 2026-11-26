@@ -136,7 +136,7 @@ export class PregeneratedService {
             ? await tx.participant.update({
                 where: { id: person.existingId },
                 data: {
-                  fullName: person.fullName,
+                  email: person.email,
                   venueId: person.venueId,
                   countryCode: person.document?.countryCode ?? null,
                   docTypeCode: person.document?.docTypeCode ?? null,
@@ -155,6 +155,18 @@ export class PregeneratedService {
                 },
               });
           participantIds.set(person.key, saved.id);
+          if (person.existingId && person.completedFields.length > 0) {
+            await tx.auditLog.create({
+              data: {
+                adminUserId,
+                action: "participant_update",
+                entityType: "participant",
+                entityId: saved.id,
+                ipAddress,
+                metadata: { fields: person.completedFields },
+              },
+            });
+          }
         }
         for (const file of stored) {
           const record = await tx.storedFile.create({

@@ -1,12 +1,12 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { Prisma, type Certificate } from "@prisma/client";
 import {
   createPermalinkSlug,
   isNormalizeStrategy,
   parseParticipantCsv,
-  parseParticipantIdentity,
   participantCsvTemplate,
   SLUG_GENERATION_ATTEMPTS,
+  type ParticipantCsvRow,
 } from "@certificados/shared";
 import type { AppEnv } from "../config/env";
 import { ENV } from "../config/env.token";
@@ -15,7 +15,6 @@ import { EventAccess } from "../events/event-access";
 import { resolveCertificateTemplate, resolveVenueId } from "../events/event-rules";
 import { PrismaService } from "../prisma/prisma.service";
 import { planParticipantImport, type ImportIssue } from "./csv-import";
-import { documentsConflict, normalizeDocument, type StoredDocument } from "./document-rules";
 
 export type ParticipantBody = {
   fullName: string;
@@ -55,7 +54,7 @@ export class ParticipantsService {
     };
   }
 
-  async create(eventId: string, body: ParticipantBody) {
+  async create(eventId: string, body: ParticipantBody, audit?: { adminUserId: string; ipAddress: string | null }) {
     const event = await this.events.visible(eventId);
     const roles = uniqueRoles(body.roles);
     const allowed = new Set(readRoleCodes(event.allowedRoles));
@@ -82,12 +81,11 @@ export class ParticipantsService {
       throw validationFailed([{ field: "venueCode", message: "Esa sede no existe en el evento." }]);
     }
 
-    const { email, document } = await this.resolveIdentity(body);
     const templates = await this.prisma.certificateTemplate.findMany({
       where: { eventId, roleCode: { in: roles } },
       select: { id: true, roleCode: true },
     });
-    const planned = roles.map((roleCode) => {
+    for (const roleCode of roles) {
       const resolved = resolveCertificateTemplate({
         pregeneratedOnly: event.pregeneratedOnly,
         defaultTemplateId: event.defaultTemplateId,
@@ -101,85 +99,84 @@ export class ParticipantsService {
           },
         ]);
       }
-      return { roleCode, ...resolved };
-    });
+    }
 
-    const existing = await this.prisma.participant.findFirst({
-      where: email
-        ? { eventId, email }
-        : {
-            eventId,
-            email: null,
-            countryCode: document?.countryCode,
-            docTypeCode: document?.docTypeCode,
-            docNumber: document?.docNumber,
-          },
-      include: { certificates: true },
-    });
-    if (existing?.erasedAt) {
-      throw new ConflictException(
-        email ? "Ese correo pertenece a un participante suprimido." : "Ese documento pertenece a un participante suprimido.",
-      );
-    }
-    const storedDocument = storedDoc(existing);
-    if (documentsConflict(storedDocument, document)) {
-      throw validationFailed([
-        { field: "docNumber", message: "El documento no coincide con el que ya tiene este correo." },
-      ]);
-    }
-    const liveRoles = new Set(
-      (existing?.certificates ?? [])
-        .filter((certificate) => certificate.status !== "revoked")
-        .map((certificate) => certificate.roleCode),
+    const planned = await this.planForEvent(
+      event,
+      roles.map((role) => ({
+        row: 0,
+        fullName: body.fullName.trim(),
+        email: body.email ?? "",
+        countryCode: body.countryCode ?? "",
+        docType: body.docTypeCode ?? "",
+        docNumber: body.docNumber ?? "",
+        role,
+        activityTitle: body.activityTitle ?? "",
+        venueCode: body.venueCode ?? "",
+      })),
     );
-    const duplicated = planned.filter((item) => liveRoles.has(item.roleCode));
-    if (duplicated.length > 0) {
-      throw validationFailed([
-        {
-          field: "roles",
-          message: `${email ? "Este correo" : "Este documento"} ya tiene certificado para: ${duplicated.map((item) => item.roleCode).join(", ")}.`,
-        },
-      ]);
+    if (!planned.ok) {
+      throw validationFailed(planned.issues.map((issue) => ({
+        field: INDIVIDUAL_FIELDS[issue.field] ?? issue.field,
+        message: issue.message,
+        ...(issue.value !== undefined ? { value: issue.value } : {}),
+      })));
+    }
+    const person = planned.people[0];
+    if (!person || planned.people.length !== 1) {
+      throw validationFailed([{ field: "email", message: "No se pudo identificar a la persona." }]);
     }
 
     const participant = await this.prisma.$transaction(async (tx) => {
-      const person = existing
+      const saved = person.existingId
         ? await tx.participant.update({
-            where: { id: existing.id },
+            where: { id: person.existingId },
             data: {
-              fullName: body.fullName,
-              activityTitle: body.activityTitle === undefined ? existing.activityTitle : body.activityTitle,
-              venueId: venue.venueId ?? existing.venueId,
-              countryCode: document?.countryCode ?? existing.countryCode,
-              docTypeCode: document?.docTypeCode ?? existing.docTypeCode,
-              docNumber: document?.docNumber ?? existing.docNumber,
+              email: person.email,
+              activityTitle: person.activityTitle,
+              venueId: person.venueId,
+              countryCode: person.document?.countryCode ?? null,
+              docTypeCode: person.document?.docTypeCode ?? null,
+              docNumber: person.document?.docNumber ?? null,
             },
           })
         : await tx.participant.create({
             data: {
               eventId,
-              fullName: body.fullName,
-              email,
-              activityTitle: body.activityTitle ?? null,
-              venueId: venue.venueId,
-              countryCode: document?.countryCode ?? null,
-              docTypeCode: document?.docTypeCode ?? null,
-              docNumber: document?.docNumber ?? null,
+              fullName: person.fullName,
+              email: person.email,
+              activityTitle: person.activityTitle,
+              venueId: person.venueId,
+              countryCode: person.document?.countryCode ?? null,
+              docTypeCode: person.document?.docTypeCode ?? null,
+              docNumber: person.document?.docNumber ?? null,
             },
           });
 
-      for (const item of planned) {
+      for (const certificate of person.certificates) {
         await createCertificate(tx, {
-          participantId: person.id,
+          participantId: saved.id,
           eventId,
-          roleCode: item.roleCode,
-          mode: item.mode,
-          templateId: item.templateId,
-          venueId: venue.venueId,
+          roleCode: certificate.roleCode,
+          mode: certificate.mode,
+          templateId: certificate.templateId,
+          venueId: certificate.venueId,
+        });
+      }
+      if (person.existingId && person.completedFields.length > 0 && audit) {
+        await tx.auditLog.create({
+          data: {
+            adminUserId: audit.adminUserId,
+            action: "participant_update",
+            entityType: "participant",
+            entityId: saved.id,
+            ipAddress: audit.ipAddress,
+            metadata: { fields: person.completedFields },
+          },
         });
       }
       return tx.participant.findUniqueOrThrow({
-        where: { id: person.id },
+        where: { id: saved.id },
         include: { certificates: { orderBy: { roleCode: "asc" } } },
       });
     });
@@ -202,51 +199,7 @@ export class ParticipantsService {
       throw report(parsed.issues);
     }
 
-    const roles = [...new Set(parsed.rows.map((row) => row.role.trim().toLowerCase()).filter((role) => role.length > 0))];
-    const [catalog, venues, templates, identity, existing] = await Promise.all([
-      this.prisma.role.findMany({ where: { code: { in: roles }, isActive: true }, select: { code: true } }),
-      this.prisma.venue.findMany({ where: { eventId }, select: { id: true, code: true } }),
-      this.prisma.certificateTemplate.findMany({
-        where: { eventId, roleCode: { not: null } },
-        select: { id: true, roleCode: true },
-      }),
-      this.prisma.countryIdentityConfig.findMany(),
-      this.prisma.participant.findMany({
-        where: { eventId },
-        include: { certificates: { select: { roleCode: true, status: true } } },
-      }),
-    ]);
-    const planned = planParticipantImport({
-      instance: this.env.INSTANCE,
-      rows: parsed.rows,
-      allowedRoles: new Set(readRoleCodes(event.allowedRoles)),
-      activeRoles: new Set(catalog.map((role) => role.code)),
-      venues,
-      pregeneratedOnly: event.pregeneratedOnly,
-      defaultTemplateId: event.defaultTemplateId,
-      roleTemplateIds: new Map(
-        templates.flatMap((template) => (template.roleCode ? [[template.roleCode, template.id] as const] : [])),
-      ),
-      identityRules: new Map(
-        identity.flatMap((rule) =>
-          isNormalizeStrategy(rule.normalize)
-            ? [[`${rule.countryCode.trim()}|${rule.docTypeCode}`, { normalize: rule.normalize, validationRegex: rule.validationRegex }] as const]
-            : [],
-        ),
-      ),
-      existing: existing.map((person) => ({
-        id: person.id,
-        email: person.email,
-        fullName: person.fullName,
-        activityTitle: person.activityTitle,
-        venueId: person.venueId,
-        erasedAt: person.erasedAt,
-        countryCode: person.countryCode,
-        docTypeCode: person.docTypeCode,
-        docNumber: person.docNumber,
-        roles: person.certificates.filter((certificate) => certificate.status !== "revoked").map((certificate) => certificate.roleCode),
-      })),
-    });
+    const planned = await this.planForEvent(event, parsed.rows);
     if (!planned.ok) {
       throw report(planned.issues);
     }
@@ -258,7 +211,7 @@ export class ParticipantsService {
           ? await tx.participant.update({
               where: { id: person.existingId },
               data: {
-                fullName: person.fullName,
+                email: person.email,
                 activityTitle: person.activityTitle,
                 venueId: person.venueId,
                 countryCode: person.document?.countryCode ?? null,
@@ -289,6 +242,18 @@ export class ParticipantsService {
           });
           certificates += 1;
         }
+        if (person.existingId && person.completedFields.length > 0) {
+          await tx.auditLog.create({
+            data: {
+              adminUserId,
+              action: "participant_update",
+              entityType: "participant",
+              entityId: saved.id,
+              ipAddress,
+              metadata: { fields: person.completedFields },
+            },
+          });
+        }
       }
       await tx.auditLog.create({
         data: {
@@ -305,40 +270,60 @@ export class ParticipantsService {
     return imported;
   }
 
+  private async planForEvent(
+    event: { id: string; allowedRoles: Prisma.JsonValue; pregeneratedOnly: boolean; defaultTemplateId: string | null },
+    rows: ParticipantCsvRow[],
+  ) {
+    const roles = [...new Set(rows.map((row) => row.role.trim().toLowerCase()).filter((role) => role.length > 0))];
+    const [catalog, venues, templates, identity, existing] = await Promise.all([
+      this.prisma.role.findMany({ where: { code: { in: roles }, isActive: true }, select: { code: true } }),
+      this.prisma.venue.findMany({ where: { eventId: event.id }, select: { id: true, code: true } }),
+      this.prisma.certificateTemplate.findMany({
+        where: { eventId: event.id, roleCode: { not: null } },
+        select: { id: true, roleCode: true },
+      }),
+      this.prisma.countryIdentityConfig.findMany(),
+      this.prisma.participant.findMany({
+        where: { eventId: event.id },
+        include: { certificates: { select: { roleCode: true, status: true } } },
+      }),
+    ]);
+    return planParticipantImport({
+      instance: this.env.INSTANCE,
+      rows,
+      allowedRoles: new Set(readRoleCodes(event.allowedRoles)),
+      activeRoles: new Set(catalog.map((role) => role.code)),
+      venues,
+      pregeneratedOnly: event.pregeneratedOnly,
+      defaultTemplateId: event.defaultTemplateId,
+      roleTemplateIds: new Map(
+        templates.flatMap((template) => (template.roleCode ? [[template.roleCode, template.id] as const] : [])),
+      ),
+      identityRules: new Map(
+        identity.flatMap((rule) =>
+          isNormalizeStrategy(rule.normalize)
+            ? [[`${rule.countryCode.trim()}|${rule.docTypeCode}`, { normalize: rule.normalize, validationRegex: rule.validationRegex }] as const]
+            : [],
+        ),
+      ),
+      existing: existing.map((person) => ({
+        id: person.id,
+        email: person.email,
+        fullName: person.fullName,
+        activityTitle: person.activityTitle,
+        venueId: person.venueId,
+        erasedAt: person.erasedAt,
+        countryCode: person.countryCode,
+        docTypeCode: person.docTypeCode,
+        docNumber: person.docNumber,
+        roles: person.certificates.filter((certificate) => certificate.status !== "revoked").map((certificate) => certificate.roleCode),
+      })),
+    });
+  }
+
   async templateCsv(eventId: string): Promise<string> {
     await this.events.visible(eventId);
     return participantCsvTemplate();
-  }
-
-  private async resolveIdentity(body: ParticipantBody): Promise<{ email: string | null; document: StoredDocument | null }> {
-    const identity = parseParticipantIdentity({
-      email: body.email,
-      countryCode: body.countryCode,
-      docTypeCode: body.docTypeCode,
-      docNumber: body.docNumber,
-    });
-    if (!identity.ok) {
-      throw validationFailed(identity.issues);
-    }
-    if (!identity.document) {
-      if (this.env.INSTANCE === "ac3") {
-        throw validationFailed([{ field: "docNumber", message: "En AC3 el documento es obligatorio." }]);
-      }
-      return { email: identity.email, document: null };
-    }
-    const rule = await this.prisma.countryIdentityConfig.findUnique({
-      where: {
-        countryCode_docTypeCode: {
-          countryCode: identity.document.countryCode,
-          docTypeCode: identity.document.docTypeCode,
-        },
-      },
-    });
-    const normalized = normalizeDocument(identity.document, rule);
-    if (!normalized.ok) {
-      throw validationFailed([{ field: normalized.field, message: normalized.message }]);
-    }
-    return { email: identity.email, document: normalized.value };
   }
 
   private toParticipant(row: {
@@ -400,20 +385,15 @@ function uniqueRoles(roles: string[]): string[] {
   return unique;
 }
 
-function storedDoc(existing: {
-  countryCode: string | null;
-  docTypeCode: string | null;
-  docNumber: string | null;
-} | null): StoredDocument | null {
-  if (!existing?.countryCode || !existing.docTypeCode || !existing.docNumber) {
-    return null;
-  }
-  return {
-    countryCode: existing.countryCode.trim(),
-    docTypeCode: existing.docTypeCode,
-    docNumber: existing.docNumber,
-  };
-}
+const INDIVIDUAL_FIELDS: Record<string, string> = {
+  full_name: "fullName",
+  doc_number: "docNumber",
+  doc_type: "docTypeCode",
+  country_code: "countryCode",
+  role: "roles",
+  venue_code: "venueCode",
+  activity_title: "activityTitle",
+};
 
 async function createCertificate(
   tx: Prisma.TransactionClient,
