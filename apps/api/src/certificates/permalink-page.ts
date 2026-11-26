@@ -11,6 +11,12 @@ const root = document.getElementById("contenido");
 const estado = document.getElementById("estado");
 const etiquetas = { pending: "Aún no generado", issued: "Válido", failed: "No generado", revoked: "Revocado" };
 
+function rolConActividad(label, activity) {
+  if (!label) return "";
+  if (!activity) return label;
+  return label + ' — "' + activity + '"';
+}
+
 function field(label, value) {
   const dt = document.createElement("dt");
   dt.textContent = label;
@@ -54,7 +60,7 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
       ? [
           ["Nombre", data.fullName],
           ["Evento", data.eventName],
-          ["Rol", data.roleLabel],
+          ["Rol", rolConActividad(data.roleLabel, data.activityTitle)],
           ["Fecha del evento", data.eventDate],
           ["Sede", data.venueName],
           ["Documento", data.documentMasked],
@@ -62,7 +68,10 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
           ["Emitido", data.issuedAt ? new Date(data.issuedAt).toLocaleString("es-CO") : ""],
           ["Suma de comprobación", data.checksumSha256],
         ]
-      : [["Documento", data.documentMasked]];
+      : [
+          ["Rol", rolConActividad(data.roleLabel, data.activityTitle)],
+          ["Documento", data.documentMasked],
+        ];
     for (const [label, value] of rows) {
       if (value) list.append(...field(label, value));
     }

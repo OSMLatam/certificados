@@ -9,6 +9,11 @@ import type { SearchQuery } from "./search-query";
 
 const EMPTY_MESSAGE = "No encontramos credenciales con esos datos.";
 
+function shownActivity(certificateTitle: string | null, participantTitle: string | null): string | null {
+  const value = (certificateTitle ?? participantTitle ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
 export type SearchItem = {
   slug: string;
   permalink: string;
@@ -18,6 +23,7 @@ export type SearchItem = {
   year: number;
   roleCode: string;
   roleLabel: string;
+  activityTitle: string | null;
   eventDate: string;
   venueName: string | null;
 };
@@ -64,6 +70,7 @@ export class SearchService {
               year: person.event.year,
               roleCode: certificate.roleCode,
               roleLabel: labels.get(certificate.roleCode) ?? certificate.roleCode,
+              activityTitle: shownActivity(certificate.activityTitle, person.activityTitle),
               eventDate: formatDateOnly(when),
               venueName: revoked ? null : certificate.venue?.name ?? null,
             } satisfies SearchItem,

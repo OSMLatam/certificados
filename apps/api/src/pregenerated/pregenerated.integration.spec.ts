@@ -121,6 +121,31 @@ describe("pregenerated import", () => {
       const downloaded = await issue.file(created.certificates[0]!.slug);
       assert.equal(downloaded.mimeType, "image/png");
       assert.ok(downloaded.body.equals(PNG));
+
+      const committees = await events.create(admin.id, {
+        name: "Comités pregenerados",
+        year: 2026,
+        startDate: "2026-11-22",
+        countryCode: "CO",
+        allowedRoles: ["organizador"],
+        pregeneratedOnly: true,
+      });
+      eventIds.push(committees.id);
+      const committeeSheet = `${header}\nit.pdf;Luis Comités;luis-pre@example.org;CO;CC;1000000202;organizador;Comité IT\nlog.pdf;Luis Comités;luis-pre@example.org;CO;CC;1000000202;organizador;Logística\n`;
+      const committeeZip = makeZip([
+        { name: "it.pdf", data: PDF },
+        { name: "log.pdf", data: PDF },
+      ]);
+      const committeeImport = await pregenerated.importZip(committees.id, Buffer.from(committeeSheet), committeeZip, "comites.csv", admin.id, null);
+      assert.equal(committeeImport.certificateCount, 2);
+      const committeePerson = await prisma.participant.findFirstOrThrow({
+        where: { eventId: committees.id },
+        include: { certificates: true },
+      });
+      assert.deepEqual(
+        committeePerson.certificates.map((certificate) => certificate.activityTitle).sort(),
+        ["Comité IT", "Logística"],
+      );
     } finally {
       for (const eventId of eventIds) {
         const certificates = await prisma.certificate.findMany({ where: { eventId }, include: { storedFile: true } });

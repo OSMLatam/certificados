@@ -340,6 +340,67 @@ describe("participant identity across imports", () => {
     }
   });
 
+  it("gives one person three certificates of the same role when the activities differ", async () => {
+    const { admin, event } = await openEvent("activity-three");
+    try {
+      const imported = await participants.importCsv(
+        event.id,
+        csv([
+          "Luis Comités;luis@example.org;CO;CC;1000000201;organizador;Comité IT;",
+          "Luis Comités;luis@example.org;CO;CC;1000000201;organizador;Comité de comunicación;",
+          "Luis Comités;luis@example.org;CO;CC;1000000201;organizador;Logística;",
+        ]),
+        "comites.csv",
+        admin.id,
+        null,
+      );
+      assert.equal(imported.participantCount, 1);
+      assert.equal(imported.certificateCount, 3);
+      const person = await prisma.participant.findFirstOrThrow({
+        where: { eventId: event.id },
+        include: { certificates: true },
+      });
+      assert.equal(new Set(person.certificates.map((certificate) => certificate.slug)).size, 3);
+      assert.deepEqual(
+        person.certificates.map((certificate) => certificate.activityKey).sort(),
+        ["comite de comunicacion", "comite it", "logistica"],
+      );
+      await expectIssue(
+        () =>
+          participants.importCsv(
+            event.id,
+            csv(["Luis Comités;luis@example.org;CO;CC;1000000201;organizador;comite it;"]),
+            "repite.csv",
+            admin.id,
+            null,
+          ),
+        "role",
+        undefined,
+        'Fila 2: esta persona ya tiene un certificado de organizador para "Comité IT".',
+      );
+      const revoked = person.certificates.find((certificate) => certificate.activityKey === "logistica");
+      await prisma.certificate.update({
+        where: { id: revoked!.id },
+        data: { status: "revoked", revokedAt: new Date() },
+      });
+      const stillThere = await prisma.certificate.count({
+        where: { participantId: person.id, status: { not: "revoked" } },
+      });
+      assert.equal(stillThere, 2);
+      const again = await participants.importCsv(
+        event.id,
+        csv(["Luis Comités;luis@example.org;CO;CC;1000000201;organizador;Logística;"]),
+        "otra-vez.csv",
+        admin.id,
+        null,
+      );
+      assert.equal(again.certificateCount, 1);
+      assert.equal(await prisma.certificate.count({ where: { participantId: person.id, status: { not: "revoked" } } }), 3);
+    } finally {
+      await closeEvent(event.id, admin.id);
+    }
+  });
+
   it("completes a missing email and records the field in the audit log", async () => {
     const { admin, event } = await openEvent("identity-complete");
     try {

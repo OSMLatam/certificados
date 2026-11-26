@@ -21,6 +21,7 @@ type EventDetail = {
 type Certificate = {
   id: string;
   roleCode: string;
+  activityTitle: string | null;
   status: string;
   slug: string;
   mode: string;
@@ -155,7 +156,7 @@ function EventBody({ eventId }: { eventId: string }) {
             <ul>
               {person.certificates.map((certificate) => (
                 <li key={certificate.id}>
-                  {certificate.roleCode}: {STATUS[certificate.status] ?? certificate.status}
+                  {certificate.roleCode}:{certificate.activityTitle ? ` "${certificate.activityTitle}"` : ""} · {STATUS[certificate.status] ?? certificate.status}
                   {certificate.issueAttempts > 0 ? ` · ${certificate.issueAttempts} intentos` : ""} ·{" "}
                   <a href={`/c/${certificate.slug}`}>/c/{certificate.slug}</a>
                   {certificate.status !== "revoked" ? (

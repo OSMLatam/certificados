@@ -1,6 +1,6 @@
 import type { NormalizeStrategy } from "@certificados/shared";
 import type { ParticipantCsvRow } from "@certificados/shared";
-import { parseParticipantIdentity, repeatedEmailMessage } from "@certificados/shared";
+import { normalizeActivityKey, parseParticipantIdentity, repeatedEmailMessage } from "@certificados/shared";
 import { resolveCertificateTemplate, resolveVenueId } from "../events/event-rules";
 import { documentsConflict, normalizeDocument, type StoredDocument } from "./document-rules";
 
@@ -17,6 +17,8 @@ export type PlannedCertificate = {
   templateId: string | null;
   venueId: string | null;
   sourceRow: number;
+  activityTitle: string | null;
+  activityKey: string;
 };
 
 export type PlannedParticipant = {
@@ -41,7 +43,7 @@ export type ExistingParticipant = {
   countryCode: string | null;
   docTypeCode: string | null;
   docNumber: string | null;
-  roles: string[];
+  liveCertificates: { roleCode: string; activityKey: string; activityTitle: string | null }[];
 };
 
 type IdentityRule = {
@@ -123,7 +125,15 @@ export function planParticipantImport(input: {
           value: role,
         });
       } else {
-        certificate = { roleCode: role, ...resolved, venueId: null, sourceRow: row.row };
+        const activityTitle = row.activityTitle.trim();
+        certificate = {
+          roleCode: role,
+          ...resolved,
+          venueId: null,
+          sourceRow: row.row,
+          activityTitle: activityTitle.length > 0 ? activityTitle : null,
+          activityKey: normalizeActivityKey(activityTitle),
+        };
       }
     }
 
@@ -209,15 +219,6 @@ export function planParticipantImport(input: {
         message: email ? "El mismo correo aparece con nombres distintos." : "El mismo documento aparece con nombres distintos.",
       });
     }
-    const activity = resolveActivity(group.map((item) => item.row.activityTitle));
-    if (activity === "conflict") {
-      issues.push({
-        row: group.find((item) => item.row.activityTitle.length > 0)?.row.row ?? group[0]!.row.row,
-        field: "activity_title",
-        message: email ? "El mismo correo aparece con actividades distintas." : "El mismo documento aparece con actividades distintas.",
-      });
-    }
-
     const found = matchExisting(indexed, emails, documents);
     const live = found.filter((person) => !person.erasedAt);
     if (live.length === 0 && found.some((person) => person.erasedAt)) {
@@ -246,6 +247,7 @@ export function planParticipantImport(input: {
       continue;
     }
     const current = live[0] ?? null;
+    const activityTitle = current ? current.activityTitle : sharedActivity(group.map((item) => item.row.activityTitle));
     if (current) {
       const storedName = normalizePersonName(current.fullName);
       const mismatch = group.find((item) => {
@@ -284,20 +286,29 @@ export function planParticipantImport(input: {
     const seen = new Set<string>();
     const certificates: PlannedCertificate[] = [];
     for (const item of group) {
-      if (!item.certificate) {
+      const certificate = item.certificate;
+      if (!certificate) {
         continue;
       }
-      if (seen.has(item.certificate.roleCode) || current?.roles.includes(item.certificate.roleCode)) {
+      const slot = `${certificate.roleCode}\n${certificate.activityKey}`;
+      const storedMatch = current?.liveCertificates.find(
+        (existing) => existing.roleCode === certificate.roleCode && existing.activityKey === certificate.activityKey,
+      );
+      const earlier = certificates.find(
+        (existing) => existing.roleCode === certificate.roleCode && existing.activityKey === certificate.activityKey,
+      );
+      if (seen.has(slot) || storedMatch || earlier) {
+        const quoted = storedMatch?.activityTitle || earlier?.activityTitle || certificate.activityTitle || "";
         issues.push({
           row: item.row.row,
           field: "role",
-          message: email ? "Este correo ya tiene certificado para ese rol." : "Este documento ya tiene certificado para ese rol.",
-          value: item.certificate.roleCode,
+          message: duplicateRoleMessage(item.row.row, certificate.roleCode, quoted, Boolean(email)),
+          value: certificate.roleCode,
         });
         continue;
       }
-      seen.add(item.certificate.roleCode);
-      certificates.push(item.certificate);
+      seen.add(slot);
+      certificates.push(certificate);
     }
 
     const completedFields: Array<"email" | "document"> = [];
@@ -312,7 +323,7 @@ export function planParticipantImport(input: {
       existingId: current?.id ?? null,
       email: current?.email ?? email,
       fullName: current?.fullName ?? group.find((item) => item.row.fullName.trim().length > 0)?.row.fullName.trim() ?? "",
-      activityTitle: activity === "conflict" ? current?.activityTitle ?? null : activity ?? current?.activityTitle ?? null,
+      activityTitle,
       venueId: group.find((item) => item.venueId)?.venueId ?? current?.venueId ?? null,
       document: stored ?? incoming,
       certificates,
@@ -340,12 +351,20 @@ function documentKey(document: StoredDocument): string {
   return `${document.countryCode}|${document.docTypeCode}|${document.docNumber}`;
 }
 
-function resolveActivity(titles: string[]): string | null | "conflict" {
-  const present = [...new Set(titles.map((title) => title.trim()).filter((title) => title.length > 0))];
-  if (present.length > 1) {
-    return "conflict";
+function sharedActivity(titles: string[]): string | null {
+  const present = titles.map((title) => title.trim()).filter((title) => title.length > 0);
+  const keys = new Set(present.map((title) => normalizeActivityKey(title)));
+  if (keys.size !== 1) {
+    return null;
   }
   return present[0] ?? null;
+}
+
+function duplicateRoleMessage(row: number, role: string, activityTitle: string, byEmail: boolean): string {
+  if (activityTitle.length === 0) {
+    return byEmail ? "Este correo ya tiene certificado para ese rol." : "Este documento ya tiene certificado para ese rol.";
+  }
+  return line(row, `esta persona ya tiene un certificado de ${role} para "${activityTitle}".`);
 }
 
 /** Compare names without accents, case, or repeated spaces. The stored spelling stays as written. */

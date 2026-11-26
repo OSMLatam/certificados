@@ -29,14 +29,14 @@ const stored = (overrides: Record<string, unknown> = {}) => ({
   countryCode: null,
   docTypeCode: null,
   docNumber: null,
-  roles: [] as string[],
+  liveCertificates: [] as { roleCode: string; activityKey: string; activityTitle: string | null }[],
   ...overrides,
 });
 
 const context = {
   instance: "osm_lat" as const,
-  allowedRoles: new Set(["asistente", "voluntario"]),
-  activeRoles: new Set(["asistente", "voluntario"]),
+  allowedRoles: new Set(["asistente", "voluntario", "organizador"]),
+  activeRoles: new Set(["asistente", "voluntario", "organizador"]),
   venues: [{ id: "venue-1", code: "BOG" }],
   pregeneratedOnly: false,
   defaultTemplateId: "template-1",
@@ -181,7 +181,7 @@ describe("planParticipantImport", () => {
           countryCode: "CO",
           docTypeCode: "CC",
           docNumber: "1234567890",
-          roles: ["asistente"],
+          liveCertificates: [{ roleCode: "asistente", activityKey: "", activityTitle: null }],
         },
       ],
       rows: [row({ role: "voluntario", countryCode: "CO", docType: "CC", docNumber: "12.345.678" })],
@@ -240,7 +240,7 @@ describe("planParticipantImport", () => {
     const planned = planParticipantImport({
       ...context,
       identityRules: digits,
-      existing: [stored({ email: "eva@example.org", countryCode: "CO", docTypeCode: "CC", docNumber: "1000000103", roles: ["asistente"] })],
+      existing: [stored({ email: "eva@example.org", countryCode: "CO", docTypeCode: "CC", docNumber: "1000000103", liveCertificates: [{ roleCode: "asistente", activityKey: "", activityTitle: null }] })],
       rows: [row({ fullName: "Ana García", email: "", countryCode: "CO", docType: "CC", docNumber: "1000000103", role: "voluntario" })],
     });
     assert.equal(planned.ok, true);
@@ -274,7 +274,7 @@ describe("planParticipantImport", () => {
   it("adds another role when the stored name matches", () => {
     const planned = planParticipantImport({
       ...context,
-      existing: [stored({ roles: ["asistente"] })],
+      existing: [stored({ liveCertificates: [{ roleCode: "asistente", activityKey: "", activityTitle: null }] })],
       rows: [row({ role: "voluntario" })],
     });
     assert.equal(planned.ok, true);
@@ -292,7 +292,7 @@ describe("planParticipantImport", () => {
     const planned = planParticipantImport({
       ...context,
       identityRules: digits,
-      existing: [stored({ fullName: "Eva Luna", email: null, countryCode: "CO", docTypeCode: "CC", docNumber: "1000000107", roles: ["asistente"] })],
+      existing: [stored({ fullName: "Eva Luna", email: null, countryCode: "CO", docTypeCode: "CC", docNumber: "1000000107", liveCertificates: [{ roleCode: "asistente", activityKey: "", activityTitle: null }] })],
       rows: [row({ fullName: "eva  luna", email: "eva@example.org", countryCode: "CO", docType: "CC", docNumber: "1000000107", role: "voluntario" })],
     });
     assert.equal(planned.ok, true);
@@ -300,6 +300,66 @@ describe("planParticipantImport", () => {
       assert.equal(planned.people[0]?.fullName, "Eva Luna");
       assert.equal(planned.people[0]?.email, "eva@example.org");
       assert.deepEqual(planned.people[0]?.completedFields, ["email"]);
+    }
+  });
+
+  it("keeps three certificates of one role when the activities differ", () => {
+    const planned = planParticipantImport({
+      ...context,
+      rows: [
+        row({ role: "organizador", activityTitle: "Comité IT" }),
+        row({ row: 3, role: "organizador", activityTitle: "Comité de comunicación" }),
+        row({ row: 4, role: "organizador", activityTitle: "Logística" }),
+      ],
+      allowedRoles: new Set(["organizador"]),
+      activeRoles: new Set(["organizador"]),
+    });
+    assert.equal(planned.ok, true);
+    if (planned.ok) {
+      assert.equal(planned.people.length, 1);
+      assert.deepEqual(
+        planned.people[0]?.certificates.map((certificate) => certificate.activityTitle),
+        ["Comité IT", "Comité de comunicación", "Logística"],
+      );
+    }
+  });
+
+  it("rejects the same role and activity twice, including without accents", () => {
+    const repeated = planParticipantImport({
+      ...context,
+      rows: [
+        row({ row: 2, role: "organizador", activityTitle: "Comité IT" }),
+        row({ row: 3, role: "organizador", activityTitle: "comite   it" }),
+      ],
+      allowedRoles: new Set(["organizador"]),
+      activeRoles: new Set(["organizador"]),
+    });
+    assert.equal(repeated.ok, false);
+    if (!repeated.ok) {
+      assert.equal(repeated.issues[0]?.message, 'Fila 3: esta persona ya tiene un certificado de organizador para "Comité IT".');
+    }
+    const storedDuplicate = planParticipantImport({
+      ...context,
+      existing: [
+        stored({
+          liveCertificates: [{ roleCode: "organizador", activityKey: "comite it", activityTitle: "Comité IT" }],
+        }),
+      ],
+      rows: [row({ role: "organizador", activityTitle: "COMITÉ IT" })],
+      allowedRoles: new Set(["organizador"]),
+      activeRoles: new Set(["organizador"]),
+    });
+    assert.equal(storedDuplicate.ok, false);
+  });
+
+  it("still allows only one certificate per role when there is no activity", () => {
+    const planned = planParticipantImport({
+      ...context,
+      rows: [row(), row({ row: 3 })],
+    });
+    assert.equal(planned.ok, false);
+    if (!planned.ok) {
+      assert.equal(planned.issues[0]?.message, "Este correo ya tiene certificado para ese rol.");
     }
   });
 });

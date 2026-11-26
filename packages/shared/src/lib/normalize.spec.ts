@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDocNumber, normalizeEmail } from "./normalize";
+import { normalizeActivityKey, normalizeDocNumber, normalizeEmail } from "./normalize";
 
 describe("normalizeDocNumber", () => {
   it("keeps only digits", () => {
@@ -12,6 +12,13 @@ describe("normalizeDocNumber", () => {
 
   it("only trims raw values", () => {
     expect(normalizeDocNumber("  AB-12  ", "raw")).toBe("AB-12");
+  });
+});
+
+describe("normalizeActivityKey", () => {
+  it("drops accents and case and collapses spaces", () => {
+    expect(normalizeActivityKey("  Comité   IT ")).toBe("comite it");
+    expect(normalizeActivityKey("")).toBe("");
   });
 });
 

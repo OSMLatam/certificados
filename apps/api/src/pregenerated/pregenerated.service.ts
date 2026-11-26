@@ -101,7 +101,7 @@ export class PregeneratedService {
       throw report(issues);
     }
 
-    const stored: { id: string; key: string; bytes: Buffer; mimeType: string; checksum: string; participantKey: string; role: string; venueId: string | null }[] = [];
+    const stored: { id: string; key: string; bytes: Buffer; mimeType: string; checksum: string; participantKey: string; role: string; venueId: string | null; activityTitle: string | null; activityKey: string }[] = [];
     for (const person of planned.people) {
       for (const certificate of person.certificates) {
         const file = inspected.get(certificate.sourceRow);
@@ -119,6 +119,8 @@ export class PregeneratedService {
           participantKey: person.key,
           role: certificate.roleCode,
           venueId: certificate.venueId,
+          activityTitle: certificate.activityTitle,
+          activityKey: certificate.activityKey,
         });
       }
     }
@@ -185,6 +187,8 @@ export class PregeneratedService {
             roleCode: file.role,
             venueId: file.venueId,
             storedFileId: record.id,
+            activityTitle: file.activityTitle,
+            activityKey: file.activityKey,
           });
         }
         await tx.auditLog.create({
@@ -274,7 +278,7 @@ export class PregeneratedService {
       this.prisma.countryIdentityConfig.findMany(),
       this.prisma.participant.findMany({
         where: { eventId },
-        include: { certificates: { select: { roleCode: true, status: true } } },
+        include: { certificates: { select: { roleCode: true, status: true, activityKey: true, activityTitle: true } } },
       }),
     ]);
     return planParticipantImport({
@@ -303,7 +307,13 @@ export class PregeneratedService {
         countryCode: person.countryCode,
         docTypeCode: person.docTypeCode,
         docNumber: person.docNumber,
-        roles: person.certificates.filter((certificate) => certificate.status !== "revoked").map((certificate) => certificate.roleCode),
+        liveCertificates: person.certificates
+          .filter((certificate) => certificate.status !== "revoked")
+          .map((certificate) => ({
+            roleCode: certificate.roleCode,
+            activityKey: certificate.activityKey,
+            activityTitle: certificate.activityTitle,
+          })),
       })),
     });
   }
@@ -318,7 +328,7 @@ function asParticipant(row: PregeneratedCsvRow): ParticipantCsvRow {
     docType: row.docType,
     docNumber: row.docNumber,
     role: row.role,
-    activityTitle: "",
+    activityTitle: row.activityTitle,
     venueCode: "",
   };
 }
@@ -353,7 +363,16 @@ function report(issues: ImportIssue[]): BadRequestException {
 
 async function createPendingCertificate(
   tx: Prisma.TransactionClient,
-  input: { id: string; participantId: string; eventId: string; roleCode: string; venueId: string | null; storedFileId: string },
+  input: {
+    id: string;
+    participantId: string;
+    eventId: string;
+    roleCode: string;
+    venueId: string | null;
+    storedFileId: string;
+    activityTitle: string | null;
+    activityKey: string;
+  },
 ): Promise<void> {
   for (let attempt = 0; attempt < SLUG_GENERATION_ATTEMPTS; attempt += 1) {
     try {
@@ -368,6 +387,8 @@ async function createPendingCertificate(
           mode: "pregenerated",
           venueId: input.venueId,
           storedFileId: input.storedFileId,
+          activityTitle: input.activityTitle,
+          activityKey: input.activityKey,
         },
       });
       return;

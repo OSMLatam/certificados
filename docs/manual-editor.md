@@ -107,8 +107,8 @@ Si los ponentes llevan otro diseño, elige el rol en **Nueva plantilla para el r
   - Sin correo ni documento, la persona no se puede cargar.
   - Un mismo correo no puede repetirse en personas distintas: quien lo busque vería los certificados de todas. **Nunca uses un correo de relleno** (como `a@b.co`) para varias personas: deja el correo vacío y usa el documento.
   - El mismo correo o el mismo documento, en este archivo o en uno ya guardado, son la misma persona. «Ana Pérez» y «ana perez» cuentan como el mismo nombre. Si el nombre no coincide, la fila se rechaza y el nombre guardado no cambia. Si faltaba el correo o el documento y el nombre coincide, se completa.
-- **Rol**: uno de los roles admitidos del evento. Si una persona tiene dos roles (por ejemplo, ponente y asistente), recibe un certificado por cada rol.
-- **Actividad**: solo si aplica, el título de la charla o el taller.
+- **Rol**: uno de los roles admitidos del evento. Si una persona tiene dos roles (por ejemplo, ponente y asistente), recibe un certificado por cada rol. El mismo rol se puede repetir cuando la actividad es distinta: tres comités son tres certificados de organizador, cada uno con su enlace. Sin actividad, sigue siendo un certificado por rol.
+- **Actividad**: el título de la charla, del taller o el nombre del comité. «Comité IT» y «comite it» son la misma actividad. Si se repite la misma persona, el mismo rol y la misma actividad, la fila se rechaza.
 
 ### 5.2. Uno por uno (Alta individual)
 Llena el formulario **Alta individual** y haz clic en **Agregar participante**. El número de documento se puede escribir con o sin puntos: la plataforma los quita.
@@ -126,6 +126,9 @@ Llena el formulario **Alta individual** y haz clic en **Agregar participante**. 
    Luis Ejemplo Rojas;;CO;CC;1000000102;asistente;;
    Marta Ejemplo Díaz;marta.ejemplo@example.org;CO;CC;1000000103;ponente;Mapear andenes con StreetComplete;
    Marta Ejemplo Díaz;marta.ejemplo@example.org;CO;CC;1000000103;asistente;;
+   Luis Ejemplo;luis.ejemplo@example.org;CO;CC;1000000104;organizador;Comité IT;
+   Luis Ejemplo;luis.ejemplo@example.org;CO;CC;1000000104;organizador;Comité de comunicación;
+   Luis Ejemplo;luis.ejemplo@example.org;CO;CC;1000000104;organizador;Logística;
    ```
 
    - `country_code`: país en dos letras (CO, MX, PE…).
@@ -187,8 +190,8 @@ Sirve cuando los certificados ya existen como PDF, por ejemplo si se imprimieron
 2. En **Certificados ya generados**, descarga la plantilla de la hoja. Es un CSV con la columna `filename` (el nombre del PDF de cada persona) y los datos de la persona:
 
    ```
-   filename;full_name;email;country_code;doc_type;doc_number;role
-   cert-ana-asistente.pdf;Ana Ejemplo Pérez;ana.ejemplo@example.org;CO;CC;1000000101;asistente
+   filename;full_name;email;country_code;doc_type;doc_number;role;activity_title
+   cert-ana-asistente.pdf;Ana Ejemplo Pérez;ana.ejemplo@example.org;CO;CC;1000000101;asistente;
    ```
 3. Sube la **Hoja CSV** y un **ZIP** con los PDF, y haz clic en **Importar lote**.
 
@@ -233,6 +236,7 @@ Si se retiró un evento por error, solo quien administra el servidor puede recup
 | «El correo … aparece en N personas distintas; quien lo busque verá todos sus certificados» | Hay un correo repetido o de relleno. Usa el correo real de cada persona, o déjalo vacío y usa el documento. |
 | «Fila N: ya existe una persona con este documento (o correo) llamada "…" ; aquí viene como "…". Corrige el nombre para que coincida, o corrige primero a la persona existente.» | El correo o el documento ya están guardados con otro nombre. Iguala el nombre del archivo al que ya está, o corrige primero a la persona existente. La importación no cambia el nombre. En el alta individual sale la misma frase, sin «Fila N». |
 | «Fila N: el correo pertenece a "…" y el documento a "…". Revisa los datos.» | El correo es de una persona y el documento de otra. Corrige cuál dato corresponde a quién. |
+| «Fila N: esta persona ya tiene un certificado de ponente para "Título".» | Esa persona ya tiene ese rol con la misma actividad. Cambia el título o quita la fila. Sin actividad, el mismo rol no se puede repetir. |
 | Salen signos raros en vez de tildes | Guarda el CSV como **CSV UTF-8**. |
 | No puedo publicar | Falta la plantilla predeterminada: abre **Editar plantillas**. |
 | Una persona no encuentra su certificado | Verifica que el evento esté **publicado** y que busque con el mismo correo o documento que se cargó. |

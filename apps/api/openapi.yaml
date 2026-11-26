@@ -1486,13 +1486,17 @@ components:
       enum: [pending, issued, failed, revoked]
     ParticipantCertificate:
       type: object
-      required: [id, roleCode, slug, status, mode]
+      required: [id, roleCode, slug, status, mode, activityTitle]
       properties:
         id:
           type: string
           format: uuid
         roleCode:
           type: string
+        activityTitle:
+          type: string
+          nullable: true
+          description: Título de este certificado. Si es null, la plantilla usa la actividad de la persona.
         slug:
           type: string
         status:
@@ -1682,7 +1686,7 @@ components:
           type: string
     SearchItem:
       type: object
-      required: [slug, permalink, status, fullName, eventName, year, roleCode, roleLabel, eventDate, venueName]
+      required: [slug, permalink, status, fullName, eventName, year, roleCode, roleLabel, activityTitle, eventDate, venueName]
       properties:
         slug:
           type: string
@@ -1701,6 +1705,10 @@ components:
           type: string
         roleLabel:
           type: string
+        activityTitle:
+          type: string
+          nullable: true
+          description: Actividad de este certificado, o la de la persona si el certificado no tiene.
         eventDate:
           type: string
           format: date

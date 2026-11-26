@@ -9,6 +9,7 @@ export const PREGENERATED_CSV_HEADERS = [
   "doc_type",
   "doc_number",
   "role",
+  "activity_title",
 ] as const;
 
 export type PregeneratedCsvHeader = (typeof PREGENERATED_CSV_HEADERS)[number];
@@ -22,6 +23,7 @@ export type PregeneratedCsvRow = {
   docType: string;
   docNumber: string;
   role: string;
+  activityTitle: string;
 };
 
 const HEADER_FIELDS: Record<PregeneratedCsvHeader, keyof Omit<PregeneratedCsvRow, "row">> = {
@@ -32,13 +34,14 @@ const HEADER_FIELDS: Record<PregeneratedCsvHeader, keyof Omit<PregeneratedCsvRow
   doc_type: "docType",
   doc_number: "docNumber",
   role: "role",
+  activity_title: "activityTitle",
 };
 
 /** UTF-8 CSV whose filename column must match one ZIP entry exactly. */
 export function pregeneratedCsvTemplate(): string {
   const examples = [
-    ["cert-ana-asistente.pdf", "Ana García", "ana@example.org", "CO", "CC", "1234567890", "asistente"],
-    ["cert-carlos-ponente.pdf", "Carlos López", "carlos@example.org", "CO", "CE", "987654321", "ponente"],
+    ["cert-ana-asistente.pdf", "Ana García", "ana@example.org", "CO", "CC", "1234567890", "asistente", ""],
+    ["cert-carlos-ponente.pdf", "Carlos López", "carlos@example.org", "CO", "CE", "987654321", "ponente", "Mapping con OpenStreetMap"],
   ];
   const lines = [PREGENERATED_CSV_HEADERS.join(";"), ...examples.map((row) => row.join(";"))];
   return `\uFEFF${lines.join("\n")}\n`;

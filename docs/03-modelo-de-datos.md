@@ -9,8 +9,8 @@ Esquema conceptual agnóstico de motor (PostgreSQL recomendado).
 
 ## 1. Principios
 
-1. **Un certificado = un permalink = un rol** en un evento para una persona.
-2. **Múltiples roles** → múltiples filas en `certificates` para el mismo `participant` + `event`.
+1. **Un certificado = un permalink = una persona + un rol + una actividad** en un evento. La actividad es el título de la charla, del taller o del comité. Si no hay actividad, queda un certificado por persona y rol.
+2. **Mismo rol con actividades distintas** → varias filas en `certificates` para el mismo `participant` + `event`. Sin actividad, un rol sigue siendo un certificado.
 3. **Dos modos:** `generated` (plantilla) | `pregenerated` (archivo subido).
 4. **Identificación** extensible por país vía configuración, no ENUM rígido global.
 5. **Instancias aisladas:** cada despliegue tiene su propia BD; no hay `instance_id` en tablas.
@@ -314,7 +314,8 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 | mode | ENUM | `generated`, `pregenerated` |
 | template_id | UUID FK | NULL si pregenerado; en `generated` se fija al crear `pending` (ver §4.5) |
 | stored_file_id | UUID FK | Archivo servido: pregenerado subido o PDF generado (inmutable tras `issued`) |
-| activity_title | TEXT | Override por rol (ej. charla); si NULL, usar `participants.activity_title` |
+| activity_title | TEXT | Título de este certificado (charla, taller o comité). NULL si no tiene. El token de la plantilla usa este valor y, si es NULL, `participants.activity_title`. |
+| activity_key | TEXT NOT NULL | `activity_title` sin tildes, en minúsculas y con espacios colapsados. Cadena vacía si no hay título. |
 | status | ENUM | `pending`, `issued`, `failed`, `revoked` |
 | issue_attempts | INT | Default 0; intentos de render en `generated`. Ver [07 §3.1](./07-estados-y-ciclo-de-vida.md). |
 | last_issue_error | TEXT | NULL; código corto del último fallo (`PDF_TIMEOUT`, …). |
@@ -329,7 +330,7 @@ Capas `legal.*` solo en plantillas AC3; valores desde config de instancia. Detal
 
 **Constraints:**
 
-- UNIQUE `(participant_id, role_code)` — **parcial:** solo filas con `status <> 'revoked'`. Incluye `pending`, `issued` y **`failed`**. Tras revocar se puede emitir un certificado nuevo corregido (nuevo slug) para el mismo participante+rol.
+- UNIQUE `(participant_id, role_code, activity_key)` — **parcial:** solo filas con `status <> 'revoked'`. Incluye `pending`, `issued` y **`failed`**. La misma persona y el mismo rol pueden tener varios certificados si `activity_key` cambia. Sin actividad (`activity_key` vacío) sigue habiendo uno. Tras revocar se puede emitir un certificado nuevo (nuevo slug) para la misma combinación.
 - UNIQUE `slug`. **Alta:** generar nanoid 12; si hay unique_violation, reintentar hasta **5** veces; si se agota → 500 `SLUG_COLLISION` (no slug secuencial ni elegido por el usuario). Los slugs `revoked` **siguen** ocupando el UNIQUE (el permalink revocado no se recicla). Mismo criterio para `badge_assertions.slug`.
 - UNIQUE `folio` **parcial** `WHERE folio IS NOT NULL`. Un `revoked` **conserva** el folio (no se reutiliza; queda hueco en la serie). `pending`/`failed` son NULL **hasta** el primer intento de `transitionToIssued` (AC3); a partir de ahí el folio queda reservado en esa fila.
 - `role_code` **debe** ∈ `events.allowed_roles` **y** existir en el catálogo `roles` (`is_active`). Si no → **400** (alta) o error de fila (CSV atómico). No hay CHECK en BD (`allowed_roles` es JSONB); la regla es de aplicación + tests.
@@ -773,9 +774,9 @@ El put de cada archivo al storage sigue [10 §4.2.2](./10-diseno-codigo-y-anexos
 Ejemplo de hoja: [anexos/csv/pregenerados-ejemplo.csv](./anexos/csv/pregenerados-ejemplo.csv).
 
 ```csv
-filename;full_name;email;country_code;doc_type;doc_number;role
-cert-ana-asistente.pdf;Ana García;ana@example.org;CO;CC;1234567890;asistente
-cert-carlos-ponente.pdf;Carlos López;carlos@example.org;CO;CE;987654321;ponente
+filename;full_name;email;country_code;doc_type;doc_number;role;activity_title
+cert-ana-asistente.pdf;Ana García;ana@example.org;CO;CC;1234567890;asistente;
+cert-carlos-ponente.pdf;Carlos López;carlos@example.org;CO;CE;987654321;ponente;Mapping con OpenStreetMap
 ```
 
 ---
@@ -786,8 +787,8 @@ cert-carlos-ponente.pdf;Carlos López;carlos@example.org;CO;CE;987654321;ponente
 CREATE UNIQUE INDEX idx_certificates_slug ON certificates(slug);
 CREATE INDEX idx_certificates_event ON certificates(event_id);
 CREATE INDEX idx_certificates_event_status ON certificates(event_id, status);
-CREATE UNIQUE INDEX idx_certificates_participant_role_active
-  ON certificates(participant_id, role_code) WHERE status <> 'revoked';
+CREATE UNIQUE INDEX idx_certificates_participant_role_activity_active
+  ON certificates(participant_id, role_code, activity_key) WHERE status <> 'revoked';
 CREATE UNIQUE INDEX idx_participants_event_email ON participants(event_id, email);
 CREATE UNIQUE INDEX idx_participants_event_document_without_email
   ON participants(event_id, country_code, doc_type_code, doc_number)

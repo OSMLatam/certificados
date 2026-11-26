@@ -10,7 +10,7 @@ describe("parsePregeneratedCsv", () => {
     }
     expect(parsed.rows).toHaveLength(2);
     expect(parsed.rows[0]).toMatchObject({ filename: "cert-ana-asistente.pdf", role: "asistente" });
-    expect(parsed.rows[1]?.filename).toBe("cert-carlos-ponente.pdf");
+    expect(parsed.rows[1]).toMatchObject({ filename: "cert-carlos-ponente.pdf", activityTitle: "Mapping con OpenStreetMap" });
   });
 
   it("rejects a sheet that is not separated by semicolons", () => {

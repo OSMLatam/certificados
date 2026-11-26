@@ -25,6 +25,7 @@ const issued = {
   fullName: "Ada Lovelace",
   eventName: "Mapatón",
   roleLabel: "Asistente",
+  activityTitle: "Mapatón de prueba",
   eventDate: "2026-11-22",
   venueName: "Bogotá",
   issuer: "Certificados OSM Latam",
@@ -80,6 +81,7 @@ describe("public accessibility", () => {
       const shown = await showCertificate(browser, permalinkPage("abcdEFGH1234", chrome, "org@osm.lat"));
       assert.match(shown, /Estado: Válido/);
       assert.match(shown, /Ada Lovelace/);
+      assert.match(shown, /Asistente — "Mapatón de prueba"/);
       assert.match(shown, /Descargar certificado/);
       assert.match(shown, /a{64}/);
       assert.match(shown, /CC \*{6}0010/);

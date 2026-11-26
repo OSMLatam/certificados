@@ -1,5 +1,6 @@
 export {
   isNormalizeStrategy,
+  normalizeActivityKey,
   normalizeDocNumber,
   normalizeEmail,
   NORMALIZE_STRATEGIES,

@@ -6,6 +6,11 @@ export function isNormalizeStrategy(value: string): value is NormalizeStrategy {
   return (NORMALIZE_STRATEGIES as readonly string[]).includes(value);
 }
 
+/** No accents, lowercase, collapsed spaces. Empty stays empty. Same key for one activity. */
+export function normalizeActivityKey(value: string): string {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
 /** No spaces, then lowercase. One identity key for a participant inside one event. */
 export function normalizeEmail(value: string): string {
   return value.replace(/\s+/g, "").toLowerCase();

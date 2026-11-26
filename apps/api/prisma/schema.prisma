@@ -203,6 +203,8 @@ model Certificate {
   templateId         String?           @map("template_id") @db.Uuid
   storedFileId       String?           @map("stored_file_id") @db.Uuid
   activityTitle      String?           @map("activity_title")
+  /// Normalized activity_title. Empty when this certificate has no activity of its own.
+  activityKey        String            @default("") @map("activity_key")
   status             CertificateStatus @default(pending)
   issueAttempts      Int               @default(0) @map("issue_attempts")
   lastIssueError     String?           @map("last_issue_error")

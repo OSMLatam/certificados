@@ -132,9 +132,17 @@ describe("events, venues and participants", () => {
           fullName: "Ada Lovelace",
           email: "ada@example.org",
           roles: ["asistente"],
+          activityTitle: "Mapatón",
         }),
       "roles",
     );
+    const sameRole = await participants.create(draft.id, {
+      fullName: "Ada Lovelace",
+      email: "ada@example.org",
+      roles: ["asistente"],
+      activityTitle: "Otro taller",
+    });
+    assert.equal(sameRole.certificates.length, 4);
 
     const documentOnly = await participants.create(draft.id, {
       fullName: "Sin Correo",

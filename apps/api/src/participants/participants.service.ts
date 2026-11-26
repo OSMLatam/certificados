@@ -161,6 +161,8 @@ export class ParticipantsService {
           mode: certificate.mode,
           templateId: certificate.templateId,
           venueId: certificate.venueId,
+          activityTitle: certificate.activityTitle,
+          activityKey: certificate.activityKey,
         });
       }
       if (person.existingId && person.completedFields.length > 0 && audit) {
@@ -239,6 +241,8 @@ export class ParticipantsService {
             mode: certificate.mode,
             templateId: certificate.templateId,
             venueId: certificate.venueId,
+            activityTitle: certificate.activityTitle,
+            activityKey: certificate.activityKey,
           });
           certificates += 1;
         }
@@ -285,7 +289,7 @@ export class ParticipantsService {
       this.prisma.countryIdentityConfig.findMany(),
       this.prisma.participant.findMany({
         where: { eventId: event.id },
-        include: { certificates: { select: { roleCode: true, status: true } } },
+        include: { certificates: { select: { roleCode: true, status: true, activityKey: true, activityTitle: true } } },
       }),
     ]);
     return planParticipantImport({
@@ -316,7 +320,13 @@ export class ParticipantsService {
         countryCode: person.countryCode,
         docTypeCode: person.docTypeCode,
         docNumber: person.docNumber,
-        roles: person.certificates.filter((certificate) => certificate.status !== "revoked").map((certificate) => certificate.roleCode),
+        liveCertificates: person.certificates
+          .filter((certificate) => certificate.status !== "revoked")
+          .map((certificate) => ({
+            roleCode: certificate.roleCode,
+            activityKey: certificate.activityKey,
+            activityTitle: certificate.activityTitle,
+          })),
       })),
     });
   }
@@ -354,6 +364,7 @@ export class ParticipantsService {
         id: certificate.id,
         roleCode: certificate.roleCode,
         slug: certificate.slug,
+        activityTitle: certificate.activityTitle,
         status: certificate.status,
         issueAttempts: certificate.issueAttempts,
         mode: certificate.mode,
@@ -404,6 +415,8 @@ async function createCertificate(
     mode: "generated" | "pregenerated";
     templateId: string | null;
     venueId: string | null;
+    activityTitle: string | null;
+    activityKey: string;
   },
 ): Promise<void> {
   for (let attempt = 0; attempt < SLUG_GENERATION_ATTEMPTS; attempt += 1) {
@@ -418,6 +431,8 @@ async function createCertificate(
           mode: input.mode,
           templateId: input.templateId,
           venueId: input.venueId,
+          activityTitle: input.activityTitle,
+          activityKey: input.activityKey,
         },
       });
       return;

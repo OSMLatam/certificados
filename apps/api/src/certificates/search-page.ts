@@ -7,6 +7,11 @@ const lista = document.getElementById("resultados");
 const campos = { email: "email", countryCode: "country", docTypeCode: "doc-type", docNumber: "doc-number" };
 const etiquetas = { pending: "Aún no generado", issued: "Válido", failed: "No generado", revoked: "Revocado" };
 
+function rolConActividad(label, activity) {
+  if (!activity) return label;
+  return label + ' — "' + activity + '"';
+}
+
 function limpiarCampos() {
   for (const id of Object.values(campos)) {
     const input = document.getElementById(id);
@@ -61,7 +66,7 @@ form.addEventListener("submit", (event) => {
       const line = document.createElement("li");
       const link = document.createElement("a");
       link.href = "/c/" + encodeURIComponent(item.slug);
-      link.textContent = item.eventName + " — " + item.roleLabel;
+      link.textContent = item.eventName + " — " + rolConActividad(item.roleLabel, item.activityTitle);
       const detail = document.createElement("div");
       const ayuda = item.status === "pending" ? "se genera al abrir el enlace" : "";
       detail.textContent = [etiquetas[item.status] || item.status, ayuda, item.eventDate, item.venueName].filter(Boolean).join(" · ");

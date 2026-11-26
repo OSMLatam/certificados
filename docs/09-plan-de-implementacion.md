@@ -223,7 +223,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 |---|------------|
 | F2.1 | Tablas `badge_issuers`, `badge_classes`, `badge_assertions`, `instance_legal`, `instance_legal_signers` |
 | F2.2 | Issuer OB + endpoints JSON-LD + `revocationList` (`GET /badges/revocations.json`) + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
-| F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
+| F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado. Es **uno por certificado** (persona + rol + actividad). La clase sigue siendo una por rol del evento y no cambia. |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD; misma AA que `/c/` (HU-1.6) |
 | F2.5 | Revocación del badge (`badge_revoke`). El certificado ya se revoca en la fase 1 (`certificate_revoke`); la fase 2 extiende esa revocación al badge. |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
