@@ -18,7 +18,7 @@ export class PermalinkPageController {
     if (!isPermalinkSlug(slug)) {
       throw new NotFoundException();
     }
-    return permalinkPage(slug, chromeFromEnv(this.env));
+    return permalinkPage(slug, chromeFromEnv(this.env), this.env.PRIVACY_CONTACT_EMAIL);
   }
 }
 

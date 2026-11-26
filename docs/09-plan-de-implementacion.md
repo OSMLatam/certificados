@@ -45,7 +45,7 @@ Estas decisiones cierran los huecos que quedaban abiertos en la especificación 
 | **Estado del evento** | `draft` \| `active`. Evento pasado sigue `active` (certificados visibles en búsqueda y permalink). `draft` = preparación, **invisible en búsqueda**; permalinks `/c/` `/b/` **sí resuelven** (también si nunca fue `active`). **`draft` → `active`** de un evento `generated` (`pregenerated_only=false`) **exige** `default_template_id`; si no, 400. El evento `generated` no se crea ya `active`. |
 | **Evento `active` → `draft`** | Sale de búsqueda pública (todos los certificados del evento); permalinks siguen vivos. |
 | **BadgeClass event_role** | `UNIQUE (event_id, role_code)`; upsert al guardar `allowed_roles`. `code` estable e **inmutable** al renombrar evento. `GET /badges/classes/{id}.json` si la clase existe (aunque evento `draft`). |
-| **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink_qr`). |
+| **Plantillas** | Default = `role_code` NULL + `events.default_template_id`. `UNIQUE (event_id, role_code)`. `template_id` del certificado se **fija al crear pending**. Sin plantilla resoluble → **no** se crea el `generated`. Tokens canónicos: [04 §5](./04-flujos-funcionales.md) (`certificate_slug` ≠ `permalink` ≠ `permalink_qr`). |
 | **Emisión certificado** | `pending` → `issued` **solo** vía `GET /api/v1/public/certificates/{slug}` (metadata), si el request **no** es crawler/preview. UI `/c/` y búsqueda llaman siempre a metadata antes de `/file`. Tras `PDF_MAX_ISSUE_ATTEMPTS` fallos → `failed` (sin más Puppeteer hasta `retry-issue`). **Decisión cerrada:** sin emisión forzada, ZIP de PDFs ni impresión desde el panel ([07 §3.2](./07-estados-y-ciclo-de-vida.md#32-emisión-masiva-e-impresión--decisión-cerrada)). |
 | **Datos legales AC3** | Tabla `instance_legal` (singleton) + `instance_legal_signers` (N slots 1..8) + pantalla admin; ENV `LEGAL_*` solo bootstrap (firmantes: slot 1). Folio **global**; ciudad de expedición en config; fecha de expedición = `issued_at` (≠ `event_date`); disclaimer de participación (default de seed, snapshot). Al `issued` (AC3, **ambos** modos): `legal_snapshot`. En `generated` se incrusta en el PDF. `/c/` de un `issued` **no** lee config vigente. |
 | **Preview plantilla** | Usa `instance_legal` **actual** (no snapshot). |
@@ -139,7 +139,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F1.2 | Auth admin OAuth OSM + roles `admin` / `editor` + gestión usuarios (HU-7.4) |
 | F1.3 | CRUD eventos (`draft`/`active`), sedes, participantes |
 | F1.4 | Import CSV participantes + **descarga de plantilla** CSV |
-| F1.5 | Plantillas: upload fondo + editor Konva; tokens canónicos `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink_qr` |
+| F1.5 | Plantillas: upload fondo + editor Konva; plantilla por rol; tokens canónicos `full_name`, `document`, `role_label`, `activity_title`, `event_name`, `venue_name`, `event_date`, `certificate_slug`, `permalink`, `permalink_qr` |
 | F1.6 | Generación PDF (Puppeteer) + almacenamiento MinIO; **PDF inmutable** al pasar a `issued` |
 | F1.7 | Certificados `generated`/`pregenerated`; import sheet+ZIP (lote ≤ **100 MB**, `;`) + plantilla CSV |
 | F1.8 | Estados `pending` → `issued` vía metadata (no crawler); `pending`/`failed` → `/file` 409; umbral de fallos → `failed` + `retry-issue` |
@@ -166,6 +166,7 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | HU-1.3 | Verificación en `/c/` (hash + fecha; API JSON en Fase 2) |
 | HU-1.4 | Datos correctos en PDF |
 | HU-2.1 | Multi-rol |
+| HU-2.2 | Plantilla distinta por rol. Ya está en la fase 1; la fase 2 no la repite. |
 | HU-3.1 | Editor visual (versión Konva funcional) |
 | HU-4.1 | Pregenerados + import sheet+ZIP + plantilla CSV descargable |
 | HU-4.2 | Evento `pregenerated_only` |
@@ -224,14 +225,14 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | F2.2 | Issuer OB + endpoints JSON-LD + `revocationList` (`GET /badges/revocations.json`) + **API verify** `GET /api/v1/verify/c/{slug}` (`checksum_sha256`, `issued_at`) y `/b/{slug}` |
 | F2.3 | Badge `event_role`: `pending` al crear certificado; `issued` al emitir certificado |
 | F2.4 | Página pública `GET /b/{slug}` + JSON-LD; misma AA que `/c/` (HU-1.6) |
-| F2.5 | Revocación: endpoints cert + badge (HU-7.3) **Must**; corrección = revoke + alta nueva; audit `certificate_revoke` / `badge_revoke` |
+| F2.5 | Revocación del badge (`badge_revoke`). El certificado ya se revoca en la fase 1 (`certificate_revoke`); la fase 2 extiende esa revocación al badge. |
 | F2.6 | Config legal AC3: **pantalla admin** + capas `legal.*` en editor |
 | F2.7 | `legal_snapshot` al pasar a `issued` (AC3: `generated` y `pregenerated`) |
 | F2.8 | Segundo perfil de despliegue (docker compose / ENV `INSTANCE=ac3`) |
 | F2.9 | Open Graph en `/c/` y `/b/` |
 | F2.10 | Botón redirect backpack (Badgr / Open Badge Passport URL template) |
 | F2.11 | HU-3.2 preview con datos de ejemplo |
-| F2.12 | HU-2.2 plantilla distinta por rol (override opcional) |
+| F2.12 | Plantilla por rol: **ya entregada en la fase 1** (HU-2.2). La fase 2 no la vuelve a implementar. |
 | F2.13 | Tests unitarios + integración badges, legal_snapshot, revocación (ver §11) |
 | F2.14 | HU-8.4: `POST …/participants/{id}/erase` (solo admin) + audit `participant_erase` |
 
@@ -240,10 +241,10 @@ Contratos detallados se generan en Fase 1 (OpenAPI en `apps/api/openapi.yaml`).
 | ID | Notas |
 |----|-------|
 | HU-1.5 | Legal AC3 en certificado |
-| HU-2.2 | Plantilla por rol |
+| HU-2.2 | Ya está en la fase 1. La fase 2 no la repite. |
 | HU-3.2 | Preview plantilla |
 | HU-7.2 | Dashboard básico (conteos eventos/certificados/badges) — Should |
-| HU-7.3 | Revocación |
+| HU-7.3 | El certificado ya se revoca en la fase 1. La fase 2 revoca el badge. |
 | HU-8.2 | Config legal AC3 |
 | HU-8.4 | Supresión ARCO (admin erase) |
 | HU-9.1 – HU-9.3 | Badges de evento + issuer |
@@ -377,7 +378,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-1.5 | Legal AC3 | **2** | Pantalla admin |
 | HU-1.6 | Accesibilidad WCAG 2.2 AA | **1** + **2** + **3** | Must. F1: público `/` `/c/` `/privacy` `/about` + formularios admin. F2: `/b/`. F3: `/me`. Lienzo Konva = excepción. |
 | HU-2.1 | Multi-rol | **1** | |
-| HU-2.2 | Plantilla por rol | **2** | Should |
+| HU-2.2 | Plantilla por rol | **1** | Entregada en la fase 1. La fase 2 no la repite. |
 | HU-3.1 | Editor visual | **1** | Konva; capas `legal.*` ocultas hasta F2 |
 | HU-3.2 | Preview plantilla | **2** | Should |
 | HU-4.1 | Pregenerados + carga masiva (hoja + ZIP) + plantilla CSV | **1** | Plantilla descargable; sin helper de escritorio; status `pending` hasta 1ª visita |
@@ -386,7 +387,7 @@ La especificación funcional (v1.0) describe el producto **completo**. Esta matr
 | HU-6.1, 6.2 | Alta + CSV + plantilla | **1** | Datos mínimos por instancia; **envío email enlace = F3** (SMTP) |
 | HU-7.1 | Login OAuth OSM | **1** | |
 | HU-7.2 | Dashboard | **2** + **3** | Should. F2: conteos; F3: jobs. **Listado `failed` + retry-issue es F1 (ficha evento, HU-5.1), no espera a este dashboard.** |
-| HU-7.3 | Revocación | **2** | **Must**; endpoints + corrección revoke+nueva |
+| HU-7.3 | Revocación | **1** + **2** | F1: el certificado (`certificate_revoke`). F2: el badge (`badge_revoke`). |
 | HU-7.4 | Gestión usuarios panel | **1** | |
 | HU-7.5 | Audit log acciones sensibles | **1** + **2** + **3** | Must. F1: tabla + GET + escrituras F1; F2: revoke/erase/legal; F3: jobs/awardees. |
 | HU-8.1 | Branding + atribución software | **1** | `SITE_*` + `SOFTWARE_*` ([05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
@@ -488,7 +489,7 @@ Cada fase **debe incluir tests** antes de darse por cerrada. Los criterios de ac
 | `GET /c/{slug}` issued (2ª visita) | Sirve MinIO; **sin** nueva generación Puppeteer |
 | Upload pregenerado | Sirve archivo original |
 | CSV `role` ∉ `allowed_roles` | **0** filas; informe de fallos |
-| ZIP con archivo de más o de menos | Lote **0**; «El ZIP trae X, que no está en la hoja» / «El archivo X está en la hoja pero no en el ZIP» |
+| ZIP con archivo de más o de menos | Lote **0**; «El archivo X está en el ZIP, pero no en la hoja» / «El archivo X está en la hoja, pero no en el ZIP» |
 | ZIP entrada con `..` o path | Rechazo zip-slip; lote **0** |
 | Upload PNG/PDF con MIME mentiroso o JS en PDF | **400** `UPLOAD_*` / catálogo PDF rechazado |
 | Auth guard | Endpoints admin rechazan anónimo |

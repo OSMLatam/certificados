@@ -4,7 +4,7 @@ export function FormAlert({ error }: { error: unknown }) {
   if (!error) {
     return null;
   }
-  if (error instanceof ApiError && error.details.length > 0) {
+  if (error instanceof ApiError && error.details.length > 1) {
     return (
       <div role="alert">
         <p>{error.message}</p>

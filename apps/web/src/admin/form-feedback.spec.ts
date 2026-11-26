@@ -22,6 +22,7 @@ describe("form feedback", () => {
 
     const one = failureFromBody({ message: "Validation failed", details: [{ field: "roles", message: "Elige al menos un rol." }] }, 400);
     assert.equal(one.message, "roles: Elige al menos un rol.");
-    assert.deepEqual(one.details, []);
+    assert.equal(one.details[0]?.field, "roles");
+    assert.equal(one.details[0]?.message, "Elige al menos un rol.");
   });
 });

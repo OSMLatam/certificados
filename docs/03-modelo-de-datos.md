@@ -758,8 +758,8 @@ Flujo de carga masiva (Must):
 **Correspondencia CSV ↔ ZIP (decisión cerrada, lote atómico):**
 
 - `filename` es **solo basename** (p. ej. `ana-asistente.pdf`). Caracteres `/`, `\` o `..` → error de fila. Comparación **case-sensitive**.
-- Cada fila CSV debe tener **exactamente un** archivo en el ZIP con ese basename. Si falta, el informe dice «El archivo X está en la hoja pero no en el ZIP».
-- Cada archivo del ZIP (entradas de archivo; directorios vacíos se ignoran) debe tener **exactamente una** fila CSV. Si sobra, el informe dice «El ZIP trae X, que no está en la hoja». Duplicados de basename en el ZIP o en el CSV → error.
+- Cada fila CSV debe tener **exactamente un** archivo en el ZIP con ese basename. Si falta, el informe dice «El archivo X está en la hoja, pero no en el ZIP».
+- Cada archivo del ZIP (entradas de archivo; directorios vacíos se ignoran) debe tener **exactamente una** fila CSV. Si sobra, el informe dice «El archivo X está en el ZIP, pero no en la hoja». Duplicados de basename en el ZIP o en el CSV → error.
 - `role` de cada fila ∈ `allowed_roles` (misma regla que §8).
 - Cualquier error → **0 escrituras** + informe (no se “ignoran” extras).
 

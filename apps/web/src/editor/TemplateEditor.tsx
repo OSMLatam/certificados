@@ -21,7 +21,8 @@ const FIELDS: { field: string; label: string; sample: string }[] = [
   { field: "event_name", label: "Nombre del evento", sample: "Nombre del evento" },
   { field: "venue_name", label: "Sede", sample: "Sede" },
   { field: "event_date", label: "Fecha del evento", sample: "" },
-  { field: "certificate_slug", label: "Enlace", sample: "enlace-del-certificado" },
+  { field: "certificate_slug", label: "Código", sample: "C3FnrWz1n7V4" },
+  { field: "permalink", label: "Enlace completo", sample: "https://certificados.osm.lat/c/C3FnrWz1n7V4" },
   { field: "permalink_qr", label: "Código QR", sample: "QR" },
 ];
 
@@ -399,6 +400,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
           </form>
         ) : null}
         <p>Arrastra cada texto. Las flechas del teclado lo mueven un píxel. Escape vuelve a los campos.</p>
+        <p>El código imprime solo el identificador, por ejemplo C3FnrWz1n7V4. El enlace completo imprime la dirección entera, por ejemplo https://certificados.osm.lat/c/C3FnrWz1n7V4.</p>
         <div className="fields">
           {FIELDS.map((field) => {
             const present = layout?.layers.some((layer) => layer.field === field.field) ?? false;

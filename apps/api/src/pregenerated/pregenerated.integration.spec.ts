@@ -59,14 +59,14 @@ describe("pregenerated import", () => {
       ]);
       await expectCode(
         () => pregenerated.importZip(event.id, Buffer.from(sheet), extra, "lote.csv", admin.id, "127.0.0.1"),
-        "El ZIP trae sobra.pdf, que no está en la hoja",
+        "El archivo sobra.pdf está en el ZIP, pero no en la hoja",
       );
       assert.equal(await prisma.participant.count({ where: { eventId: event.id } }), 0);
 
       const missing = makeZip([{ name: "ana.pdf", data: PDF }]);
       await expectCode(
         () => pregenerated.importZip(event.id, Buffer.from(sheet), missing, "lote.csv", admin.id, null),
-        "El archivo ana.png está en la hoja pero no en el ZIP",
+        "El archivo ana.png está en la hoja, pero no en el ZIP",
       );
 
       const zip = makeZip([

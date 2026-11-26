@@ -62,6 +62,9 @@ describe("certificate revocation", () => {
       assert.equal(metadata.status, "revoked");
       assert.equal(metadata.fullName, null);
       assert.equal(metadata.documentMasked, null);
+      assert.match(metadata.revokedAt ?? "", /^\d{4}-\d{2}-\d{2}T/);
+      assert.equal(JSON.stringify(metadata).includes("nombre mal escrito"), false);
+      assert.equal(JSON.stringify(metadata).includes("revokeReason"), false);
       await assert.rejects(() => issue.file(first.slug), NotFoundException);
       await assert.rejects(() => issue.revoke(admin.id, first.id, undefined, null), ConflictException);
       const replacement = await participants.create(event.id, {

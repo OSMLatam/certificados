@@ -1,3 +1,4 @@
+import { parseEventFields } from "@certificados/shared";
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import type { Event, Prisma } from "@prisma/client";
 import { formatDateOnly, parseDateOnly, readRoleCodes, validationFailed } from "../common/http";
@@ -57,6 +58,11 @@ export class EventsService {
   }
 
   async create(adminUserId: string, body: EventBody) {
+    const fields = parseEventFields(body);
+    if (!fields.ok) {
+      throw validationFailed(fields.issues);
+    }
+    body = { ...body, name: fields.name, startDate: fields.startDate };
     await this.ensureRoles(body.allowedRoles);
     const status = body.status ?? "draft";
     if (activationBlocked({ status, pregeneratedOnly: body.pregeneratedOnly ?? false, defaultTemplateId: null })) {
@@ -79,6 +85,23 @@ export class EventsService {
     const current = await this.events.visible(id);
     if (body.allowedRoles) {
       await this.ensureRoles(body.allowedRoles);
+    }
+    if (body.name !== undefined || body.startDate !== undefined) {
+      const fields = parseEventFields({
+        name: body.name ?? "evento",
+        startDate: body.startDate ?? "2000-01-01",
+      });
+      if (!fields.ok) {
+        throw validationFailed(
+          fields.issues.filter((issue) => (issue.field === "name" ? body.name !== undefined : body.startDate !== undefined)),
+        );
+      }
+      if (body.name !== undefined) {
+        body = { ...body, name: fields.name };
+      }
+      if (body.startDate !== undefined) {
+        body = { ...body, startDate: fields.startDate };
+      }
     }
     const nextStatus = body.status ?? current.status;
     const nextPregenerated = body.pregeneratedOnly ?? current.pregeneratedOnly;

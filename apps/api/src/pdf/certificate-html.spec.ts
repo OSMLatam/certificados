@@ -28,6 +28,21 @@ describe("renderCertificateHtml", () => {
     assert.equal(html.includes("http:"), false);
     assert.equal(html.includes("https:"), false);
     assert.equal(html.includes("checksum"), false);
+    const withLink = renderCertificateHtml({
+      layout: {
+        ...minimalCertificateLayout(),
+        layers: [
+          ...minimalCertificateLayout().layers,
+          { field: "certificate_slug", x: 80, y: 180, fontFamily: "Liberation Sans", fontSize: 16, align: "left", color: "#1a1a1a" },
+          { field: "permalink", x: 80, y: 220, fontFamily: "Liberation Sans", fontSize: 16, align: "left", color: "#1a1a1a" },
+        ],
+      },
+      values,
+      qrSvg: "<svg></svg>",
+      fontFaceCss: "",
+    });
+    assert.match(withLink, /abcdefghij12/);
+    assert.match(withLink, /https:\/\/certificados\.osm\.lat\/c\/abcdefghij12/);
     const withBackground = renderCertificateHtml({
       layout: minimalCertificateLayout(),
       values,

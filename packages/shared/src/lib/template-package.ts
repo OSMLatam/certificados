@@ -19,6 +19,7 @@ const TEXT_FIELDS = [
   "venue_name",
   "event_date",
   "certificate_slug",
+  "permalink",
 ] as const;
 
 const FONT_FAMILIES = ["Noto Sans", "Noto Sans Bold", "Liberation Sans", "Liberation Sans Bold"] as const;

@@ -33,7 +33,7 @@ export function failureFromBody(body: unknown, status: number): ApiError {
               ? "Tu sesión no tiene acceso."
               : "No se pudo completar."
           : serverMessage;
-  return new ApiError(message, lines.length > 1 ? details : []);
+  return new ApiError(message, details);
 }
 
 export function formatDetail(detail: ApiDetail): string {

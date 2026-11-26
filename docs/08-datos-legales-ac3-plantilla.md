@@ -194,7 +194,8 @@ Campo de instancia + token `legal.disclaimer`. Aclara que el documento **certifi
 | `venue_name` | `certificates.venue_id` → fallback `participants.venue_id` |
 | `event_date` | fecha evento/sede |
 | `activity_title` | charla/taller |
-| `certificate_slug` | texto del slug del certificado |
+| `certificate_slug` | solo el código del certificado |
+| `permalink` | URL completa `/c/{slug}` |
 | `permalink_qr` | imagen QR con URL `/c/{slug}` |
 
 Catálogo canónico compartido con [04 §5](./04-flujos-funcionales.md). **No** fusionar slug y QR en un solo token.

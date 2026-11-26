@@ -44,6 +44,7 @@ export type PublicCertificate = {
   activityTitle: string | null;
   issuer: string | null;
   issuedAt: string | null;
+  revokedAt: string | null;
   checksumSha256: string | null;
   documentMasked: string | null;
   permalink: string;
@@ -325,6 +326,7 @@ export class IssueService {
       activityTitle: revoked ? null : certificate.activityTitle ?? certificate.participant.activityTitle,
       issuer: revoked ? null : this.env.SITE_NAME,
       issuedAt: issued && certificate.issuedAt ? certificate.issuedAt.toISOString() : null,
+      revokedAt: revoked && certificate.revokedAt ? certificate.revokedAt.toISOString() : null,
       checksumSha256: issued ? certificate.storedFile?.checksumSha256.trim() ?? null : null,
       documentMasked: revoked ? null : maskDocument(certificate.participant.docTypeCode, certificate.participant.docNumber),
       permalink: this.permalink(certificate.slug),

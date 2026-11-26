@@ -1,11 +1,12 @@
 import { publicDocument, type PublicChrome } from "./public-chrome";
 
-export function permalinkPage(slug: string, chrome: PublicChrome): string {
+export function permalinkPage(slug: string, chrome: PublicChrome, contactEmail: string): string {
   const main = `<h1>Certificado</h1>
   <p><a href="/">Buscar mis certificados</a></p>
   <p id="estado" role="status">Cargando el certificado…</p>`;
   const script = `
 const slug = ${JSON.stringify(slug)};
+const contactEmail = ${JSON.stringify(contactEmail)};
 const root = document.getElementById("contenido");
 const estado = document.getElementById("estado");
 const etiquetas = { pending: "Pendiente", issued: "Válido", failed: "No generado", revoked: "Revocado" };
@@ -35,6 +36,17 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
     const data = await response.json();
     estado.textContent = "Estado: " + (etiquetas[data.status] || data.status);
     if (data.status === "revoked") {
+      if (data.revokedAt) {
+        const when = new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Bogota" }).format(new Date(data.revokedAt));
+        const line = document.createElement("p");
+        line.textContent = "Revocado el " + when;
+        root.append(line);
+      }
+      if (contactEmail) {
+        const help = document.createElement("p");
+        help.textContent = "Si crees que es un error, escribe a " + contactEmail;
+        root.append(help);
+      }
       return;
     }
     const list = document.createElement("dl");

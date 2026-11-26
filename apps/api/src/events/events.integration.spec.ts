@@ -27,6 +27,26 @@ describe("events, venues and participants", () => {
       data: { osmId: BigInt(Date.now()), osmUsername: "events-spec", role: "admin" },
     });
 
+    await assert.rejects(
+      () =>
+        events.create(admin.id, {
+          name: " ",
+          year: 2026,
+          startDate: "",
+          countryCode: "CO",
+          allowedRoles: ["asistente"],
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const body = error.getResponse() as { details?: { field: string; message: string }[] };
+        assert.deepEqual(body.details, [
+          { field: "name", message: "Escribe el nombre del evento" },
+          { field: "startDate", message: "Escribe la fecha de inicio" },
+        ]);
+        return true;
+      },
+    );
+
     const draft = await events.create(admin.id, {
       name: "SOTM prueba",
       year: 2026,

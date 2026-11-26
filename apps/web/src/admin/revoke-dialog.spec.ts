@@ -34,7 +34,14 @@ describe("revoke dialog", () => {
         );
       });
       const text = dom.document.body.textContent ?? "";
-      assert.match(text, /no se puede deshacer/);
+      assert.match(text, /Esta acción no se puede deshacer\. El certificado dejará de descargarse y su página dirá que fue revocado/);
+      assert.match(text, /Motivo \(opcional\)/);
+      assert.match(text, /Revocar certificado/);
+      assert.match(text, /Cancelar/);
+      await act(async () => {
+        dom.document.querySelector("dialog")?.dispatchEvent(new dom.Event("cancel", { bubbles: true, cancelable: true }));
+      });
+      assert.equal(cancelled, 1);
       const reason = dom.document.querySelector("#revoke-reason");
       assert.ok(reason instanceof dom.HTMLInputElement);
       reason.value = "  nombre mal escrito  ";
@@ -42,7 +49,7 @@ describe("revoke dialog", () => {
         dom.document.querySelector("form")?.dispatchEvent(new dom.Event("submit", { bubbles: true, cancelable: true }));
       });
       assert.deepEqual(confirmed, ["nombre mal escrito"]);
-      assert.equal(cancelled, 0);
+      assert.equal(cancelled, 1);
       await act(async () => {
         root.unmount();
       });

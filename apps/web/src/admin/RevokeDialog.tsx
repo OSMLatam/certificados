@@ -27,15 +27,15 @@ export function RevokeDialog({ onCancel, onConfirm }: { onCancel: () => void; on
         }}
       >
         <h2 id="revoke-title">Revocar certificado</h2>
-        <p>Esta acción no se puede deshacer. El enlace público deja de mostrar el archivo.</p>
-        <label htmlFor="revoke-reason">Motivo</label>
-        <input id="revoke-reason" name="reason" maxLength={500} />
+        <p>Esta acción no se puede deshacer. El certificado dejará de descargarse y su página dirá que fue revocado.</p>
+        <label htmlFor="revoke-reason">Motivo (opcional)</label>
+        <input id="revoke-reason" name="reason" maxLength={500} autoFocus />
         <div className="actions">
           <button type="button" onClick={onCancel}>
             Cancelar
           </button>
           <button type="submit" className="primary">
-            Revocar
+            Revocar certificado
           </button>
         </div>
       </form>

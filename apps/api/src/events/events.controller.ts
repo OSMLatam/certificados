@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Header, HttpCode, Inject, Param, Patch, Post, Query, Req, StreamableFile, UseGuards } from "@nestjs/common";
+import { parseEventFields } from "@certificados/shared";
 import { z } from "zod";
 import { AdminGuard, type AdminRequest } from "../auth/admin.guard";
 import { validationFailed } from "../common/http";
@@ -74,7 +75,16 @@ export class EventsController {
   @Post()
   @HttpCode(201)
   create(@Req() request: RequestWithIp, @Body() body: unknown) {
-    return this.events.create(request.adminUser!.id, parse(eventBody, body));
+    const record = isRecord(body) ? body : {};
+    const fields = parseEventFields({
+      name: typeof record.name === "string" ? record.name : "",
+      startDate: typeof record.startDate === "string" ? record.startDate : "",
+    });
+    if (!fields.ok) {
+      throw validationFailed(fields.issues);
+    }
+    const year = typeof record.year === "number" ? record.year : Number(fields.startDate.slice(0, 4));
+    return this.events.create(request.adminUser!.id, parse(eventBody, { ...record, name: fields.name, startDate: fields.startDate, year }));
   }
 
   @Get(":id/venues")
@@ -165,6 +175,10 @@ function headerValue(value: string | string[] | undefined): string {
 
 function filenameFromDisposition(header: string): string {
   return /filename="([^"]*)"/i.exec(header)?.[1] ?? /filename=([^;\s]+)/i.exec(header)?.[1] ?? "participantes.csv";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {

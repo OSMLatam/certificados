@@ -9,6 +9,14 @@ describe("parseCertificateLayout", () => {
     expect(layoutHasLegal(layout)).toBe(false);
     const qr = layout.layers.find((layer) => layer.field === "permalink_qr");
     expect(qr).toMatchObject({ x: 60, y: 1030, size: 150 });
+    const link = parseCertificateLayout({
+      ...layout,
+      layers: [
+        ...layout.layers,
+        { field: "permalink", x: 80, y: 200, fontFamily: "Liberation Sans", fontSize: 16, align: "left", color: "#1a1a1a" },
+      ],
+    });
+    expect(link.ok).toBe(true);
   });
 
   it("rejects a portrait canvas and a field outside the catalog", () => {

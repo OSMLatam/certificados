@@ -5,6 +5,12 @@ export {
   NORMALIZE_STRATEGIES,
 } from "./lib/normalize";
 export {
+  EVENT_NAME_MESSAGE,
+  EVENT_START_MESSAGE,
+  parseEventFields,
+} from "./lib/event-fields";
+export type { EventFieldIssue } from "./lib/event-fields";
+export {
   MISSING_PARTICIPANT_IDENTITY,
   parseParticipantIdentity,
   repeatedEmailMessage,

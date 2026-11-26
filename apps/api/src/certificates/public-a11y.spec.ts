@@ -68,15 +68,38 @@ describe("public accessibility", () => {
       assert.deepEqual(afterError, []);
       await page.close();
 
-      const certificate = await runAxe(browser, permalinkPage("abcdEFGH1234", chrome), issued);
+      const certificate = await runAxe(browser, permalinkPage("abcdEFGH1234", chrome, "org@osm.lat"), issued);
       assert.deepEqual(certificate, []);
-      const shown = await showCertificate(browser, permalinkPage("abcdEFGH1234", chrome));
+      const shown = await showCertificate(browser, permalinkPage("abcdEFGH1234", chrome, "org@osm.lat"));
       assert.match(shown, /Estado: Válido/);
       assert.match(shown, /Ada Lovelace/);
       assert.match(shown, /Descargar certificado/);
       assert.match(shown, /a{64}/);
       assert.match(shown, /CC \*{6}0010/);
       assert.equal(shown.includes("1234560010"), false);
+
+      const revokedHtml = withFetch(
+        permalinkPage("abcdEFGH1234", chrome, "org@osm.lat"),
+        {
+          status: "revoked",
+          fullName: "Ada Lovelace",
+          revokeReason: "nombre mal escrito",
+          revokedAt: "2026-11-25T15:00:00.000Z",
+        },
+        200,
+      );
+      const revokedPage = await browser.newPage();
+      await revokedPage.setContent(revokedHtml, { waitUntil: "domcontentloaded" });
+      await revokedPage.waitForFunction(() => document.body.innerText.includes("Revocado el"));
+      const revokedText = await revokedPage.evaluate(() => document.body.innerText);
+      assert.match(revokedText, /Estado: Revocado/);
+      assert.match(revokedText, /Revocado el 25\/11\/2026/);
+      assert.match(revokedText, /Si crees que es un error, escribe a org@osm\.lat/);
+      assert.equal(revokedText.includes("nombre mal escrito"), false);
+      assert.equal(revokedText.includes("Ada Lovelace"), false);
+      const revokedAxe = await axeViolations(revokedPage);
+      assert.deepEqual(revokedAxe, []);
+      await revokedPage.close();
     } finally {
       await browser.close();
     }
