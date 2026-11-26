@@ -20,7 +20,7 @@ export function failureFromBody(body: unknown, status: number): ApiError {
   const details = Array.isArray(record.details) ? record.details.flatMap(readDetail) : [];
   const lines = details.map(formatDetail);
   const serverMessage = typeof record.message === "string" ? record.message : "";
-  const generic = serverMessage === "" || serverMessage === "Validation failed" || serverMessage === "Bad Request";
+  const generic = serverMessage === "" || serverMessage === "Validation failed" || serverMessage === "Bad Request" || serverMessage === "Unauthorized";
   const message =
     lines.length > 1
       ? "No se guardó ningún cambio."
@@ -28,7 +28,7 @@ export function failureFromBody(body: unknown, status: number): ApiError {
         ? lines[0]!
         : generic
           ? status === 401
-            ? "Inicia sesión para usar el panel."
+            ? "Inicia sesión con tu cuenta de OpenStreetMap para entrar al panel"
             : status === 403
               ? "Tu sesión no tiene acceso."
               : "No se pudo completar."

@@ -144,7 +144,7 @@ function EventBody({ eventId }: { eventId: string }) {
         </>
       ) : null}
       <h2>Participantes</h2>
-      <p>Aún no generado: el certificado se crea la primera vez que alguien abre su enlace. Copia ese enlace; el correo automático llega en una fase posterior.</p>
+      <p>Aún no generado: se genera al abrir el enlace. Copia ese enlace; el correo automático llega en una fase posterior.</p>
       <ul>
         {people.map((person) => (
           <li key={person.id}>

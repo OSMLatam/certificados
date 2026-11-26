@@ -24,5 +24,8 @@ describe("form feedback", () => {
     assert.equal(one.message, "roles: Elige al menos un rol.");
     assert.equal(one.details[0]?.field, "roles");
     assert.equal(one.details[0]?.message, "Elige al menos un rol.");
+
+    const signedOut = failureFromBody({ message: "Unauthorized", statusCode: 401 }, 401);
+    assert.equal(signedOut.message, "Inicia sesión con tu cuenta de OpenStreetMap para entrar al panel");
   });
 });

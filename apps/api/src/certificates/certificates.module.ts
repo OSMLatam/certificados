@@ -11,10 +11,11 @@ import { SearchService } from "./search.service";
 import { SearchThrottleGuard } from "./search-throttle.guard";
 import { PrivacyPageController } from "./privacy.controller";
 import { AboutPageController } from "./about.controller";
+import { HelpPageController } from "./help.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [PublicCertificateController, RetryIssueController, PermalinkPageController, RobotsController, SearchController, SearchPageController, PrivacyPageController, AboutPageController],
+  controllers: [PublicCertificateController, RetryIssueController, PermalinkPageController, RobotsController, SearchController, SearchPageController, PrivacyPageController, AboutPageController, HelpPageController],
   providers: [IssueService, PdfService, PermalinkThrottleGuard, SearchService, SearchThrottleGuard],
 })
 export class CertificatesModule {}

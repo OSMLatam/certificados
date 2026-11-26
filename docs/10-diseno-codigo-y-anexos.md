@@ -259,7 +259,7 @@ Búsqueda sin resultados: **200** con `{ "items": [] }` y mensaje genérico en U
 | Ruta | Fase | Componente |
 |------|------|------------|
 | `/` | 1 | `PublicSearchPage` (+ texto corto de ayuda) |
-| `/help` | 1 | `PublicHelpPage` (opcional; puede ser ancla en `/`) |
+| `/help` | 1 | Página pública de ayuda, con la misma plantilla que `/privacy` y `/about` |
 | `/about` | 1 | `AboutPage` (atribución software — [05 §10](./05-personalizacion-multi-instancia.md#10-atribución-del-software-multi-instancia)) |
 | `/privacy` | 1 | `PrivacyNoticePage` (HU-8.3; markdown por despliegue) |
 | `/c/:slug` | 1 | `CertificatePublicPage` |

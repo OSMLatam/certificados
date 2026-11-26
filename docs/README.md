@@ -44,7 +44,8 @@ Especificación **v1.0** del sistema de **certificados de evento** y **Open Badg
 | [08 — Datos legales AC3](./08-datos-legales-ac3-plantilla.md) | Config instancia + capas `legal.*` |
 | [09 — Plan de implementación](./09-plan-de-implementacion.md) | Stack, 3 fases, prompts IA, pruebas (§11) |
 | [10 — Diseño de código](./10-diseno-codigo-y-anexos.md) | Monorepo, módulos Nest, ENV, health, **seguridad/abuso/carga (§10)**, CSV/seeds |
-| [11 — Manuales (outline)](./11-manuales-ops-y-usuario.md) | Esbozo runbook ops + manual editor + ayuda pública |
+| [11 — Manuales (outline)](./11-manuales-ops-y-usuario.md) | Esbozo del runbook ops. El manual del editor y la ayuda pública ya están entregados |
+| [Manual del editor](./manual-editor.md) | Cómo crear un evento, la plantilla y los participantes (versión 1) |
 
 ---
 

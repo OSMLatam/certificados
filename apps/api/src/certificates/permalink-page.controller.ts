@@ -27,6 +27,6 @@ export class RobotsController {
   @Get("robots.txt")
   @Header("Content-Type", "text/plain; charset=utf-8")
   robots(): string {
-    return ["User-agent: *", "Allow: /", "Allow: /c/", "Allow: /privacy", "Allow: /about", "Disallow: /api/", "Disallow: /admin/", ""].join("\n");
+    return ["User-agent: *", "Allow: /", "Allow: /c/", "Allow: /privacy", "Allow: /about", "Allow: /help", "Disallow: /api/", "Disallow: /admin/", ""].join("\n");
   }
 }

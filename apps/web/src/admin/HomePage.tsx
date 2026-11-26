@@ -30,7 +30,7 @@ function HomeBody() {
           <li>{summary.events} eventos</li>
           <li>{summary.participants} participantes</li>
           <li>
-            Certificados: {summary.certificates.pending} pendientes, {summary.certificates.issued} válidos, {summary.certificates.failed} no generados
+            Certificados: {summary.certificates.pending} aún no generados, {summary.certificates.issued} válidos, {summary.certificates.failed} no generados
           </li>
         </ul>
       ) : null}

@@ -9,7 +9,7 @@ const slug = ${JSON.stringify(slug)};
 const contactEmail = ${JSON.stringify(contactEmail)};
 const root = document.getElementById("contenido");
 const estado = document.getElementById("estado");
-const etiquetas = { pending: "Pendiente", issued: "Válido", failed: "No generado", revoked: "Revocado" };
+const etiquetas = { pending: "Aún no generado", issued: "Válido", failed: "No generado", revoked: "Revocado" };
 
 function field(label, value) {
   const dt = document.createElement("dt");

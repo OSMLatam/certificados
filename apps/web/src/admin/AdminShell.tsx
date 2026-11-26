@@ -12,7 +12,7 @@ export function AdminShell({ title, children }: { title: string; children: (me: 
 
   useEffect(() => {
     void api<Me>("/api/v1/admin/auth/me").then(setMe, (reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Inicia sesión para usar el panel.");
+      setError(reason instanceof Error ? reason.message : "Inicia sesión con tu cuenta de OpenStreetMap para entrar al panel");
     });
   }, []);
 
@@ -42,9 +42,14 @@ export function AdminShell({ title, children }: { title: string; children: (me: 
         </header>
         <main id="contenido">
           {error ? (
-            <p role="status">
-              {error} <a href="/admin/login">Entrar</a>
-            </p>
+            <>
+              <p role="status">{error}</p>
+              <p>
+                <a className="button-link" href="/admin/login">
+                  Entrar
+                </a>
+              </p>
+            </>
           ) : null}
           {!me && !error ? <p>Cargando…</p> : null}
           {me && !me.isActive ? (

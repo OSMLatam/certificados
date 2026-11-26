@@ -26,6 +26,7 @@ async function bootstrap(): Promise<void> {
       { path: "/", method: RequestMethod.GET },
       { path: "privacy", method: RequestMethod.GET },
       { path: "about", method: RequestMethod.GET },
+      { path: "help", method: RequestMethod.GET },
     ],
   });
   await app.listen(env.PORT);

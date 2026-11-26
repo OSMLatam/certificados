@@ -61,6 +61,7 @@ export function publicFooter(chrome: PublicChrome): string {
     <a href="/">Buscar certificados</a>
     <a href="/privacy">Datos personales</a>
     <a href="/about">Acerca de</a>
+    <a href="/help">Ayuda</a>
   </nav>
   ${softwareCredit(chrome)}
 </footer>`;

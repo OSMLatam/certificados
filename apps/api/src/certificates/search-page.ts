@@ -5,7 +5,7 @@ const form = document.getElementById("buscar");
 const estado = document.getElementById("estado");
 const lista = document.getElementById("resultados");
 const campos = { email: "email", countryCode: "country", docTypeCode: "doc-type", docNumber: "doc-number" };
-const etiquetas = { pending: "Pendiente", issued: "Válido", failed: "No generado", revoked: "Revocado" };
+const etiquetas = { pending: "Aún no generado", issued: "Válido", failed: "No generado", revoked: "Revocado" };
 
 function limpiarCampos() {
   for (const id of Object.values(campos)) {
@@ -63,7 +63,8 @@ form.addEventListener("submit", (event) => {
       link.href = "/c/" + encodeURIComponent(item.slug);
       link.textContent = item.eventName + " — " + item.roleLabel;
       const detail = document.createElement("div");
-      detail.textContent = [etiquetas[item.status] || item.status, item.eventDate, item.venueName].filter(Boolean).join(" · ");
+      const ayuda = item.status === "pending" ? "se genera al abrir el enlace" : "";
+      detail.textContent = [etiquetas[item.status] || item.status, ayuda, item.eventDate, item.venueName].filter(Boolean).join(" · ");
       line.append(link, detail);
       lista.append(line);
     }
@@ -92,6 +93,7 @@ export function searchPage(chrome: PublicChrome): string {
     </fieldset>
     <button type="submit">Buscar</button>
   </form>
+  <p><a href="/help">¿No encuentras tu certificado? Mira la ayuda</a></p>
   <p id="estado" class="status"></p>
   <ul id="resultados"></ul>`;
   return publicDocument({ title: `${chrome.siteName}: buscar certificados`, chrome, main, script: searchScript });

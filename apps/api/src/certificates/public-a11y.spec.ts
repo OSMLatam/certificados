@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { describe, it } from "node:test";
 import puppeteer from "puppeteer-core";
 import { aboutMain, publicDocument, type PublicChrome } from "./public-chrome";
+import { helpPage } from "./help-page";
 import { permalinkPage } from "./permalink-page";
 import { privacyPage } from "./privacy-page";
 import { searchPage } from "./search-page";
@@ -44,7 +45,13 @@ describe("public accessibility", () => {
         search: searchPage(chrome),
         privacy: privacyPage("<h1>Aviso de tratamiento de datos</h1><ul><li><strong>Responsable:</strong> Certificados OSM Latam</li></ul>", chrome),
         about: publicDocument({ title: "Acerca de", chrome, main: aboutMain(chrome) }),
+        help: helpPage(chrome, "https://certificados.osm.lat"),
       };
+      assert.match(pages.search, /¿No encuentras tu certificado\? Mira la ayuda/);
+      assert.match(pages.search, /Aún no generado/);
+      assert.match(pages.search, /se genera al abrir el enlace/);
+      assert.match(pages.help, /href="\/help">Ayuda/);
+      assert.equal(pages.search.includes("Pendiente"), false);
       for (const [name, html] of Object.entries(pages)) {
         const violations = await runAxe(browser, html);
         assert.deepEqual(violations, [], name);

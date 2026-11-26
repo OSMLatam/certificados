@@ -13,8 +13,8 @@ Los emails y datos de participantes suelen llegar desde **otra plataforma de reg
 | Documento | Audiencia | Ubicación sugerida | Cuándo |
 |-----------|-----------|--------------------|--------|
 | **Manual de operación (runbook)** | Quien despliega/mantiene el servidor | `docs/ops.md` (o wiki del operador) | Esqueleto F1; completo **Fase 3** (F3.12) |
-| **Manual del editor / admin** | Quien crea eventos y carga gente | `docs/manual-editor.md` | Crece con F1–F2; estable tras piloto |
-| **Ayuda pública (corta)** | Titular del certificado | Página `/` o `/help` + párrafo en búsqueda | F1 (mínimo) |
+| **Manual del editor / admin** | Quien crea eventos y carga gente | [manual-editor.md](./manual-editor.md) | **Entregado (versión 1)**, 25 de noviembre de 2026 |
+| **Ayuda pública (corta)** | Titular del certificado | Página `/help` + enlace bajo la búsqueda | Entregada en `/help` |
 
 ---
 
@@ -50,6 +50,8 @@ Objetivo: otro operador pueda desplegar, respaldar y recuperar la instancia sin 
 ---
 
 ## 3. Manual del editor / admin
+
+**Entregado (versión 1):** [manual del editor](./manual-editor.md), con las capturas en `docs/manual-editor/img/`.
 
 Objetivo: organizar un evento piloto sin leer toda la especificación.
 
@@ -87,6 +89,8 @@ Sin pantalla ni API de restore en v1.0.
 ---
 
 ## 4. Ayuda pública (titular)
+
+Entregada en `/help`, con enlace en el pie y bajo el formulario de búsqueda.
 
 Texto corto en la UI (no un PDF largo):
 
