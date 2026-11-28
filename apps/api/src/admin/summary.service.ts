@@ -6,13 +6,21 @@ export class SummaryService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async counts() {
-    const [events, participants, pending, issued, failed] = await this.prisma.$transaction([
+    const [events, participants, pending, issued, failed, badgesPending, badgesIssued, badgesRevoked] = await this.prisma.$transaction([
       this.prisma.event.count({ where: { deletedAt: null } }),
       this.prisma.participant.count({ where: { erasedAt: null, event: { deletedAt: null } } }),
       this.prisma.certificate.count({ where: { status: "pending" } }),
       this.prisma.certificate.count({ where: { status: "issued" } }),
       this.prisma.certificate.count({ where: { status: "failed" } }),
+      this.prisma.badgeAssertion.count({ where: { status: "pending" } }),
+      this.prisma.badgeAssertion.count({ where: { status: "issued" } }),
+      this.prisma.badgeAssertion.count({ where: { status: "revoked" } }),
     ]);
-    return { events, participants, certificates: { pending, issued, failed } };
+    return {
+      events,
+      participants,
+      certificates: { pending, issued, failed },
+      badges: { pending: badgesPending, issued: badgesIssued, revoked: badgesRevoked },
+    };
   }
 }

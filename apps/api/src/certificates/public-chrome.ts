@@ -7,8 +7,9 @@ export type PublicChrome = {
   creditText: string;
 };
 
-export function publicDocument(options: { title: string; chrome: PublicChrome; main: string; script?: string }): string {
+export function publicDocument(options: { title: string; chrome: PublicChrome; main: string; script?: string; head?: string }): string {
   const script = options.script ? `<script>\n${options.script}\n</script>` : "";
+  const head = options.head ?? "";
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -16,6 +17,7 @@ export function publicDocument(options: { title: string; chrome: PublicChrome; m
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noai, noimageai">
 <title>${escapeHtml(options.title)}</title>
+${head}
 <style>
   body { margin: 0; font-family: "Liberation Sans", "Noto Sans", sans-serif; background: #f4f7f4; color: #1a1a1a; }
   main, footer { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem; }

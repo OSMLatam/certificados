@@ -1,6 +1,7 @@
+import { openGraphTags } from "./open-graph";
 import { publicDocument, type PublicChrome } from "./public-chrome";
 
-export function permalinkPage(slug: string, chrome: PublicChrome, contactEmail: string): string {
+export function permalinkPage(slug: string, chrome: PublicChrome, contactEmail: string, pageUrl?: string): string {
   const main = `<h1>Certificado</h1>
   <p><a href="/">Buscar mis certificados</a></p>
   <p id="estado" role="status">Cargando el certificado…</p>`;
@@ -67,6 +68,14 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
           ["Emisor", data.issuer],
           ["Emitido", data.issuedAt ? new Date(data.issuedAt).toLocaleString("es-CO") : ""],
           ["Suma de comprobación", data.checksumSha256],
+          ["Entidad", data.legal && data.legal.entityName],
+          ["NIT", data.legal && data.legal.nit],
+          ["Representante", data.legal && data.legal.representative],
+          ["Folio", data.legal && data.legal.folio],
+          ["Ciudad de expedición", data.legal && data.legal.issueCity],
+          ["Fecha de expedición", data.legal && data.legal.issueDate],
+          ["Aviso", data.legal && data.legal.disclaimer],
+          ["Firmantes", data.legal && data.legal.signers && data.legal.signers.map((signer) => signer.name + (signer.title ? " (" + signer.title + ")" : "")).filter(Boolean).join(", ")],
         ]
       : [
           ["Rol", rolConActividad(data.roleLabel, data.activityTitle)],
@@ -90,5 +99,16 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
     estado.textContent = "No se pudo consultar el certificado.";
   });
 `;
-  return publicDocument({ title: `${chrome.siteName}: certificado`, chrome, main, script });
+  const url = pageUrl ?? `/c/${slug}`;
+  return publicDocument({
+    title: `${chrome.siteName}: certificado`,
+    chrome,
+    main,
+    script,
+    head: openGraphTags({
+      title: `Certificado · ${chrome.siteName}`,
+      description: "Página de verificación de un certificado.",
+      url,
+    }),
+  });
 }

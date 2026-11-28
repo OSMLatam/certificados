@@ -18,6 +18,7 @@ import { planParticipantImport, type ImportIssue } from "../participants/csv-imp
 import { csvBasename } from "../participants/multipart-file";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { ensureEventRoleBadge } from "../badges/badge-sync";
 import { importerMessage, pdfRejectedMessage } from "./import-messages";
 import { inspectCertificateFile } from "./file-kind";
 import { readCertificateZip } from "./zip-file";
@@ -378,7 +379,7 @@ async function createPendingCertificate(
 ): Promise<void> {
   for (let attempt = 0; attempt < SLUG_GENERATION_ATTEMPTS; attempt += 1) {
     try {
-      await tx.certificate.create({
+      const created = await tx.certificate.create({
         data: {
           id: input.id,
           participantId: input.participantId,
@@ -393,6 +394,7 @@ async function createPendingCertificate(
           activityKey: input.activityKey,
         },
       });
+      await ensureEventRoleBadge(tx, created.id);
       return;
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002" || !String(error.meta?.target ?? "").includes("slug")) {

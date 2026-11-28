@@ -1,6 +1,7 @@
 import { parseEventFields } from "@certificados/shared";
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import type { Event, Prisma } from "@prisma/client";
+import { syncEventRoleClasses } from "../badges/badge-sync";
 import { formatDateOnly, parseDateOnly, readRoleCodes, validationFailed } from "../common/http";
 import { PrismaService } from "../prisma/prisma.service";
 import { activationBlocked, type EventStatusName } from "./event-rules";
@@ -78,6 +79,7 @@ export class EventsService {
       data: this.eventData(adminUserId, body, status),
       include: { _count: { select: { venues: true, participants: true } } },
     });
+    await syncEventRoleClasses(this.prisma, { id: event.id, name: event.name, allowedRoles: body.allowedRoles });
     return this.toEvent(event);
   }
 
@@ -150,6 +152,11 @@ export class EventsService {
           },
         });
       }
+      await syncEventRoleClasses(tx, {
+        id: updated.id,
+        name: updated.name,
+        allowedRoles: body.allowedRoles ?? readRoleCodes(updated.allowedRoles),
+      });
       return updated;
     });
     return this.toEvent(event);

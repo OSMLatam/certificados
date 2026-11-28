@@ -3,7 +3,12 @@ import { api } from "./api";
 import { FormAlert } from "./FormAlert";
 import { AdminShell } from "./AdminShell";
 
-type Summary = { events: number; participants: number; certificates: { pending: number; issued: number; failed: number } };
+type Summary = {
+  events: number;
+  participants: number;
+  certificates: { pending: number; issued: number; failed: number };
+  badges?: { pending: number; issued: number; revoked: number };
+};
 
 export function HomePage() {
   return (
@@ -32,6 +37,11 @@ function HomeBody() {
           <li>
             Certificados: {summary.certificates.pending} aún no generados, {summary.certificates.issued} válidos, {summary.certificates.failed} no generados
           </li>
+          {summary.badges ? (
+            <li>
+              Insignias: {summary.badges.pending} pendientes, {summary.badges.issued} emitidas, {summary.badges.revoked} revocadas
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </>

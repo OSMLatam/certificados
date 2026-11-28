@@ -18,6 +18,9 @@ import { renderCertificateHtml, type CertificateValues } from "../pdf/certificat
 import { inspectImage } from "../templates/image-file";
 import { issueErrorCode, nextIssueState } from "../pdf/issue-state";
 import { isPreviewBot } from "../pdf/preview-bot";
+import { markEventRoleBadgeIssued, revokeEventRoleBadge } from "../badges/badge-sync";
+import { captureLegalSnapshot, reserveAc3Folio } from "../legal/legal-issue";
+import { issueDateLabel, legalTextValues, type LegalSnapshot } from "../legal/legal-snapshot";
 import { maskDocument } from "./mask-document";
 import { PdfService } from "../pdf/pdf.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -48,6 +51,18 @@ export type PublicCertificate = {
   checksumSha256: string | null;
   documentMasked: string | null;
   permalink: string;
+  legal: PublicLegal | null;
+};
+
+export type PublicLegal = {
+  entityName: string;
+  nit: string;
+  representative: string;
+  issueCity: string;
+  issueDate: string;
+  disclaimer: string;
+  folio: string;
+  signers: { slot: number; name: string; title: string }[];
 };
 
 @Injectable()
@@ -107,10 +122,12 @@ export class IssueService {
       if (certificate.status === "revoked") {
         return { error: "status" as const };
       }
+      const when = new Date();
       await tx.certificate.update({
         where: { id },
-        data: { status: "revoked", revokedAt: new Date(), revokeReason: reason || null },
+        data: { status: "revoked", revokedAt: when, revokeReason: reason || null },
       });
+      await revokeEventRoleBadge(tx, id, reason, when);
       await tx.auditLog.create({
         data: {
           adminUserId,
@@ -177,6 +194,9 @@ export class IssueService {
 
   private async transitionToIssued(id: string): Promise<PublicCertificate> {
     try {
+      if (this.env.INSTANCE === "ac3") {
+        await reserveAc3Folio(this.prisma, id);
+      }
       const certificate = await this.prisma.$transaction(
         async (tx) => {
           await lockCertificate(tx, id);
@@ -184,18 +204,29 @@ export class IssueService {
           if (current.status !== "pending") {
             return current;
           }
+          const issuedAtCandidate = new Date();
+          const snapshot =
+            this.env.INSTANCE === "ac3" && current.folio !== null
+              ? await captureLegalSnapshot(tx, current.folio, issuedAtCandidate)
+              : null;
           if (current.mode === "pregenerated") {
             if (!current.storedFileId) {
               throw new Error("PREGENERATED_FILE_MISSING");
             }
-            return tx.certificate.update({
+            const issued = await tx.certificate.update({
               where: { id },
-              data: { status: "issued", issuedAt: new Date(), lastIssueError: null },
+              data: {
+                status: "issued",
+                issuedAt: issuedAtCandidate,
+                lastIssueError: null,
+                legalSnapshot: snapshot === null ? undefined : (snapshot as Prisma.InputJsonValue),
+              },
               include: certificateInclude,
             });
+            await markEventRoleBadgeIssued(tx, id, issuedAtCandidate);
+            return issued;
           }
-          const issuedAtCandidate = new Date();
-          const html = await this.buildHtml(tx, current);
+          const html = await this.buildHtml(tx, current, snapshot);
           const pdf = await this.pdf.render(html);
           if (!pdf.subarray(0, 4).equals(Buffer.from("%PDF"))) {
             throw new Error("PDF_RENDER");
@@ -212,7 +243,7 @@ export class IssueService {
                 checksumSha256: checksum,
               },
             });
-            return await tx.certificate.update({
+            const issued = await tx.certificate.update({
               where: { id },
               data: {
                 status: "issued",
@@ -221,9 +252,12 @@ export class IssueService {
                 issueAttempts: current.issueAttempts + 1,
                 lastIssueError: null,
                 lastIssueAttemptAt: issuedAtCandidate,
+                legalSnapshot: snapshot === null ? undefined : (snapshot as Prisma.InputJsonValue),
               },
               include: certificateInclude,
             });
+            await markEventRoleBadgeIssued(tx, id, issuedAtCandidate);
+            return issued;
           } catch (error) {
             await this.storage.delete(storageKey).catch(() => undefined);
             throw error;
@@ -269,7 +303,7 @@ export class IssueService {
     });
   }
 
-  private async buildHtml(tx: Prisma.TransactionClient, certificate: Loaded): Promise<string> {
+  private async buildHtml(tx: Prisma.TransactionClient, certificate: Loaded, snapshot: LegalSnapshot | null): Promise<string> {
     if (!certificate.template) {
       throw new Error("TEMPLATE_MISSING");
     }
@@ -278,7 +312,12 @@ export class IssueService {
       throw new Error("PDF_RENDER");
     }
     const role = await tx.role.findUnique({ where: { code: certificate.roleCode } });
-    const values = certificateValues(certificate, role?.label ?? certificate.roleCode, this.permalink(certificate.slug));
+    const values = certificateValues(
+      certificate,
+      role?.label ?? certificate.roleCode,
+      this.permalink(certificate.slug),
+      snapshot ? legalTextValues(snapshot, false) : {},
+    );
     const qrSvg = await qrSvgFor(values.permalink, qrSize(parsed.layout));
     return renderCertificateHtml({
       layout: parsed.layout,
@@ -330,6 +369,7 @@ export class IssueService {
       checksumSha256: issued ? certificate.storedFile?.checksumSha256.trim() ?? null : null,
       documentMasked: revoked ? null : maskDocument(certificate.participant.docTypeCode, certificate.participant.docNumber),
       permalink: this.permalink(certificate.slug),
+      legal: issued && !revoked ? publicLegal(certificate.legalSnapshot) : null,
     };
   }
 
@@ -348,7 +388,44 @@ export class IssueService {
   }
 }
 
-function certificateValues(certificate: Loaded, roleLabel: string, permalink: string): CertificateValues {
+function publicLegal(value: Prisma.JsonValue | null): PublicLegal | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const row = value as Record<string, unknown>;
+  if (typeof row.nit !== "string" && typeof row.entity_name !== "string") {
+    return null;
+  }
+  const signers = Array.isArray(row.signers)
+    ? row.signers.flatMap((item) => {
+        if (!item || typeof item !== "object") {
+          return [];
+        }
+        const signer = item as Record<string, unknown>;
+        if (typeof signer.slot !== "number" || typeof signer.name !== "string") {
+          return [];
+        }
+        return [{ slot: signer.slot, name: signer.name, title: typeof signer.title === "string" ? signer.title : "" }];
+      })
+    : [];
+  return {
+    entityName: typeof row.entity_name === "string" ? row.entity_name : "",
+    nit: typeof row.nit === "string" ? row.nit : "",
+    representative: typeof row.representative === "string" ? row.representative : "",
+    issueCity: typeof row.issue_city === "string" ? row.issue_city : "",
+    issueDate: typeof row.issued_at === "string" ? issueDateLabel(new Date(row.issued_at)) : "",
+    disclaimer: typeof row.disclaimer === "string" ? row.disclaimer : "",
+    folio: typeof row.folio === "number" ? String(row.folio) : "",
+    signers,
+  };
+}
+
+function certificateValues(
+  certificate: Loaded,
+  roleLabel: string,
+  permalink: string,
+  legal: Record<string, string>,
+): CertificateValues {
   const when = certificate.venue?.eventDate ?? certificate.event.startDate;
   return {
     full_name: certificate.participant.fullName,
@@ -358,8 +435,9 @@ function certificateValues(certificate: Loaded, roleLabel: string, permalink: st
     event_name: certificate.event.name,
     venue_name: certificate.venue?.name ?? "",
     event_date: formatEventDate(when),
-    certificate_slug: certificate.slug,
+    certificate_slug: permalink,
     permalink,
+    ...legal,
   };
 }
 

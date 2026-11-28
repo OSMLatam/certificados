@@ -18,7 +18,8 @@ export class PermalinkPageController {
     if (!isPermalinkSlug(slug)) {
       throw new NotFoundException();
     }
-    return permalinkPage(slug, chromeFromEnv(this.env), this.env.PRIVACY_CONTACT_EMAIL);
+    const base = this.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+    return permalinkPage(slug, chromeFromEnv(this.env), this.env.PRIVACY_CONTACT_EMAIL, `${base}/c/${slug}`);
   }
 }
 
@@ -27,6 +28,6 @@ export class RobotsController {
   @Get("robots.txt")
   @Header("Content-Type", "text/plain; charset=utf-8")
   robots(): string {
-    return ["User-agent: *", "Allow: /", "Allow: /c/", "Allow: /privacy", "Allow: /about", "Allow: /help", "Disallow: /api/", "Disallow: /admin/", ""].join("\n");
+    return ["User-agent: *", "Allow: /", "Allow: /c/", "Allow: /b/", "Allow: /badges/", "Allow: /privacy", "Allow: /about", "Allow: /help", "Disallow: /api/", "Disallow: /admin/", ""].join("\n");
   }
 }

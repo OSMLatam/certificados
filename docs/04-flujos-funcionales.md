@@ -196,10 +196,10 @@ flowchart TD
 |-------|--------|
 | Participante | `full_name`, `document`, `role_label`, `activity_title` |
 | Evento | `event_name`, `venue_name`, `event_date` |
-| Sistema | `certificate_slug` (solo el código), `permalink` (URL completa `/c/{slug}`), `permalink_qr` (QR → esa URL) |
+| Sistema | `certificate_slug` y `permalink` (los dos imprimen la URL completa `/c/{slug}`), `permalink_qr` (QR → esa URL) |
 | Instancia AC3 | `legal.entity_name`, `legal.nit`, `legal.representative`, `legal.folio`, `legal.issue_city`, `legal.issue_date`, `legal.disclaimer`, `legal.signer.{n}.name`, `legal.signer.{n}.title`, `legal.signer.{n}.signature` (`n` = 1..8) |
 
-`certificate_slug`, `permalink` y `permalink_qr` son tokens distintos. El código imprime solo el identificador; el enlace completo imprime la dirección. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field` (`legal.signer.{n}.*` con `n` ∈ 1..8).
+`certificate_slug`, `permalink` y `permalink_qr` son tokens distintos. El enlace que se coloca en la plantilla imprime la dirección completa; el QR abre esa misma dirección. Lista única de producto: esta tabla + [08 §3](./08-datos-legales-ac3-plantilla.md) para `legal.*`. El schema `layout` valida solo estos `field` (`legal.signer.{n}.*` con `n` ∈ 1..8).
 
 Valores `legal.*` → config instancia + `folio` / `issued_at` del certificado. Resto → BD del participante/evento. `event_date` ≠ `legal.issue_date`.
 

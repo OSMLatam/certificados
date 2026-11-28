@@ -76,8 +76,8 @@ Son los textos que cambian en cada certificado. Los botones de la izquierda los 
 | Nombre del evento | El nombre del evento |
 | Sede | La sede, si el evento tiene varias |
 | Fecha del evento | La fecha de inicio |
-| Código | Solo el identificador del certificado (por ejemplo, «FVp7_6C2-zO7») |
-| Enlace completo | La dirección entera, por ejemplo `https://certificados.osm.lat/c/FVp7_6C2-zO7` |
+| Enlace | La dirección completa, por ejemplo `https://certificados.osm.lat/c/FVp7_6C2-zO7` |
+| Enlace completo | La misma dirección completa |
 | Código QR | Un QR que abre la página del certificado |
 
 **Para ubicar un campo:** haz clic en él sobre el lienzo y arrástralo, o escribe **X** y **Y** en el panel. Las flechas del teclado lo mueven un píxel. En el mismo panel cambias el **tamaño de letra**, el **color**, la **alineación** y la **negrita**. Para el QR, el **tamaño**.
@@ -86,10 +86,10 @@ Son los textos que cambian en cada certificado. Los botones de la izquierda los 
 
 > **Consejos:**
 > - Si el fondo ya dice el rol, el nombre del evento o la fecha, quita esos campos para que no salgan repetidos.
-> - **Código** imprime solo el identificador. **Enlace completo** imprime la dirección entera. Si el fondo ya dice `certificados.osm.lat/c/`, usa el código y no el enlace completo, para que no salga repetido.
+> - **Enlace** imprime la dirección completa del certificado. **Enlace completo** imprime esa misma dirección. Usa uno de los dos.
 > - Deja el QR al menos a 60 píxeles del borde, sobre una zona clara del fondo.
 
-La captura de arriba se hizo cuando el identificador se llamaba «Enlace». En la plataforma ese botón ahora dice «Código», y hay otro, «Enlace completo».
+La captura de arriba se hizo cuando el identificador se llamaba «Enlace». Ese campo imprime la dirección completa del certificado.
 
 ### 4.3. Una plantilla distinta para un rol
 Si los ponentes llevan otro diseño, elige el rol en **Nueva plantilla para el rol** y haz clic en **Crear plantilla del rol**. Después cambias entre plantillas con el selector **Plantilla**. Los roles sin plantilla propia usan la General.

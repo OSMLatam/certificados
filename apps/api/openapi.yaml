@@ -4,8 +4,9 @@ info:
   version: 0.1.0
   summary: API de certificados de evento. El título es el software, no la marca de la instancia.
   description: |
-    Contrato de la fase 1. Las páginas HTML (`/`, `/c/{slug}`, `/privacy`, `/about`, `/robots.txt`)
-    no forman parte de esta API. Open Badges, datos legales AC3, revocación y envío por correo quedan fuera.
+    Contrato de la fase 1. Las páginas HTML (`/`, `/c/{slug}`, `/b/{slug}`, `/privacy`, `/about`, `/robots.txt`)
+    y los JSON de Open Badges (`/badges/`) se sirven junto a esta API y se describen en docs/06 y docs/08.
+    El envío por correo queda fuera.
   license:
     name: MIT
     url: https://opensource.org/license/mit

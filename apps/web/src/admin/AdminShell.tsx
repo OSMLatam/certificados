@@ -37,6 +37,7 @@ export function AdminShell({ title, children }: { title: string; children: (me: 
               <a href="/admin/events">Eventos</a>
               {me?.role === "admin" ? <a href="/admin/users">Usuarios</a> : null}
               {me?.role === "admin" ? <a href="/admin/audit">Auditoría</a> : null}
+              {me?.role === "admin" && me.instance === "ac3" ? <a href="/admin/legal">Datos legales</a> : null}
             </nav>
           ) : null}
         </header>

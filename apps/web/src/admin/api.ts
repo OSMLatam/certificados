@@ -6,6 +6,7 @@ export type Me = {
   osmUsername: string;
   isActive: boolean;
   contactEmail?: string;
+  instance?: "osm_lat" | "ac3";
 };
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

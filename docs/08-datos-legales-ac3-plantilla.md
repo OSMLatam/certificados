@@ -194,7 +194,7 @@ Campo de instancia + token `legal.disclaimer`. Aclara que el documento **certifi
 | `venue_name` | `certificates.venue_id` → fallback `participants.venue_id` |
 | `event_date` | fecha evento/sede |
 | `activity_title` | charla/taller |
-| `certificate_slug` | solo el código del certificado |
+| `certificate_slug` | la dirección completa `/c/{slug}` (el campo Enlace de la plantilla) |
 | `permalink` | URL completa `/c/{slug}` |
 | `permalink_qr` | imagen QR con URL `/c/{slug}` |
 

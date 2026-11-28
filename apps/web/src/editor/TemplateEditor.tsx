@@ -21,7 +21,7 @@ const FIELDS: { field: string; label: string; sample: string }[] = [
   { field: "event_name", label: "Nombre del evento", sample: "Nombre del evento" },
   { field: "venue_name", label: "Sede", sample: "Sede" },
   { field: "event_date", label: "Fecha del evento", sample: "" },
-  { field: "certificate_slug", label: "Código", sample: "C3FnrWz1n7V4" },
+  { field: "certificate_slug", label: "Enlace", sample: "https://certificados.osm.lat/c/C3FnrWz1n7V4" },
   { field: "permalink", label: "Enlace completo", sample: "https://certificados.osm.lat/c/C3FnrWz1n7V4" },
   { field: "permalink_qr", label: "Código QR", sample: "QR" },
 ];
@@ -80,6 +80,7 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
   const [previewBackground, setPreviewBackground] = useState<HTMLImageElement | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [pending, setPending] = useState<Pending | null>(null);
+  const [legalFields, setLegalFields] = useState<{ field: string; label: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -99,6 +100,34 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
       (reason: unknown) => setError(reason),
     );
   }, [eventId]);
+
+  useEffect(() => {
+    void fetch("/api/v1/admin/auth/me", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as { instance?: string };
+      })
+      .then(async (me) => {
+        if (me?.instance !== "ac3") return;
+        const response = await fetch("/api/v1/admin/instance/legal", { credentials: "include" });
+        const legal = response.ok ? ((await response.json()) as { signers?: { slot: number }[] }) : { signers: [] };
+        const signers = (legal.signers ?? []).map((signer) => ({
+          field: `legal.signer.${signer.slot}.name`,
+          label: `Firmante ${signer.slot}`,
+        }));
+        setLegalFields([
+          { field: "legal.entity_name", label: "Entidad" },
+          { field: "legal.nit", label: "NIT" },
+          { field: "legal.representative", label: "Representante" },
+          { field: "legal.folio", label: "Folio" },
+          { field: "legal.issue_city", label: "Ciudad de expedición" },
+          { field: "legal.issue_date", label: "Fecha de expedición" },
+          { field: "legal.disclaimer", label: "Aviso legal" },
+          ...signers,
+        ]);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!template?.hasBackground || pending) {
@@ -340,7 +369,10 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
   }
 
   const current = layout?.layers[selected];
-  const currentLabel = FIELDS.find((field) => field.field === current?.field)?.label ?? "capa";
+  const currentLabel =
+    FIELDS.find((field) => field.field === current?.field)?.label ??
+    legalFields.find((field) => field.field === current?.field)?.label ??
+    "capa";
 
   return (
     <div className="editor">
@@ -400,9 +432,22 @@ export function TemplateEditor({ eventId }: { eventId: string }) {
           </form>
         ) : null}
         <p>Arrastra cada texto. Las flechas del teclado lo mueven un píxel. Escape vuelve a los campos.</p>
-        <p>El código imprime solo el identificador, por ejemplo C3FnrWz1n7V4. El enlace completo imprime la dirección entera, por ejemplo https://certificados.osm.lat/c/C3FnrWz1n7V4.</p>
+        <p>El enlace imprime la dirección completa del certificado, por ejemplo https://certificados.osm.lat/c/C3FnrWz1n7V4. El código QR abre esa misma dirección.</p>
+        <p>
+          <button type="button" onClick={() => setStatus("Vista previa con datos de ejemplo. El folio y la fecha de expedición salen como —.")}>
+            Vista previa
+          </button>
+        </p>
         <div className="fields">
           {FIELDS.map((field) => {
+            const present = layout?.layers.some((layer) => layer.field === field.field) ?? false;
+            return (
+              <button key={field.field} type="button" disabled={present || pending !== null} onClick={() => addField(field.field)}>
+                {present ? `${field.label} ya está en la plantilla` : `Agregar campo: ${field.label}`}
+              </button>
+            );
+          })}
+          {legalFields.map((field) => {
             const present = layout?.layers.some((layer) => layer.field === field.field) ?? false;
             return (
               <button key={field.field} type="button" disabled={present || pending !== null} onClick={() => addField(field.field)}>
@@ -612,6 +657,12 @@ function sampleFor(field: string, eventDate: string): string {
   if (field === "event_date") {
     return eventDate || "fecha del evento";
   }
+  if (field === "legal.folio" || field === "legal.issue_date") {
+    return "—";
+  }
+  if (field === "legal.nit") return "900.000.000-0";
+  if (field === "legal.entity_name") return "Entidad de ejemplo";
+  if (field.startsWith("legal.signer.")) return "Nombre del firmante";
   return FIELDS.find((item) => item.field === field)?.sample || field;
 }
 

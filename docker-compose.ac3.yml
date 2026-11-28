@@ -1,0 +1,7 @@
+# Second deploy profile. The server compose file is not in this repository.
+# Merge it when that file defines the api service:
+#   INSTANCE=ac3 docker compose -f docker-compose.yml -f docker-compose.ac3.yml --profile app up -d
+services:
+  api:
+    environment:
+      INSTANCE: ac3

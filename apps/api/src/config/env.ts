@@ -25,6 +25,7 @@ const envSchema = z.object({
   SOFTWARE_NAME: z.string().min(1),
   SOFTWARE_REPO_URL: z.string().url(),
   SITE_NAME: z.string().min(1).default("Certificados"),
+  SITE_LOGO_URL: z.string().default(""),
   SITE_FOOTER_TEXT: z.string().default(""),
   SOFTWARE_CREDIT_ENABLED: z
     .enum(["true", "false"])

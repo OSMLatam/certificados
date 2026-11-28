@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AdminModule } from "./admin/admin.module";
+import { BadgesModule } from "./badges/badges.module";
+import { LegalModule } from "./legal/legal.module";
 import { AdminOriginGuard } from "./auth/admin-origin.guard";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
@@ -15,7 +17,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { StorageModule } from "./storage/storage.module";
 
 @Module({
-  imports: [ConfigModule, PrismaModule, StorageModule, HealthModule, AuthModule, EventsModule, CertificatesModule, PregeneratedModule, AuditModule, OpsModule, AdminModule],
+  imports: [ConfigModule, PrismaModule, StorageModule, HealthModule, AuthModule, EventsModule, CertificatesModule, PregeneratedModule, AuditModule, OpsModule, AdminModule, BadgesModule, LegalModule],
   providers: [
     { provide: APP_GUARD, useClass: AdminOriginGuard },
     { provide: APP_FILTER, useClass: PrismaExceptionFilter },

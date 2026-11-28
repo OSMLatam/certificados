@@ -10,7 +10,7 @@ export type CertificateValues = {
   event_date: string;
   certificate_slug: string;
   permalink: string;
-};
+} & Record<string, string>;
 
 const FAMILY: Record<string, { family: string; weight: number }> = {
   "Noto Sans": { family: "Liberation Sans", weight: 400 },
@@ -57,7 +57,7 @@ function renderLayer(layer: LayoutLayer, values: CertificateValues, qrSvg: strin
   }
   const font = FAMILY[layer.fontFamily] ?? FAMILY["Liberation Sans"]!;
   const shift = layer.align === "center" ? "transform:translateX(-50%);" : layer.align === "right" ? "transform:translateX(-100%);" : "";
-  const text = layer.field in values ? values[layer.field as keyof CertificateValues] : "";
+  const text = values[layer.field] ?? "";
   return `<div class="layer" style="left:${mm(layer.x)};top:${mm(layer.y)};${shift}font-family:'${font.family}';font-weight:${font.weight};font-size:${mm(layer.fontSize)};color:${layer.color};text-align:${layer.align}">${escapeHtml(text)}</div>`;
 }
 

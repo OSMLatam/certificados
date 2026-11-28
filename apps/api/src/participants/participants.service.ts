@@ -14,6 +14,7 @@ import { readRoleCodes, validationFailed } from "../common/http";
 import { EventAccess } from "../events/event-access";
 import { resolveCertificateTemplate, resolveVenueId } from "../events/event-rules";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEventRoleBadge } from "../badges/badge-sync";
 import { planParticipantImport, type ImportIssue } from "./csv-import";
 
 export type ParticipantBody = {
@@ -421,7 +422,7 @@ async function createCertificate(
 ): Promise<void> {
   for (let attempt = 0; attempt < SLUG_GENERATION_ATTEMPTS; attempt += 1) {
     try {
-      await tx.certificate.create({
+      const created = await tx.certificate.create({
         data: {
           participantId: input.participantId,
           eventId: input.eventId,
@@ -435,6 +436,7 @@ async function createCertificate(
           activityKey: input.activityKey,
         },
       });
+      await ensureEventRoleBadge(tx, created.id);
       return;
     } catch (error) {
       if (!isSlugCollision(error) || attempt === SLUG_GENERATION_ATTEMPTS - 1) {

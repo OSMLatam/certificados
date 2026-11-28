@@ -54,7 +54,7 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return { ...user, contactEmail: this.env.PRIVACY_CONTACT_EMAIL };
+    return { ...user, contactEmail: this.env.PRIVACY_CONTACT_EMAIL, instance: this.env.INSTANCE };
   }
 
   @Post("logout")
