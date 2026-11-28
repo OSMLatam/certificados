@@ -1,10 +1,14 @@
-export function openGraphTags(input: { title: string; description: string; url: string }): string {
-  return [
+export function openGraphTags(input: { title: string; description: string; url: string; image?: string }): string {
+  const tags = [
     meta("og:title", input.title),
     meta("og:description", input.description),
     meta("og:url", input.url),
     meta("og:type", "website"),
-  ].join("\n");
+  ];
+  if (input.image) {
+    tags.push(meta("og:image", input.image));
+  }
+  return tags.join("\n");
 }
 
 function meta(property: string, content: string): string {

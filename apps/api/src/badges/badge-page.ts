@@ -8,6 +8,7 @@ export function badgePage(
   contactEmail: string,
   pageUrl: string,
   jsonLd: BadgeJson | null = null,
+  imageUrl = "",
 ): string {
   const main = `<h1>Insignia</h1>
   <p><a href="/">Buscar mis certificados</a></p>
@@ -92,6 +93,7 @@ fetch("/api/v1/public/badges/" + encodeURIComponent(slug))
       title: `Insignia · ${chrome.siteName}`,
       description: "Insignia verificable de un certificado.",
       url: pageUrl,
+      image: imageUrl || undefined,
     })}\n${jsonLdScript(jsonLd)}`,
   });
 }

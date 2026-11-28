@@ -71,6 +71,14 @@ form.addEventListener("submit", (event) => {
       const ayuda = item.status === "pending" ? "se genera al abrir el enlace" : "";
       detail.textContent = [etiquetas[item.status] || item.status, ayuda, item.eventDate, item.venueName].filter(Boolean).join(" · ");
       line.append(link, detail);
+      if (item.badgeSlug) {
+        const badge = document.createElement("div");
+        const badgeLink = document.createElement("a");
+        badgeLink.href = "/b/" + encodeURIComponent(item.badgeSlug);
+        badgeLink.textContent = "Ver insignia";
+        badge.append(badgeLink);
+        line.append(badge);
+      }
       lista.append(line);
     }
   }).catch(() => {

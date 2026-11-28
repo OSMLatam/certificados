@@ -46,7 +46,7 @@ export class ParticipantsService {
         orderBy: [{ fullName: "asc" }, { email: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { certificates: { orderBy: { roleCode: "asc" } } },
+        include: { certificates: { orderBy: { roleCode: "asc" }, include: { badgeAssertion: { select: { slug: true } } } } },
       }),
     ]);
     return {
@@ -180,7 +180,7 @@ export class ParticipantsService {
       }
       return tx.participant.findUniqueOrThrow({
         where: { id: saved.id },
-        include: { certificates: { orderBy: { roleCode: "asc" } } },
+        include: { certificates: { orderBy: { roleCode: "asc" }, include: { badgeAssertion: { select: { slug: true } } } } },
       });
     });
     return this.toParticipant(participant);
@@ -348,7 +348,7 @@ export class ParticipantsService {
     docNumber: string | null;
     venueId: string | null;
     createdAt: Date;
-    certificates: Certificate[];
+    certificates: Array<Certificate & { badgeAssertion?: { slug: string } | null }>;
   }) {
     return {
       id: row.id,
@@ -371,6 +371,7 @@ export class ParticipantsService {
         mode: certificate.mode,
         templateId: certificate.templateId,
         venueId: certificate.venueId,
+        badgeSlug: certificate.badgeAssertion?.slug ?? null,
       })),
     };
   }

@@ -24,6 +24,7 @@ async function bootstrap(): Promise<void> {
       { path: "robots.txt", method: RequestMethod.GET },
       { path: "c/:slug", method: RequestMethod.GET },
       { path: "b/:slug", method: RequestMethod.GET },
+      { path: "badges/default.svg", method: RequestMethod.GET },
       { path: "badges/issuer.json", method: RequestMethod.GET },
       { path: "badges/revocations.json", method: RequestMethod.GET },
       { path: "badges/classes/:id", method: RequestMethod.GET },

@@ -42,6 +42,16 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
     }
     const data = await response.json();
     estado.textContent = "Estado: " + (etiquetas[data.status] || data.status);
+    function insignia(payload) {
+      if (!payload.badgeSlug) return;
+      const line = document.createElement("p");
+      const anchor = document.createElement("a");
+      anchor.href = "/b/" + encodeURIComponent(payload.badgeSlug);
+      anchor.textContent = "Ver insignia";
+      line.append(anchor);
+      root.append(line);
+    }
+
     if (data.status === "revoked") {
       if (data.revokedAt) {
         const when = new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Bogota" }).format(new Date(data.revokedAt));
@@ -54,6 +64,7 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
         help.textContent = "Si crees que es un error, escribe a " + contactEmail;
         root.append(help);
       }
+      insignia(data);
       return;
     }
     const list = document.createElement("dl");
@@ -85,6 +96,7 @@ fetch("/api/v1/public/certificates/" + encodeURIComponent(slug))
       if (value) list.append(...field(label, value));
     }
     if (list.childElementCount > 0) root.append(list);
+    insignia(data);
     if (data.status !== "issued") {
       return;
     }

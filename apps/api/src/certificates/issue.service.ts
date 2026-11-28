@@ -32,6 +32,7 @@ const certificateInclude = {
   venue: true,
   template: { include: { backgroundFile: true } },
   storedFile: true,
+  badgeAssertion: { select: { slug: true } },
 } satisfies Prisma.CertificateInclude;
 
 type Loaded = Prisma.CertificateGetPayload<{ include: typeof certificateInclude }>;
@@ -51,6 +52,7 @@ export type PublicCertificate = {
   checksumSha256: string | null;
   documentMasked: string | null;
   permalink: string;
+  badgeSlug: string | null;
   legal: PublicLegal | null;
 };
 
@@ -369,6 +371,7 @@ export class IssueService {
       checksumSha256: issued ? certificate.storedFile?.checksumSha256.trim() ?? null : null,
       documentMasked: revoked ? null : maskDocument(certificate.participant.docTypeCode, certificate.participant.docNumber),
       permalink: this.permalink(certificate.slug),
+      badgeSlug: certificate.badgeAssertion?.slug ?? null,
       legal: issued && !revoked ? publicLegal(certificate.legalSnapshot) : null,
     };
   }

@@ -26,6 +26,7 @@ export type SearchItem = {
   activityTitle: string | null;
   eventDate: string;
   venueName: string | null;
+  badgeSlug: string | null;
 };
 
 @Injectable()
@@ -48,7 +49,7 @@ export class SearchService {
       },
       include: {
         event: true,
-        certificates: { include: { venue: true } },
+        certificates: { include: { venue: true, badgeAssertion: { select: { slug: true } } } },
       },
     });
     const codes = [...new Set(people.flatMap((person) => person.certificates.map((certificate) => certificate.roleCode)))];
@@ -73,6 +74,7 @@ export class SearchService {
               activityTitle: shownActivity(certificate.activityTitle, person.activityTitle),
               eventDate: formatDateOnly(when),
               venueName: revoked ? null : certificate.venue?.name ?? null,
+              badgeSlug: certificate.badgeAssertion?.slug ?? null,
             } satisfies SearchItem,
           };
         }),

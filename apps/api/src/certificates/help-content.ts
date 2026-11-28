@@ -21,6 +21,8 @@ La página muestra tu nombre, el evento, tu rol, la fecha y tu documento **enmas
 
 La primera vez que se abre el enlace, el certificado se genera; puede tardar unos segundos.
 
+En esa misma página está **Ver insignia**. Abre la insignia del certificado, en una dirección como \`{{PUBLIC_BASE_URL}}/b/AbC123xyZ\`. Desde ahí se puede agregar a una mochila digital.
+
 ## ¿Cómo se comprueba que un certificado es auténtico?
 - Abre su enlace o escanea el código QR del PDF, y **mira que la dirección sea la de este sitio**. Un certificado es válido si su página aquí dice «Estado: Válido».
 - Cada certificado se verifica de uno en uno, con su propio enlace.

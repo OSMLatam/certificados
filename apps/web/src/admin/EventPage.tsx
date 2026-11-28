@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { AdminShell } from "./AdminShell";
 import { FormAlert, FormSuccess } from "./FormAlert";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { RevokeDialog } from "./RevokeDialog";
 import { ApiError, invalidFormMessage } from "./form-feedback";
 import { importSummary } from "./import-summary";
@@ -25,6 +26,7 @@ type Certificate = {
   activityTitle: string | null;
   status: string;
   slug: string;
+  badgeSlug: string | null;
   mode: string;
   issueAttempts: number;
 };
@@ -50,12 +52,12 @@ const DOC_TYPES = ["CC", "CE", "TI"];
 export function EventPage({ eventId }: { eventId: string }) {
   return (
     <AdminShell title="Evento">
-      {() => <EventBody eventId={eventId} />}
+      {(me) => <EventBody eventId={eventId} canErase={me.role === "admin"} />}
     </AdminShell>
   );
 }
 
-function EventBody({ eventId }: { eventId: string }) {
+function EventBody({ eventId, canErase }: { eventId: string; canErase: boolean }) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [people, setPeople] = useState<Participant[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -72,6 +74,7 @@ function EventBody({ eventId }: { eventId: string }) {
   const [venueName, setVenueName] = useState("");
   const [venueCode, setVenueCode] = useState("");
   const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [eraseId, setEraseId] = useState<string | null>(null);
 
   function reload() {
     void api<EventDetail>(`/api/v1/admin/events/${eventId}`).then(setEvent, (reason: unknown) => {
@@ -154,12 +157,23 @@ function EventBody({ eventId }: { eventId: string }) {
           <li key={person.id}>
             {person.fullName}
             {person.email ? ` · ${person.email}` : person.docTypeCode && person.docNumber ? ` · ${person.docTypeCode} ${person.docNumber}` : ""}
+            {canErase ? (
+              <button type="button" onClick={() => setEraseId(person.id)}>
+                Borrar datos personales
+              </button>
+            ) : null}
             <ul>
               {person.certificates.map((certificate) => (
                 <li key={certificate.id}>
                   {certificate.roleCode}:{certificate.activityTitle ? ` "${certificate.activityTitle}"` : ""} · {STATUS[certificate.status] ?? certificate.status}
                   {certificate.issueAttempts > 0 ? ` · ${certificate.issueAttempts} intentos` : ""} ·{" "}
                   <a href={`/c/${certificate.slug}`}>/c/{certificate.slug}</a>
+                  {certificate.badgeSlug ? (
+                    <>
+                      {" · "}
+                      <a href={`/b/${certificate.badgeSlug}`}>/b/{certificate.badgeSlug}</a>
+                    </>
+                  ) : null}
                   {certificate.status !== "revoked" ? (
                     <button type="button" onClick={() => setRevokeId(certificate.id)}>
                       Revocar
@@ -475,6 +489,27 @@ function EventBody({ eventId }: { eventId: string }) {
         <input id="venue-code" value={venueCode} onChange={(input) => setVenueCode(input.target.value)} required />
         <button type="submit">Agregar sede</button>
       </form>
+      {eraseId ? (
+        <ConfirmDialog
+          title="Borrar datos personales"
+          warning="Esta acción no se puede deshacer. Se quitan el nombre, el correo y el documento. Los certificados de esta persona se revocan y dejan de mostrar esos datos."
+          confirmLabel="Borrar datos personales"
+          onCancel={() => setEraseId(null)}
+          onConfirm={() => {
+            const id = eraseId;
+            setEraseId(null);
+            setError(null);
+            setSuccess("");
+            void api(`/api/v1/admin/participants/${id}/erase`, { method: "POST" }).then(
+              () => {
+                setSuccess("Datos personales borrados.");
+                reload();
+              },
+              (failure: unknown) => fail(failure),
+            );
+          }}
+        />
+      ) : null}
       {revokeId ? (
         <RevokeDialog
           onCancel={() => setRevokeId(null)}

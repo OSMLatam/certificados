@@ -32,6 +32,7 @@ const issued = {
   issuedAt: "2026-11-23T15:00:00.000Z",
   checksumSha256: "a".repeat(64),
   documentMasked: "CC ******0010",
+  badgeSlug: "badgeSLUG123",
 };
 
 describe("public accessibility", () => {
@@ -83,6 +84,7 @@ describe("public accessibility", () => {
       assert.match(shown, /Ada Lovelace/);
       assert.match(shown, /Asistente — "Mapatón de prueba"/);
       assert.match(shown, /Descargar certificado/);
+      assert.match(shown, /Ver insignia/);
       assert.match(shown, /a{64}/);
       assert.match(shown, /CC \*{6}0010/);
       assert.equal(shown.includes("1234560010"), false);

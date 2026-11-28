@@ -10,6 +10,7 @@ import type { AppEnv } from "../config/env";
 import { ENV } from "../config/env.token";
 import { validationFailed } from "../common/http";
 import { PrismaService } from "../prisma/prisma.service";
+import { badgeImageUrl, DEFAULT_BADGE_SVG } from "./default-badge";
 import { revokeBadgeOnly } from "./badge-sync";
 import { assertionJson, classJson, issuerJson, publicBadge, revocationsJson, verifyBadge, verifyCertificate } from "./badge-documents";
 
@@ -28,6 +29,13 @@ export class BadgeDocumentController {
     @Inject(PrismaService) private readonly prisma: PrismaService,
   ) {}
 
+  @Get("default.svg")
+  @Header("Content-Type", "image/svg+xml; charset=utf-8")
+  @Header("Cache-Control", "public, max-age=86400")
+  defaultImage(): string {
+    return DEFAULT_BADGE_SVG;
+  }
+
   @Get("issuer.json")
   @Header("Content-Type", "application/ld+json; charset=utf-8")
   issuer() {
@@ -43,7 +51,7 @@ export class BadgeDocumentController {
   @Get("classes/:id")
   @Header("Content-Type", "application/ld+json; charset=utf-8")
   async badgeClass(@Param("id") id: string) {
-    const image = this.env.SITE_LOGO_URL || this.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+    const image = badgeImageUrl(this.env.PUBLIC_BASE_URL, this.env.SITE_LOGO_URL);
     const document = await classJson(this.prisma, this.env.PUBLIC_BASE_URL, stripJson(id), image);
     if (!document) {
       throw new NotFoundException();
@@ -84,7 +92,14 @@ export class BadgePageController {
     const assertion = await this.prisma.badgeAssertion.findUnique({ where: { slug } });
     const document = assertion ? await assertionJson(this.prisma, this.env.PUBLIC_BASE_URL, assertion.uuid) : null;
     const base = this.env.PUBLIC_BASE_URL.replace(/\/$/, "");
-    return badgePage(slug, chromeFromEnv(this.env), this.env.PRIVACY_CONTACT_EMAIL, `${base}/b/${slug}`, document);
+    return badgePage(
+      slug,
+      chromeFromEnv(this.env),
+      this.env.PRIVACY_CONTACT_EMAIL,
+      `${base}/b/${slug}`,
+      document,
+      badgeImageUrl(this.env.PUBLIC_BASE_URL, this.env.SITE_LOGO_URL),
+    );
   }
 }
 
