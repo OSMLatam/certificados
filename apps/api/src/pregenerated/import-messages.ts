@@ -9,6 +9,12 @@ export const IMPORTER_CODES = [
 
 export type ImporterCode = (typeof IMPORTER_CODES)[number];
 
+export function pdfRejectedMessage(row: number, filename?: string): string {
+  const name = filename && filename.length > 0 ? filename : "PDF";
+  const sentence = `el PDF ${name} no se pudo validar (puede tener acciones o JavaScript, o estar dañado)`;
+  return row > 0 ? `Fila ${row}: ${sentence}` : `El PDF no se pudo validar (puede tener acciones o JavaScript, o estar dañado)`;
+}
+
 export function importerMessage(code: string, value?: string): string {
   const name = value && value.length > 0 ? value : "";
   switch (code) {

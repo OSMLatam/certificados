@@ -4,6 +4,7 @@ import { AdminShell } from "./AdminShell";
 import { FormAlert, FormSuccess } from "./FormAlert";
 import { RevokeDialog } from "./RevokeDialog";
 import { ApiError, invalidFormMessage } from "./form-feedback";
+import { importSummary } from "./import-summary";
 
 type EventDetail = {
   id: string;
@@ -375,9 +376,9 @@ function EventBody({ eventId }: { eventId: string }) {
           body.set("file", file);
           setError(null);
           setSuccess("");
-          void api<{ participantCount: number }>(`/api/v1/admin/events/${eventId}/participants/import`, { method: "POST", body }).then(
+          void api<{ participantCount: number; certificateCount: number }>(`/api/v1/admin/events/${eventId}/participants/import`, { method: "POST", body }).then(
             (result) => {
-              setSuccess(`Se importaron ${result.participantCount} participantes.`);
+              setSuccess(importSummary(result.participantCount, result.certificateCount));
               reload();
             },
             (reason: unknown) => fail(reason),
@@ -410,9 +411,9 @@ function EventBody({ eventId }: { eventId: string }) {
           body.set("zip", zip);
           setError(null);
           setSuccess("");
-          void api<{ participantCount: number }>(`/api/v1/admin/events/${eventId}/pregenerated/import`, { method: "POST", body }).then(
+          void api<{ participantCount: number; certificateCount: number }>(`/api/v1/admin/events/${eventId}/pregenerated/import`, { method: "POST", body }).then(
             (result) => {
-              setSuccess(`Se importaron ${result.participantCount} participantes.`);
+              setSuccess(importSummary(result.participantCount, result.certificateCount));
               reload();
             },
             (reason: unknown) => fail(reason),

@@ -35,5 +35,13 @@ describe("form feedback", () => {
 
     const signedOut = failureFromBody({ message: "Unauthorized", statusCode: 401 }, 401);
     assert.equal(signedOut.message, "Inicia sesión con tu cuenta de OpenStreetMap para entrar al panel");
+
+    const pdf = formatDetail({
+      row: 33,
+      field: "filename",
+      value: "sotm25-031.pdf",
+      message: 'Fila 33: el PDF sotm25-031.pdf no se pudo validar (puede tener acciones o JavaScript, o estar dañado)',
+    });
+    assert.equal(pdf, 'Fila 33: el PDF sotm25-031.pdf no se pudo validar (puede tener acciones o JavaScript, o estar dañado)');
   });
 });

@@ -195,7 +195,7 @@ Sirve cuando los certificados ya existen como PDF, por ejemplo si se imprimieron
    ```
 3. Sube la **Hoja CSV** y un **ZIP** con los PDF, y haz clic en **Importar lote**.
 
-Cada fila de la hoja necesita su PDF en el ZIP, y cada PDF del ZIP necesita su fila. Si falta o sobra uno, no se importa nada y la plataforma dice cuál. La plataforma guarda el PDF tal cual: lo que descarga la persona es idéntico al que subiste.
+Cada fila de la hoja necesita su PDF en el ZIP, y cada PDF del ZIP necesita su fila. Si falta o sobra uno, no se importa nada y la plataforma dice cuál. Si el lote entra, el aviso cuenta las dos cosas, por ejemplo «Se importaron 33 participantes, 44 certificados.». La plataforma guarda el PDF tal cual: lo que descarga la persona es idéntico al que subiste.
 
 ## 9. Corregir o revocar un certificado
 Los datos de un participante no se editan desde el panel, y un certificado emitido nunca cambia. Para corregir un nombre o un documento: **revoca** el certificado y **carga de nuevo** a la persona con los datos correctos. Por eso conviene revisar bien la lista **antes de publicar**.
@@ -237,6 +237,7 @@ Si se retiró un evento por error, solo quien administra el servidor puede recup
 | «Fila N: ya existe una persona con este documento (o correo) llamada "…" ; aquí viene como "…". Corrige el nombre para que coincida, o corrige primero a la persona existente.» | El correo o el documento ya están guardados con otro nombre. Iguala el nombre del archivo al que ya está, o corrige primero a la persona existente. La importación no cambia el nombre. En el alta individual sale la misma frase, sin «Fila N». |
 | «Fila N: el correo pertenece a "…" y el documento a "…". Revisa los datos.» | El correo es de una persona y el documento de otra. Corrige cuál dato corresponde a quién. |
 | «Fila N: esta persona ya tiene un certificado de ponente para "Título".» | Esa persona ya tiene ese rol con la misma actividad. Cambia el título o quita la fila. Sin actividad, el mismo rol no se puede repetir. |
+| «Fila N: el PDF nombre.pdf no se pudo validar (puede tener acciones o JavaScript, o estar dañado)» | Ese PDF trae una acción (JavaScript, abrir un programa o enviar un formulario) o no se pudo leer. Quítalo del ZIP o expórtalo de nuevo sin acciones. |
 | Salen signos raros en vez de tildes | Guarda el CSV como **CSV UTF-8**. |
 | No puedo publicar | Falta la plantilla predeterminada: abre **Editar plantillas**. |
 | Una persona no encuentra su certificado | Verifica que el evento esté **publicado** y que busque con el mismo correo o documento que se cargó. |

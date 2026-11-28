@@ -18,7 +18,7 @@ import { planParticipantImport, type ImportIssue } from "../participants/csv-imp
 import { csvBasename } from "../participants/multipart-file";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
-import { importerMessage } from "./import-messages";
+import { importerMessage, pdfRejectedMessage } from "./import-messages";
 import { inspectCertificateFile } from "./file-kind";
 import { readCertificateZip } from "./zip-file";
 
@@ -85,7 +85,7 @@ export class PregeneratedService {
       if (!bytes) {
         continue;
       }
-      const file = inspectCertificateFile(bytes);
+      const file = await inspectCertificateFile(bytes);
       if (!file.ok) {
         issues.push({ row: row.row, field: "filename", message: file.message, value: row.filename });
         continue;
@@ -230,9 +230,10 @@ export class PregeneratedService {
         message: "El archivo de un certificado emitido no se reemplaza.",
       });
     }
-    const inspected = inspectCertificateFile(bytes, ONE_FILE_BYTES);
+    const inspected = await inspectCertificateFile(bytes, ONE_FILE_BYTES);
     if (!inspected.ok) {
-      throw validationFailed([{ field: "file", message: inspected.message }]);
+      const message = inspected.message === "UPLOAD_PDF_REJECTED" ? pdfRejectedMessage(0) : inspected.message;
+      throw validationFailed([{ field: "file", message }]);
     }
     const checksum = createHash("sha256").update(bytes).digest("hex");
     const storageKey = `certs/${certificate.id}/${checksum}.${extensionFor(inspected.info.mimeType)}`;
@@ -354,7 +355,8 @@ function extensionFor(mimeType: string): string {
 function report(issues: ImportIssue[]): BadRequestException {
   const shown: FieldDetail[] = issues.slice(0, 100).map((issue) => ({
     field: issue.field,
-    message: importerMessage(issue.message, issue.value),
+    message:
+      issue.message === "UPLOAD_PDF_REJECTED" ? pdfRejectedMessage(issue.row, issue.value) : importerMessage(issue.message, issue.value),
     ...(issue.row > 0 ? { row: issue.row } : {}),
     ...(issue.value !== undefined ? { value: issue.value } : {}),
   }));
